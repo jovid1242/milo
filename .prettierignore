@@ -1,0 +1,9 @@
+node_modules/
+.expo/
+assets/
+assets-original/
+.assets-build/
+.assets-previous/
+ASSET_MANIFEST.md
+assets-manifest.json
+package-lock.json

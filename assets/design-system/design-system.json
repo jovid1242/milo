@@ -1,0 +1,756 @@
+{
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "meta": {
+      "name": "English Challenge Design System",
+      "version": "1.0.0",
+      "platform": "React Native Expo",
+      "target": ["iOS", "Android"],
+      "theme": "light-only",
+      "design_direction": "playful-premium",
+      "description": "A premium, playful 90-day English challenge app for small groups. Clean white UI combined with a distinctive mascot, journey map and game mechanics.",
+      "core_principles": [
+        "White space is part of the design",
+        "Mascot creates emotion; UI itself stays restrained",
+        "Use lime as the primary interactive accent",
+        "Black and white dominate the interface",
+        "Game elements must feel intentional, not childish",
+        "Progress must be immediately understandable",
+        "Avoid generic AI-generated dashboard aesthetics",
+        "Avoid excessive cards, gradients and decorative elements"
+      ]
+    },
+  
+    "colors": {
+      "background": {
+        "primary": "#FFFFFF",
+        "secondary": "#F7F8F6",
+        "tertiary": "#F1F3F0"
+      },
+  
+      "surface": {
+        "primary": "#FFFFFF",
+        "secondary": "#F6F7F5",
+        "elevated": "#FFFFFF",
+        "dark": "#151716",
+        "darkSecondary": "#202220"
+      },
+  
+      "brand": {
+        "primary": "#D7FF24",
+        "primaryPressed": "#C5ED14",
+        "primarySoft": "#F2FFC2",
+        "primaryMuted": "#E9F8A3"
+      },
+  
+      "text": {
+        "primary": "#111312",
+        "secondary": "#686D78",
+        "tertiary": "#9A9FA8",
+        "inverse": "#FFFFFF",
+        "disabled": "#B9BDC4"
+      },
+  
+      "border": {
+        "default": "#E9EBE8",
+        "strong": "#D8DBD7",
+        "dark": "#303330"
+      },
+  
+      "semantic": {
+        "success": "#18B76A",
+        "successSoft": "#E8F8EF",
+  
+        "warning": "#F5A623",
+        "warningSoft": "#FFF5DF",
+  
+        "danger": "#F04444",
+        "dangerSoft": "#FFF0F0",
+  
+        "info": "#5C7CFA",
+        "infoSoft": "#EEF2FF"
+      },
+  
+      "game": {
+        "xp": "#D7FF24",
+        "streak": "#FF6B35",
+        "locked": "#A8ADB5",
+        "completed": "#18B76A",
+        "currentDay": "#D7FF24"
+      }
+    },
+  
+    "typography": {
+      "fontFamily": {
+        "primary": "Inter",
+        "fallback": "System"
+      },
+  
+      "weights": {
+        "regular": "400",
+        "medium": "500",
+        "semibold": "600",
+        "bold": "700",
+        "extraBold": "800"
+      },
+  
+      "styles": {
+        "displayLarge": {
+          "fontSize": 48,
+          "lineHeight": 52,
+          "fontWeight": "700",
+          "letterSpacing": -1.6
+        },
+  
+        "display": {
+          "fontSize": 40,
+          "lineHeight": 44,
+          "fontWeight": "700",
+          "letterSpacing": -1.2
+        },
+  
+        "h1": {
+          "fontSize": 32,
+          "lineHeight": 38,
+          "fontWeight": "700",
+          "letterSpacing": -0.8
+        },
+  
+        "h2": {
+          "fontSize": 26,
+          "lineHeight": 32,
+          "fontWeight": "700",
+          "letterSpacing": -0.5
+        },
+  
+        "h3": {
+          "fontSize": 21,
+          "lineHeight": 27,
+          "fontWeight": "600",
+          "letterSpacing": -0.2
+        },
+  
+        "title": {
+          "fontSize": 18,
+          "lineHeight": 24,
+          "fontWeight": "600"
+        },
+  
+        "bodyLarge": {
+          "fontSize": 17,
+          "lineHeight": 25,
+          "fontWeight": "400"
+        },
+  
+        "body": {
+          "fontSize": 15,
+          "lineHeight": 22,
+          "fontWeight": "400"
+        },
+  
+        "bodyMedium": {
+          "fontSize": 15,
+          "lineHeight": 22,
+          "fontWeight": "500"
+        },
+  
+        "label": {
+          "fontSize": 13,
+          "lineHeight": 18,
+          "fontWeight": "600"
+        },
+  
+        "caption": {
+          "fontSize": 12,
+          "lineHeight": 17,
+          "fontWeight": "400"
+        },
+  
+        "micro": {
+          "fontSize": 11,
+          "lineHeight": 14,
+          "fontWeight": "500"
+        }
+      }
+    },
+  
+    "spacing": {
+      "0": 0,
+      "1": 4,
+      "2": 8,
+      "3": 12,
+      "4": 16,
+      "5": 20,
+      "6": 24,
+      "8": 32,
+      "10": 40,
+      "12": 48,
+      "16": 64
+    },
+  
+    "layout": {
+      "screen": {
+        "horizontalPadding": 20,
+        "maxContentWidth": 600,
+        "sectionGap": 28,
+        "backgroundColor": "#FFFFFF"
+      },
+  
+      "safeArea": {
+        "enabled": true
+      },
+  
+      "touchTarget": {
+        "minimum": 44
+      },
+  
+      "contentDensity": "comfortable",
+  
+      "rules": [
+        "Prefer vertical rhythm over containers",
+        "Do not wrap every section in a card",
+        "Use separators when a card is unnecessary",
+        "Primary information must remain above the fold",
+        "Do not horizontally compress important text"
+      ]
+    },
+  
+    "radius": {
+      "xs": 8,
+      "sm": 12,
+      "md": 16,
+      "lg": 20,
+      "xl": 24,
+      "xxl": 32,
+      "pill": 999
+    },
+  
+    "shadow": {
+      "none": {
+        "opacity": 0
+      },
+  
+      "subtle": {
+        "color": "#000000",
+        "opacity": 0.05,
+        "radius": 12,
+        "offsetX": 0,
+        "offsetY": 4,
+        "elevation": 2
+      },
+  
+      "floating": {
+        "color": "#000000",
+        "opacity": 0.1,
+        "radius": 24,
+        "offsetX": 0,
+        "offsetY": 10,
+        "elevation": 8
+      }
+    },
+  
+    "icons": {
+      "library": "lucide-react-native",
+      "defaultSize": 22,
+      "smallSize": 18,
+      "largeSize": 26,
+      "strokeWidth": 2,
+      "color": "#111312",
+      "rules": [
+        "Use outline icons by default",
+        "Do not mix multiple icon libraries",
+        "Do not use emoji as primary UI icons",
+        "Emoji may only appear in conversational or celebratory content"
+      ]
+    },
+  
+    "components": {
+      "primaryButton": {
+        "height": 56,
+        "borderRadius": 18,
+        "background": "#D7FF24",
+        "textColor": "#111312",
+        "fontSize": 16,
+        "fontWeight": "600",
+        "horizontalPadding": 24,
+        "pressedScale": 0.98
+      },
+  
+      "darkButton": {
+        "height": 56,
+        "borderRadius": 18,
+        "background": "#151716",
+        "textColor": "#FFFFFF",
+        "fontSize": 16,
+        "fontWeight": "600"
+      },
+  
+      "secondaryButton": {
+        "height": 52,
+        "borderRadius": 16,
+        "background": "#F3F4F2",
+        "textColor": "#111312",
+        "fontSize": 15,
+        "fontWeight": "600"
+      },
+  
+      "iconButton": {
+        "size": 44,
+        "borderRadius": 22,
+        "background": "#F4F5F3"
+      },
+  
+      "card": {
+        "background": "#FFFFFF",
+        "borderRadius": 20,
+        "borderWidth": 1,
+        "borderColor": "#E9EBE8",
+        "padding": 16,
+        "shadow": "subtle"
+      },
+  
+      "darkCard": {
+        "background": "#151716",
+        "borderRadius": 24,
+        "padding": 20,
+        "textColor": "#FFFFFF"
+      },
+  
+      "progressBar": {
+        "height": 8,
+        "track": "#EAEBE8",
+        "fill": "#D7FF24",
+        "borderRadius": 999
+      },
+  
+      "compactProgressBar": {
+        "height": 6,
+        "track": "#EAEBE8",
+        "fill": "#18B76A",
+        "borderRadius": 999
+      },
+  
+      "input": {
+        "height": 54,
+        "borderRadius": 16,
+        "background": "#F6F7F5",
+        "borderColor": "#E5E7E4",
+        "borderWidth": 1,
+        "horizontalPadding": 16,
+        "fontSize": 16
+      },
+  
+      "chip": {
+        "height": 36,
+        "borderRadius": 999,
+        "horizontalPadding": 14,
+        "background": "#F2F3F1",
+        "activeBackground": "#151716",
+        "activeText": "#FFFFFF"
+      },
+  
+      "divider": {
+        "height": 1,
+        "color": "#ECEEEC"
+      }
+    },
+  
+    "navigation": {
+      "type": "bottom-tab",
+  
+      "tabs": [
+        {
+          "id": "today",
+          "label": "Today",
+          "icon": "house"
+        },
+        {
+          "id": "team",
+          "label": "Team",
+          "icon": "users"
+        },
+        {
+          "id": "progress",
+          "label": "Progress",
+          "icon": "chart-no-axes-column"
+        },
+        {
+          "id": "profile",
+          "label": "Profile",
+          "icon": "user"
+        }
+      ],
+  
+      "height": 72,
+      "background": "#FFFFFF",
+      "borderTopColor": "#ECEEEC",
+  
+      "active": {
+        "iconColor": "#111312",
+        "indicatorColor": "#D7FF24"
+      },
+  
+      "inactive": {
+        "iconColor": "#8A9099",
+        "textColor": "#8A9099"
+      }
+    },
+  
+    "mascot": {
+      "name": "Milo",
+  
+      "role": "The visual companion of the 90-day journey.",
+  
+      "visualStyle": {
+        "type": "soft 3D illustration",
+        "body": "small rounded white creature",
+        "face": "two simple dark eyes and minimal mouth",
+        "hat": "green knitted beanie",
+        "accessory": "small explorer backpack",
+        "personality": [
+          "curious",
+          "supportive",
+          "slightly mischievous",
+          "adventurous"
+        ]
+      },
+  
+      "rules": [
+        "Milo must remain visually recognizable across every screen",
+        "Do not redesign Milo between screens",
+        "Do not make Milo human",
+        "Do not make Milo resemble an existing famous mascot",
+        "Do not use Milo simply as decoration",
+        "Milo should react to actual user progress",
+        "Avoid excessive mascot appearances in information-dense screens"
+      ],
+  
+      "states": {
+        "idle": "Standing calmly with backpack",
+        "learning": "Reading a book or studying a map",
+        "correct": "Small celebration",
+        "perfect": "Large celebration with flag",
+        "thinking": "Looking at notes or map",
+        "warning": "Looking at a clock",
+        "missed": "Sitting near an extinguished campfire",
+        "streak": "Walking confidently on the journey",
+        "achievement": "Holding a badge or trophy",
+        "finalBattle": "Adventure pose with headband",
+        "completed90Days": "Standing at the summit with the team flag"
+      }
+    },
+  
+    "journey": {
+      "concept": "The 90-day challenge is represented as one continuous expedition.",
+  
+      "chapters": [
+        {
+          "id": 1,
+          "name": "The Beginning",
+          "days": "1-10"
+        },
+        {
+          "id": 2,
+          "name": "Momentum",
+          "days": "11-30"
+        },
+        {
+          "id": 3,
+          "name": "Habit",
+          "days": "31-60"
+        },
+        {
+          "id": 4,
+          "name": "Growth",
+          "days": "61-89"
+        },
+        {
+          "id": 5,
+          "name": "The Summit",
+          "days": "90"
+        }
+      ],
+  
+      "mapStyle": {
+        "visual": "illustrated natural landscape",
+        "environment": [
+          "mountains",
+          "forest",
+          "paths",
+          "small rivers",
+          "camp sites",
+          "summit"
+        ],
+        "completedNode": "#18B76A",
+        "currentNode": "#D7FF24",
+        "futureNode": "#FFFFFF",
+        "path": "#FFFFFF"
+      },
+  
+      "rules": [
+        "The map is progression, not decoration",
+        "Current day must always be obvious",
+        "Completed days remain visible",
+        "Future locations may be partially revealed",
+        "Day 90 should visually appear as a destination"
+      ]
+    },
+  
+    "home": {
+      "priorityOrder": [
+        "currentDay",
+        "journey",
+        "teamProgress",
+        "todayQuests",
+        "deadline"
+      ],
+  
+      "currentDay": {
+        "format": "Day {current} / {total}",
+        "showDaysRemaining": true,
+        "showTeamStreak": true
+      },
+  
+      "teamPreview": {
+        "maxVisibleMembers": 3,
+        "showProgress": true,
+        "showCompletedState": true
+      },
+  
+      "quests": {
+        "title": "Today's quests",
+        "items": [
+          "Vocabulary",
+          "Review",
+          "Grammar",
+          "Reading",
+          "Final Battle"
+        ]
+      },
+  
+      "deadline": {
+        "alwaysVisibleWhenIncomplete": true,
+        "dangerColor": "#F04444",
+        "showPenalty": true
+      }
+    },
+  
+    "learning": {
+      "vocabulary": {
+        "showProgress": true,
+        "showWord": true,
+        "showPhonetic": true,
+        "showTranslation": true,
+        "showPartOfSpeech": true,
+        "showExample": true,
+        "showFavorite": true,
+        "showMascot": true
+      },
+  
+      "grammar": {
+        "structure": [
+          "topic",
+          "shortExplanation",
+          "example",
+          "exercise"
+        ],
+  
+        "rules": [
+          "Avoid long walls of text",
+          "One concept per screen when possible"
+        ]
+      },
+  
+      "reading": {
+        "showEstimatedTime": true,
+        "comfortableLineHeight": true,
+        "maxParagraphWidth": "screen minus 40px"
+      },
+  
+      "quiz": {
+        "progressPosition": "top",
+        "answersPerQuestion": 4,
+        "correctColor": "#D7FF24",
+        "wrongColor": "#F04444",
+        "primaryActionPosition": "bottom",
+        "useMascotReaction": true
+      }
+    },
+  
+    "gamification": {
+      "primaryMechanics": [
+        "90-day journey",
+        "team streak",
+        "personal streak",
+        "XP",
+        "daily quests",
+        "weekly exams",
+        "achievements",
+        "penalties",
+        "final battle"
+      ],
+  
+      "xp": {
+        "enabled": true,
+        "display": "subtle"
+      },
+  
+      "streak": {
+        "personal": true,
+        "team": true,
+        "teamStreakImportance": "high"
+      },
+  
+      "penalty": {
+        "currency": "TJS",
+        "defaultAmount": 50,
+        "visualTone": "serious",
+        "neverCelebratePenalty": true
+      }
+    },
+  
+    "motion": {
+      "principles": [
+        "Animations must communicate state or progress",
+        "Avoid animation purely for decoration",
+        "Mascot animation can provide emotional feedback"
+      ],
+  
+      "duration": {
+        "fast": 150,
+        "normal": 250,
+        "slow": 450
+      },
+  
+      "interactions": {
+        "buttonPress": {
+          "scale": 0.98,
+          "duration": 120
+        },
+  
+        "questComplete": {
+          "type": "checkmark + subtle scale",
+          "duration": 300
+        },
+  
+        "correctAnswer": {
+          "type": "answer highlight + mascot reaction",
+          "duration": 400
+        },
+  
+        "dayComplete": {
+          "type": "celebration",
+          "duration": 900
+        },
+  
+        "mapAdvance": {
+          "type": "path reveal + mascot movement",
+          "duration": 700
+        }
+      }
+    },
+  
+    "screens": {
+      "required": [
+        "Today",
+        "Journey Map",
+        "Vocabulary",
+        "Vocabulary Quiz",
+        "Vocabulary Complete",
+        "Review",
+        "Grammar Lesson",
+        "Grammar Exercise",
+        "Reading",
+        "Reading Questions",
+        "Final Battle",
+        "Day Complete",
+        "Team",
+        "Leaderboard",
+        "Penalties",
+        "Progress Overview",
+        "Calendar",
+        "Weekly Exam",
+        "Exam Result",
+        "Achievements",
+        "Profile",
+        "Challenge Settings"
+      ]
+    },
+  
+    "responsive": {
+      "baseWidth": 390,
+      "supportSmallPhones": true,
+      "supportLargePhones": true,
+  
+      "rules": [
+        "Never hardcode screen height",
+        "Use SafeAreaView",
+        "Allow vertical scrolling where necessary",
+        "Bottom actions must respect safe-area inset",
+        "Support dynamic text without breaking layouts"
+      ]
+    },
+  
+    "accessibility": {
+      "minimumTouchTarget": 44,
+      "minimumBodyFontSize": 14,
+      "doNotUseColorAsOnlyStateIndicator": true,
+      "supportReducedMotion": true,
+      "supportScreenReaderLabels": true,
+      "contrast": "WCAG AA where practical"
+    },
+  
+    "antiAiSlop": {
+      "forbidden": [
+        "Random gradients on cards",
+        "Gradient text",
+        "Glassmorphism everywhere",
+        "Different pastel color for every feature",
+        "Huge generic dashboard cards",
+        "Decorative motivational quote on every screen",
+        "Excessive emoji",
+        "Excessive shadows",
+        "Excessive rounded containers",
+        "Random floating shapes",
+        "Generic stock illustrations",
+        "Different illustration style between screens",
+        "Multiple competing accent colors",
+        "Decorative charts with fake data",
+        "Unnecessary badges",
+        "Unnecessary labels",
+        "Oversized headers that waste vertical space"
+      ],
+  
+      "required": [
+        "Every visual element must have a purpose",
+        "Use whitespace before adding containers",
+        "Keep the mascot visually consistent",
+        "Keep lime as the primary accent",
+        "Use typography to create hierarchy",
+        "Prefer simple layouts over decorative layouts",
+        "Game mechanics should drive visual personality"
+      ]
+    },
+  
+    "implementation": {
+      "framework": "React Native Expo",
+      "language": "TypeScript",
+  
+      "recommended": {
+        "icons": "lucide-react-native",
+        "animations": "react-native-reanimated",
+        "gestures": "react-native-gesture-handler",
+        "safeArea": "react-native-safe-area-context"
+      },
+  
+      "rules": [
+        "Create reusable design tokens",
+        "Never duplicate hex colors inside screen components",
+        "Never duplicate typography definitions",
+        "Create reusable Button, Card, ProgressBar, Avatar, QuestRow and ScreenHeader components",
+        "Separate mascot assets from UI components",
+        "Do not invent new colors or spacing values without updating this design system",
+        "Do not redesign supplied reference screens",
+        "Use supplied design references as the visual source of truth"
+      ]
+    }
+  }
