@@ -54,7 +54,7 @@ export function LearnWord({ item, revealed, onReveal, onLearned }: LearnWordProp
 
       {revealed ? (
         <Animated.View entering={FadeInDown.duration(durations.normal)} style={styles.meaning}>
-          <AppText variant="title1" color="brand">
+          <AppText variant="headline" color="brand">
             {item.translation}
           </AppText>
           <AppText variant="bodyLarge">{item.definition}</AppText>

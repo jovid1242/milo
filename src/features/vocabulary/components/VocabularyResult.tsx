@@ -50,13 +50,18 @@ export function VocabularyResult({
   const reduceMotion = useReducedMotion();
   const { width } = useWindowDimensions();
   const heroWidth = clamp(Math.round(width * 0.5), 170, 220);
+  const heroHeight = Math.round(heroWidth * 0.95);
+  // The glow may reach a little past Milo, but never up into the progress bar.
+  const raysWidth = Math.round(heroWidth * 1.4);
+  const raysHeight = Math.round(
+    (raysWidth * effects.perfectRays.height) / effects.perfectRays.width,
+  );
+  const raysOverflow = Math.max(0, Math.round((raysHeight - heroHeight) / 2));
   const xp = summary.xpEarned;
   const shownXp = useCountUp(
     xp ?? 0,
     xp !== null && xp > 0 ? { key: 'result', from: 0, to: xp } : null,
-    {
-      delayMs: 400,
-    },
+    { delayMs: 400 },
   );
 
   const rays = useSharedValue(0);
@@ -104,10 +109,14 @@ export function VocabularyResult({
           />
         )
       }>
-      <View style={[styles.hero, { height: Math.round(heroWidth * 0.95) }]}>
+      <View
+        style={[
+          styles.hero,
+          { height: heroHeight, marginTop: summary.isPerfect ? raysOverflow : 0 },
+        ]}>
         {summary.isPerfect ? (
           <Animated.View style={[styles.layer, raysStyle]}>
-            <AssetImage asset={effects.perfectRays} width={heroWidth * 1.7} />
+            <AssetImage asset={effects.perfectRays} width={raysWidth} />
           </Animated.View>
         ) : null}
         <Animated.View entering={ZoomIn.duration(durations.slow)}>
@@ -115,7 +124,7 @@ export function VocabularyResult({
         </Animated.View>
         {summary.isPerfect ? (
           <Animated.View style={[styles.layer, sparkleStyle]}>
-            <AssetImage asset={effects.sparkles} width={heroWidth * 1.5} />
+            <AssetImage asset={effects.sparkles} width={Math.round(heroWidth * 1.3)} />
           </Animated.View>
         ) : null}
       </View>
@@ -135,7 +144,7 @@ export function VocabularyResult({
         <StatsRow
           stats={[
             { label: 'correct', value: `${summary.correctCount}/${summary.total}` },
-            { label: 'XP', value: xp === null ? '…' : `+${shownXp}` },
+            { label: 'XP', value: xp === null ? '…' : xp === 0 ? '0' : `+${shownXp}` },
             { label: 'words', value: String(summary.wordsLearned.length) },
           ]}
         />

@@ -12,11 +12,13 @@ import { clamp } from '@/utils/number';
 export type VocabularyIntroProps = {
   quest: Quest;
   wordCount: number;
+  /** Replaying a finished quest: practice only, no XP to promise. */
+  replay: boolean;
   onStart: () => void;
 };
 
 /** A short hello before the words: how many, how long, what it pays. */
-export function VocabularyIntro({ quest, wordCount, onStart }: VocabularyIntroProps) {
+export function VocabularyIntro({ quest, wordCount, replay, onStart }: VocabularyIntroProps) {
   const { width } = useWindowDimensions();
 
   return (
@@ -49,7 +51,11 @@ export function VocabularyIntro({ quest, wordCount, onStart }: VocabularyIntroPr
           <AppText variant="label" color="secondary">
             {`about ${quest.estimatedMinutes} min`}
           </AppText>
-          <Badge label={`+${quest.xpReward} XP`} tone="reward" />
+          {replay ? (
+            <Badge label="Practice · no XP" tone="neutral" />
+          ) : (
+            <Badge label={`+${quest.xpReward} XP`} tone="reward" />
+          )}
         </View>
       </Animated.View>
     </QuestStage>

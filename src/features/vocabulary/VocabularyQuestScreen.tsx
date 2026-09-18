@@ -93,7 +93,7 @@ export function VocabularyQuestScreen({ questId }: { questId: string }) {
   }
 
   return (
-    <Screen edges={['top', 'bottom']} background="warm" testID="vocabulary-quest">
+    <Screen fullScreenModal edges={['top', 'bottom']} background="warm" testID="vocabulary-quest">
       <View style={styles.fill}>{body}</View>
     </Screen>
   );
@@ -163,7 +163,14 @@ function VocabularyFlow({
 
   let stage: ReactNode = null;
   if (state.phase === 'intro') {
-    stage = <VocabularyIntro quest={data.quest} wordCount={itemCount} onStart={flow.start} />;
+    stage = (
+      <VocabularyIntro
+        quest={data.quest}
+        wordCount={itemCount}
+        replay={mode === 'replay'}
+        onStart={flow.start}
+      />
+    );
   } else if (state.phase === 'learn') {
     const item = currentItem(content, state);
     if (item) {

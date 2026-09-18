@@ -8,6 +8,8 @@ export type ExerciseView = {
   instruction: string;
   /** Word or translation to recognise; `null` for sentence exercises. */
   prompt: string | null;
+  /** The prompt is the Russian translation (needs a Cyrillic font). */
+  promptIsTranslation: boolean;
   /** Sentence around the gap (fill-the-gap exercises). */
   sentence: { before: string; after: string } | null;
   options: { itemId: string; label: string }[];
@@ -34,6 +36,7 @@ export function describeExercise(
       return {
         instruction: 'What does it mean?',
         prompt: item.word,
+        promptIsTranslation: false,
         sentence: null,
         options,
         answerLabel: item.translation,
@@ -43,6 +46,7 @@ export function describeExercise(
       return {
         instruction: 'Which word is it?',
         prompt: item.translation,
+        promptIsTranslation: true,
         sentence: null,
         options,
         answerLabel: item.word,
@@ -53,6 +57,7 @@ export function describeExercise(
       return {
         instruction: 'Complete the sentence',
         prompt: null,
+        promptIsTranslation: false,
         sentence: { before, after },
         options,
         answerLabel: item.word,

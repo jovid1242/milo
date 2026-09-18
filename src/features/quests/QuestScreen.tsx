@@ -16,7 +16,7 @@ export function QuestScreen() {
 
   if (quest.isPending) {
     return (
-      <Screen background="warm">
+      <Screen fullScreenModal background="warm">
         <LoadingState />
       </Screen>
     );

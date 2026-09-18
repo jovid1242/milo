@@ -61,6 +61,14 @@ export const typography = {
     },
     maxFontSizeMultiplier: 1.3,
   },
+  /**
+   * Large text in Russian (translations). Fraunces has no Cyrillic, so it
+   * would fall back to the system font; Inter has it.
+   */
+  headline: {
+    style: { fontFamily: fontFamilies.semiBold, fontSize: 28, lineHeight: 34, letterSpacing: -0.4 },
+    maxFontSizeMultiplier: 1.3,
+  },
   /** Milo's voice: short lines in speech bubbles. */
   speech: {
     style: {

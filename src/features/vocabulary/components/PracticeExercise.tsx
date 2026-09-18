@@ -68,7 +68,9 @@ export function PracticeExercise({
               {view.sentence.after}
             </AppText>
           ) : (
-            <AppText variant="display" accessibilityRole="header">
+            <AppText
+              variant={view.promptIsTranslation ? 'headline' : 'display'}
+              accessibilityRole="header">
               {view.prompt}
             </AppText>
           )}

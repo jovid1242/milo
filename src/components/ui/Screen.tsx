@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react';
 import { ScrollView, StyleSheet, View, type StyleProp, type ViewStyle } from 'react-native';
-import { SafeAreaView, type Edge } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets, type Edge } from 'react-native-safe-area-context';
 
 import { colors, layout, spacing } from '@/theme';
 
@@ -10,6 +10,12 @@ export type ScreenProps = {
   scroll?: boolean;
   background?: 'base' | 'warm';
   edges?: readonly Edge[];
+  /**
+   * Presented as a full-screen modal. The native safe-area view reports no top
+   * inset there (content would slide under the status bar and Dynamic Island),
+   * so the window's insets are applied instead.
+   */
+  fullScreenModal?: boolean;
   /** Horizontal screen padding (design-system: 20pt). */
   padded?: boolean;
   contentContainerStyle?: StyleProp<ViewStyle>;
@@ -23,18 +29,18 @@ export function Screen({
   scroll = false,
   background = 'base',
   edges = ['top'],
+  fullScreenModal = false,
   padded = true,
   contentContainerStyle,
   overlay,
   testID,
 }: ScreenProps) {
+  const insets = useSafeAreaInsets();
   const contentStyle = [padded && styles.padded, contentContainerStyle];
+  const backgroundStyle = { backgroundColor: colors.background[background] };
 
-  return (
-    <SafeAreaView
-      testID={testID}
-      edges={edges}
-      style={[styles.safeArea, { backgroundColor: colors.background[background] }]}>
+  const content = (
+    <>
       {scroll ? (
         <ScrollView
           contentContainerStyle={[styles.scrollContent, contentStyle]}
@@ -47,6 +53,31 @@ export function Screen({
         <View style={[styles.content, contentStyle]}>{children}</View>
       )}
       {overlay ? <View style={styles.overlay}>{overlay}</View> : null}
+    </>
+  );
+
+  if (fullScreenModal) {
+    return (
+      <View
+        testID={testID}
+        style={[
+          styles.safeArea,
+          backgroundStyle,
+          {
+            paddingTop: edges.includes('top') ? insets.top : 0,
+            paddingBottom: edges.includes('bottom') ? insets.bottom : 0,
+            paddingLeft: edges.includes('left') ? insets.left : 0,
+            paddingRight: edges.includes('right') ? insets.right : 0,
+          },
+        ]}>
+        {content}
+      </View>
+    );
+  }
+
+  return (
+    <SafeAreaView testID={testID} edges={edges} style={[styles.safeArea, backgroundStyle]}>
+      {content}
     </SafeAreaView>
   );
 }

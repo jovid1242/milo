@@ -39,7 +39,7 @@ export function QuestPlaceholderScreen() {
   }, [questId, start]);
 
   return (
-    <Screen edges={['top', 'bottom']}>
+    <Screen fullScreenModal edges={['top', 'bottom']}>
       <IconButton
         icon={X}
         accessibilityLabel="Close"
