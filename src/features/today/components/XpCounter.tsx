@@ -15,10 +15,12 @@ import { AppText } from '@/components/ui';
 import { easings } from '@/theme';
 import { formatNumber } from '@/utils/number';
 
+/** XP just earned: the counter counts up `from → to` once per `key`. */
+export type XpGain = { key: number; from: number; to: number };
+
 export type XpCounterProps = {
   value: number;
-  /** Set when XP was just earned: counts up from `from` and floats "+N". */
-  gain: { key: number; from: number } | null;
+  gain: XpGain | null;
 };
 
 const COUNT_MS = 700;
@@ -30,6 +32,10 @@ export function XpCounter({ value, gain }: XpCounterProps) {
   const float = useSharedValue(0);
   const [shown, setShown] = useState(value);
 
+  const gainKey = gain?.key ?? null;
+  const gainFrom = gain?.from ?? 0;
+  const gainTo = gain?.to ?? 0;
+
   useAnimatedReaction(
     () => Math.round(counter.get()),
     (current, previous) => {
@@ -37,41 +43,37 @@ export function XpCounter({ value, gain }: XpCounterProps) {
     },
   );
 
+  // Plain value changes (a reset, another day) just show the new number…
   useEffect(() => {
-    if (!gain || gain.from >= value || reduceMotion) {
-      counter.set(value);
-      return;
-    }
+    counter.set(value);
+  }, [value, counter]);
+
+  // …a gain counts up. Declared second so it wins when both change together.
+  useEffect(() => {
+    if (gainKey === null || gainTo <= gainFrom || reduceMotion) return;
     counter.set(
       withSequence(
-        withTiming(gain.from, { duration: 0 }),
-        withDelay(150, withTiming(value, { duration: COUNT_MS, easing: easings.decelerate })),
+        withTiming(gainFrom, { duration: 0 }),
+        withDelay(150, withTiming(gainTo, { duration: COUNT_MS, easing: easings.decelerate })),
       ),
     );
-    float.set(
-      withSequence(withTiming(0, { duration: 0 }), withTiming(1, { duration: COUNT_MS + 500 })),
-    );
-  }, [gain, value, reduceMotion, counter, float]);
+    float.set(withSequence(withTiming(0, { duration: 0 }), withTiming(1, { duration: 1200 })));
+  }, [gainKey, gainFrom, gainTo, reduceMotion, counter, float]);
 
   const floatStyle = useAnimatedStyle(() => {
     const t = float.get();
     return {
-      // Fade in fast, drift up, fade out: a small "+20" that never lingers.
-      opacity: t === 0 || t === 1 ? 0 : Math.min(1, t * 6, (1 - t) * 3),
-      transform: [{ translateY: -4 - t * 14 }],
+      // Fades in fast, drifts up, fades out: a small "+20" that never lingers.
+      opacity: t <= 0 || t >= 1 ? 0 : Math.min(1, t * 6, (1 - t) * 3),
+      transform: [{ translateY: -2 - t * 14 }],
     };
   });
 
-  const earned = gain ? value - gain.from : 0;
-
   return (
-    <View
-      accessible
-      accessibilityLabel={`${formatNumber(value)} XP`}
-      style={styles.container}>
-      {earned > 0 ? (
+    <View accessible accessibilityLabel={`${formatNumber(value)} XP`} style={styles.container}>
+      {gain && gain.to > gain.from ? (
         <Animated.View style={[styles.float, floatStyle]}>
-          <AppText variant="label" color="reward">{`+${earned}`}</AppText>
+          <AppText variant="label" color="reward">{`+${formatNumber(gain.to - gain.from)}`}</AppText>
         </Animated.View>
       ) : null}
       <AppText variant="label" color="reward">{`${formatNumber(shown)} XP`}</AppText>

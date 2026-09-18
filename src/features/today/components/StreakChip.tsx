@@ -15,10 +15,12 @@ import { AppText } from '@/components/ui';
 import { effects } from '@/constants/assets';
 import { colors, radius, spacing, springs } from '@/theme';
 
+/** The streak just grew: one bounce after `delayMs`, then the number updates. */
+export type StreakBump = { key: number; from: number; delayMs: number };
+
 export type StreakChipProps = {
   streak: number;
-  /** Set when the streak just grew: one bounce, then the number updates. */
-  bump: { key: number; from: number; delayMs: number } | null;
+  bump: StreakBump | null;
 };
 
 const streakLabel = (streak: number) => (streak > 0 ? `${streak} day streak` : 'No streak yet');
@@ -31,19 +33,22 @@ export function StreakChip({ streak, bump }: StreakChipProps) {
   const [landedKey, setLandedKey] = useState<number | null>(null);
   const shown = bump && bump.key !== landedKey ? bump.from : streak;
 
+  const bumpKey = bump?.key ?? null;
+  const delayMs = bump?.delayMs ?? 0;
+
   useEffect(() => {
-    if (!bump) return;
-    const timer = setTimeout(() => setLandedKey(bump.key), bump.delayMs);
+    if (bumpKey === null) return;
+    const timer = setTimeout(() => setLandedKey(bumpKey), delayMs);
     if (!reduceMotion) {
       scale.set(
         withDelay(
-          bump.delayMs,
+          delayMs,
           withSequence(withTiming(1.4, { duration: 150 }), withSpring(1, springs.bouncy)),
         ),
       );
       tilt.set(
         withDelay(
-          bump.delayMs,
+          delayMs,
           withSequence(
             withTiming(-12, { duration: 90 }),
             withTiming(9, { duration: 120 }),
@@ -53,20 +58,20 @@ export function StreakChip({ streak, bump }: StreakChipProps) {
       );
     }
     return () => clearTimeout(timer);
-  }, [bump, reduceMotion, scale, tilt]);
+  }, [bumpKey, delayMs, reduceMotion, scale, tilt]);
 
   const fireStyle = useAnimatedStyle(() => ({
     transform: [{ scale: scale.get() }, { rotate: `${tilt.get()}deg` }],
   }));
 
-  const active = shown > 0;
+  const lit = shown > 0;
 
   return (
     <View accessible accessibilityLabel={streakLabel(shown)} style={styles.chip}>
-      <Animated.View style={[fireStyle, !active && styles.unlit]}>
+      <Animated.View style={[fireStyle, !lit && styles.unlit]}>
         <AssetImage asset={effects.streakFire} width={22} />
       </Animated.View>
-      <AppText variant="label" color={active ? 'primary' : 'tertiary'}>
+      <AppText variant="label" color={lit ? 'primary' : 'tertiary'}>
         {streakLabel(shown)}
       </AppText>
     </View>

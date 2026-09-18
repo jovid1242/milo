@@ -1,0 +1,77 @@
+import { CHAPTERS } from '@/data/content/chapters';
+import { buildAllDailyChallenges, questId } from '@/data/content/schedule';
+import { getStartDateForDay } from '@/features/challenge/logic/calendar';
+import { buildProgressState } from '@/features/progress/logic/progress-state';
+import type { QuestCompletion, QuestSession, QuestType } from '@/schemas';
+
+import { buildTodayJourney, type TodayJourney } from '../today-journey';
+
+export const NOW = new Date(2026, 8, 18, 12, 0, 0);
+export const PLANS = buildAllDailyChallenges();
+
+const completion = (day: number, type: QuestType, xpEarned: number): QuestCompletion => ({
+  questId: questId(day, type),
+  day,
+  questType: type,
+  score: 0.8,
+  correctCount: 4,
+  totalCount: 5,
+  xpEarned,
+  source: 'user',
+  completedAt: NOW.toISOString(),
+});
+
+export type JourneyFixture = {
+  day: number;
+  /** Earlier days that are fully complete. */
+  pastDays?: number[];
+  /** Quest types finished today. */
+  doneToday?: QuestType[];
+  /** Quest types opened but not finished. */
+  started?: { type: QuestType; progress: number }[];
+  totalXp?: number;
+};
+
+/** A TodayJourney built through the real progress pipeline. */
+export function journeyFor({
+  day,
+  pastDays = [],
+  doneToday = [],
+  started = [],
+  totalXp = 0,
+}: JourneyFixture): TodayJourney {
+  const plan = PLANS.find((item) => item.day === day);
+  if (!plan) throw new Error(`no plan for day ${day}`);
+
+  const completions = [
+    ...PLANS.filter((item) => pastDays.includes(item.day)).flatMap((item) =>
+      item.quests.map((quest) => completion(item.day, quest.type, quest.xpReward)),
+    ),
+    ...plan.quests
+      .filter((quest) => doneToday.includes(quest.type))
+      .map((quest) => completion(day, quest.type, quest.xpReward)),
+  ];
+  const sessions: QuestSession[] = started.map(({ type, progress }) => ({
+    questId: questId(day, type),
+    startedAt: NOW.toISOString(),
+    updatedAt: NOW.toISOString(),
+    progress,
+  }));
+
+  const progress = buildProgressState({
+    user: {
+      id: 'local-user',
+      displayName: 'Explorer',
+      challengeStartDate: getStartDateForDay(day, NOW),
+      createdAt: NOW.toISOString(),
+    },
+    chapters: CHAPTERS,
+    dailyChallenges: PLANS,
+    completions,
+    totalXp,
+    unlocks: [],
+    now: NOW,
+  });
+
+  return buildTodayJourney({ plan, chapters: CHAPTERS, progress, completions, sessions });
+}

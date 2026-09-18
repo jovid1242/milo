@@ -8,9 +8,7 @@ import { AppText, Button, Divider, IconButton, Screen } from '@/components/ui';
 import { missingAssets } from '@/constants/assets';
 import { useRepositories } from '@/data/repository-provider';
 import { useAchievements } from '@/features/achievements/queries';
-import { playQuestOutcomeFeedback } from '@/features/progress/feedback';
 import { useProgressState } from '@/features/progress/queries';
-import type { QuestOutcome } from '@/features/progress/use-cases';
 import { logger } from '@/lib/logger';
 import { FEEDBACK_EVENTS, playFeedback } from '@/services/feedback';
 import { HAPTIC_PATTERNS, triggerHaptic } from '@/services/haptics/haptics';
@@ -46,13 +44,12 @@ export function DevToolsScreen() {
 
   const context: dev.DevContext = { repositories, queryClient };
 
-  const run = (action: () => Promise<QuestOutcome | null | void>) => () => {
+  // No sounds here: Home plays the matching moment (quest done, day complete,
+  // streak up) when this sheet closes — exactly what a user would hear.
+  const run = (action: () => Promise<unknown>) => () => {
     if (busy) return;
     setBusy(true);
     action()
-      .then((outcome) => {
-        if (outcome) playQuestOutcomeFeedback(outcome);
-      })
       .catch((error: unknown) => {
         logger.error('dev action failed', error);
         Alert.alert('Dev action failed', error instanceof Error ? error.message : String(error));
@@ -60,7 +57,7 @@ export function DevToolsScreen() {
       .finally(() => setBusy(false));
   };
 
-  const chip = (label: string, action: () => Promise<QuestOutcome | null | void>) => (
+  const chip = (label: string, action: () => Promise<unknown>) => (
     <Button
       key={label}
       label={label}
@@ -94,6 +91,15 @@ export function DevToolsScreen() {
             </AppText>
           </View>
         </View>
+
+        <Section title="Home states">
+          {(Object.keys(dev.HOME_SCENARIOS) as dev.HomeScenario[]).map((scenario) =>
+            chip(dev.HOME_SCENARIOS[scenario].label, () =>
+              dev.applyHomeScenario(context, scenario),
+            ),
+          )}
+          {chip('Start current quest', () => dev.startCurrentQuest(context))}
+        </Section>
 
         <Section title="Current day">
           {chip('−1 day', () => dev.shiftCurrentDay(context, -1))}

@@ -1,88 +1,89 @@
-import { Fragment } from 'react';
-import { StyleSheet, View } from 'react-native';
+import { useRouter } from 'expo-router';
+import { useRef } from 'react';
+import { StyleSheet, View, useWindowDimensions } from 'react-native';
 
 import { ErrorState } from '@/components/ErrorState';
-import { AppText, Divider, LoadingState, ProgressBar, Screen } from '@/components/ui';
-import { useChapters, useDailyChallenge } from '@/features/challenge/queries';
-import { useProgressState } from '@/features/progress/queries';
-import { findChapterForDay } from '@/features/challenge/logic/calendar';
+import { LoadingState, Screen } from '@/components/ui';
+import { useStartQuest } from '@/features/progress/queries';
 import { spacing } from '@/theme';
+import { clamp } from '@/utils/number';
 
-import { DayHeader } from './components/DayHeader';
-import { QuestRow } from './components/QuestRow';
+import { CelebrationOverlay } from './components/CelebrationOverlay';
+import { MiloGreeting } from './components/MiloGreeting';
+import { TodayHeader } from './components/TodayHeader';
+import { TodayJourneySection } from './components/TodayJourneySection';
+import { useJourneyMoments } from './hooks/use-journey-moments';
+import { getGreeting } from './logic/greeting';
+import type { JourneyStep, TodayJourney } from './logic/today-journey';
+import { useTodayJourney } from './queries';
 
+/** Home: the daily entry point into the challenge. */
 export function TodayScreen() {
-  const progress = useProgressState();
-  const chapters = useChapters();
-  const daily = useDailyChallenge(progress.data?.currentDay);
+  const journey = useTodayJourney();
 
-  if (progress.isPending || chapters.isPending || daily.isPending) {
+  if (journey.isPending) {
     return (
-      <Screen>
+      <Screen background="warm">
         <LoadingState label="Loading your day" />
       </Screen>
     );
   }
 
-  if (progress.isError || chapters.isError || daily.isError) {
+  if (journey.isError) {
     return (
-      <Screen>
-        <ErrorState
-          error={progress.error ?? chapters.error ?? daily.error}
-          onRetry={() => {
-            void progress.refetch();
-            void chapters.refetch();
-            void daily.refetch();
-          }}
-        />
+      <Screen background="warm">
+        <ErrorState error={journey.error} onRetry={() => void journey.refetch()} />
       </Screen>
     );
   }
 
-  const state = progress.data;
-  const chapter = findChapterForDay(chapters.data, state.currentDay);
-  const completed = new Set(state.todayCompletedQuestIds);
-  const doneCount = daily.data.quests.filter((quest) => completed.has(quest.id)).length;
+  return <TodayContent journey={journey.data} />;
+}
+
+/** Guards against a double tap pushing the quest screen twice. */
+const OPEN_COOLDOWN_MS = 800;
+
+function TodayContent({ journey }: { journey: TodayJourney }) {
+  const router = useRouter();
+  const { width } = useWindowDimensions();
+  const startQuest = useStartQuest();
+  const moment = useJourneyMoments(journey);
+  const lastOpenedAt = useRef(0);
+
+  const openQuest = (step: JourneyStep) => {
+    const now = Date.now();
+    if (now - lastOpenedAt.current < OPEN_COOLDOWN_MS) return;
+    lastOpenedAt.current = now;
+    startQuest.mutate(step.quest.id);
+    router.push({ pathname: '/quest/[questId]', params: { questId: step.quest.id } });
+  };
+
+  const celebrateKey = moment?.dayCompleted ? moment.id : null;
 
   return (
-    <Screen scroll>
+    <Screen
+      scroll
+      background="warm"
+      overlay={<CelebrationOverlay playKey={celebrateKey} />}
+      testID="today-screen">
       <View style={styles.content}>
-        <DayHeader chapter={chapter} progress={state} />
-
-        <View style={styles.section}>
-          <View style={styles.sectionHeader}>
-            <AppText variant="title3">Today&apos;s quests</AppText>
-            <AppText variant="label" color="secondary">
-              {`${doneCount} of ${daily.data.quests.length}`}
-            </AppText>
-          </View>
-          <ProgressBar
-            progress={daily.data.quests.length === 0 ? 0 : doneCount / daily.data.quests.length}
-            accessibilityLabel="Today's quests progress"
-          />
-        </View>
-
-        <View>
-          {daily.data.quests.map((quest, index) => (
-            <Fragment key={quest.id}>
-              {index > 0 ? <Divider inset={60} /> : null}
-              <QuestRow quest={quest} completed={completed.has(quest.id)} />
-            </Fragment>
-          ))}
-        </View>
-
-        {state.isTodayComplete ? (
-          <AppText variant="bodyMedium" color="brand" align="center">
-            Day {state.currentDay} complete. See you tomorrow.
-          </AppText>
-        ) : null}
+        <TodayHeader journey={journey} moment={moment} />
+        <MiloGreeting
+          greeting={getGreeting(journey)}
+          miloWidth={clamp(Math.round(width * 0.25), 88, 116)}
+          celebrateKey={celebrateKey}
+        />
+        <TodayJourneySection
+          journey={journey}
+          moment={moment}
+          campArtWidth={clamp(Math.round(width * 0.34), 116, 150)}
+          onOpenQuest={openQuest}
+        />
       </View>
     </Screen>
   );
 }
 
 const styles = StyleSheet.create({
-  content: { gap: spacing[8], paddingTop: spacing[4] },
-  section: { gap: spacing[3] },
-  sectionHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  content: { gap: spacing[6], paddingTop: spacing[3], paddingBottom: spacing[6] },
 });

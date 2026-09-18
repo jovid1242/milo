@@ -46,14 +46,21 @@ describe('schedule', () => {
     expect(PLANS.find((plan) => plan.day === 7)?.quests.map((q) => q.type)).toContain('weeklyExam');
   });
 
-  it('skips review on day 1 only', () => {
-    expect(PLANS[0]?.quests.map((q) => q.type)).toEqual([
+  it('gives every regular day the same four-step route', () => {
+    for (const plan of PLANS.filter((item) => item.kind === 'regular')) {
+      expect(plan.quests.map((q) => q.type)).toEqual(['vocabulary', 'grammar', 'reading', 'review']);
+    }
+    expect(PLANS.find((plan) => plan.day === 7)?.quests.map((q) => q.type)).toEqual([
       'vocabulary',
-      'grammar',
-      'reading',
-      'finalBattle',
+      'review',
+      'weeklyExam',
     ]);
-    expect(PLANS[1]?.quests.map((q) => q.type)).toContain('review');
+    expect(PLANS.at(-1)?.quests.map((q) => q.type)).toEqual(['review', 'finalBattle']);
+  });
+
+  it('rewards 65 XP for a regular day', () => {
+    const day12 = PLANS.find((plan) => plan.day === 12);
+    expect(day12?.quests.reduce((sum, quest) => sum + quest.xpReward, 0)).toBe(65);
   });
 });
 
