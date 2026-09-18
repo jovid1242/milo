@@ -14,7 +14,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { AssetImage } from '@/components/AssetImage';
 import { effects } from '@/constants/assets';
 
-const DURATION_MS = 2600;
+const DURATION_MS = 2000;
 
 /**
  * The Day Complete moment: confetti drifts down over the top of Home and a
@@ -42,18 +42,20 @@ function Burst() {
   const confettiOpacity = useSharedValue(0);
   const sparkle = useSharedValue(0);
 
+  // A quick sweep: confetti falls through the header and is gone in under two
+  // seconds, so "Day 12 complete" is readable almost at once.
   useEffect(() => {
     confettiOpacity.set(
       withSequence(
-        withTiming(1, { duration: 180 }),
-        withDelay(1300, withTiming(0, { duration: 800 })),
+        withTiming(0.9, { duration: 160 }),
+        withDelay(600, withTiming(0, { duration: 750 })),
       ),
     );
-    confetti.set(withTiming(1, { duration: 2300, easing: Easing.out(Easing.quad) }));
+    confetti.set(withTiming(1, { duration: 1600, easing: Easing.out(Easing.quad) }));
     sparkle.set(
       withSequence(
-        withDelay(120, withTiming(1, { duration: 380 })),
-        withDelay(450, withTiming(0, { duration: 650 })),
+        withDelay(120, withTiming(1, { duration: 360 })),
+        withDelay(400, withTiming(0, { duration: 600 })),
       ),
     );
   }, [confetti, confettiOpacity, sparkle]);
@@ -62,7 +64,7 @@ function Burst() {
     opacity: confettiOpacity.get(),
     transform: reduceMotion
       ? []
-      : [{ translateY: -60 + confetti.get() * 140 }, { scale: 0.94 + confetti.get() * 0.1 }],
+      : [{ translateY: -150 + confetti.get() * 190 }, { scale: 1 + confetti.get() * 0.06 }],
   }));
 
   const sparkleStyle = useAnimatedStyle(() => ({

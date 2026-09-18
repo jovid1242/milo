@@ -10,7 +10,7 @@ import Animated, {
   withSpring,
   withTiming,
 } from 'react-native-reanimated';
-import Svg, { Rect } from 'react-native-svg';
+import Svg, { Path } from 'react-native-svg';
 
 import { QuestIcon } from '@/features/quests/components/QuestIcon';
 import { colors, radius, shadows, springs } from '@/theme';
@@ -86,6 +86,26 @@ export function QuestNode({ step, celebrateKey }: QuestNodeProps) {
   );
 }
 
+/** Rounded square traced clockwise from the top centre, so progress reads like a clock. */
+function roundedSquarePath(origin: number, side: number, corner: number): string {
+  const start = origin;
+  const end = origin + side;
+  const mid = origin + side / 2;
+  const arc = (x: number, y: number) => `A ${corner} ${corner} 0 0 1 ${x} ${y}`;
+  return [
+    `M ${mid} ${start}`,
+    `H ${end - corner}`,
+    arc(end, start + corner),
+    `V ${end - corner}`,
+    arc(end - corner, end),
+    `H ${start + corner}`,
+    arc(start, end - corner),
+    `V ${start + corner}`,
+    arc(start + corner, start),
+    'Z',
+  ].join(' ');
+}
+
 /**
  * Rounded-square ring that follows the icon's shape. `null` = ready to start
  * (full forest ring); a number = in progress (gold arc over a soft track).
@@ -96,26 +116,19 @@ function ProgressRing({ progress }: { progress: number | null }) {
   const corner = side * 0.3;
   const perimeter = 4 * side - 8 * corner + 2 * Math.PI * corner;
   const shown = progress === null ? 1 : Math.max(0.06, Math.min(1, progress));
+  const path = roundedSquarePath(RING_STROKE / 2, side, corner);
 
   return (
     <Svg width={size} height={size} style={StyleSheet.absoluteFill}>
-      <Rect
-        x={RING_STROKE / 2}
-        y={RING_STROKE / 2}
-        width={side}
-        height={side}
-        rx={corner}
+      <Path
+        d={path}
         fill={colors.surface.base}
         stroke={progress === null ? colors.brand.primary : colors.reward.goldSoft}
         strokeWidth={RING_STROKE}
       />
       {progress !== null ? (
-        <Rect
-          x={RING_STROKE / 2}
-          y={RING_STROKE / 2}
-          width={side}
-          height={side}
-          rx={corner}
+        <Path
+          d={path}
           fill="none"
           stroke={colors.reward.goldDeep}
           strokeWidth={RING_STROKE}

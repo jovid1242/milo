@@ -56,11 +56,12 @@ export function TrailConnector({ walked, revealKey }: TrailConnectorProps) {
 }
 
 const styles = StyleSheet.create({
+  // Small gaps at both ends keep the trail reading as one line through the waypoints.
   connector: {
     flex: 1,
     width: 4,
-    minHeight: spacing[4],
-    marginVertical: spacing[2],
+    minHeight: spacing[5],
+    marginVertical: spacing[1],
     alignSelf: 'center',
   },
   walked: {

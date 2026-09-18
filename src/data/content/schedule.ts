@@ -26,7 +26,7 @@ const BLUEPRINTS: Record<
   review: { title: 'Review', summary: 'Quick recap', xpReward: 10, estimatedMinutes: 4 },
   weeklyExam: { title: 'Weekly exam', summary: 'Checkpoint', xpReward: 100, estimatedMinutes: 15 },
   finalBattle: {
-    title: 'The summit',
+    title: 'Final battle',
     summary: 'Everything you learned',
     xpReward: 250,
     estimatedMinutes: 20,
