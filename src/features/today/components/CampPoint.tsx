@@ -55,7 +55,11 @@ export function CampPoint({ journey, artWidth, celebrateKey, entranceDelay }: Ca
     transform: [{ scale: 0.85 + spark.get() * 0.2 }],
   }));
 
-  const art = summit ? journeyArt.summit : isComplete ? journeyArt.campfire : journeyArt.campfireOff;
+  const art = summit
+    ? journeyArt.summit
+    : isComplete
+      ? journeyArt.campfire
+      : journeyArt.campfireOff;
   const title = summit ? 'The summit' : isComplete ? 'Camp reached' : "Tonight's camp";
   const subtitle = isComplete
     ? day < totalDays

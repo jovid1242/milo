@@ -54,9 +54,7 @@ export function TodayJourneySection({
             step={step}
             index={index}
             total={total}
-            celebrateKey={
-              moment?.newlyCompletedQuestIds.includes(step.quest.id) ? moment.id : null
-            }
+            celebrateKey={moment?.newlyCompletedQuestIds.includes(step.quest.id) ? moment.id : null}
             entranceDelay={FIRST_STEP_DELAY + index * STEP_STAGGER}
             onOpen={onOpenQuest}
           />

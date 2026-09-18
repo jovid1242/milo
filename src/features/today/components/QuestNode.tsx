@@ -17,7 +17,9 @@ import { colors, radius, shadows, springs } from '@/theme';
 
 import type { JourneyStep } from '../logic/today-journey';
 
-export const NODE_SIZE = 44;
+/** Done steps shrink behind you, upcoming ones preview, the current one leads. */
+export const DONE_NODE_SIZE = 32;
+export const UPCOMING_NODE_SIZE = 44;
 const CURRENT_ICON = 48;
 const RING_STROKE = 2.5;
 const RING_GAP = 3;
@@ -50,7 +52,9 @@ export function QuestNode({ step, celebrateKey }: QuestNodeProps) {
       return;
     }
     bump.set(withSequence(withTiming(1.12, { duration: 140 }), withSpring(1, springs.bouncy)));
-    check.set(withSequence(withTiming(0, { duration: 0 }), withDelay(90, withSpring(1, springs.bouncy))));
+    check.set(
+      withSequence(withTiming(0, { duration: 0 }), withDelay(90, withSpring(1, springs.bouncy))),
+    );
   }, [status, celebrateKey, reduceMotion, bump, check]);
 
   const bumpStyle = useAnimatedStyle(() => ({ transform: [{ scale: bump.get() }] }));
@@ -68,14 +72,16 @@ export function QuestNode({ step, celebrateKey }: QuestNodeProps) {
     );
   }
 
+  const size = status === 'completed' ? DONE_NODE_SIZE : UPCOMING_NODE_SIZE;
+
   return (
-    <Animated.View style={[styles.node, bumpStyle]}>
+    <Animated.View style={[{ width: size, height: size }, bumpStyle]}>
       <View style={status === 'locked' ? styles.faded : null}>
-        <QuestIcon type={quest.type} size={NODE_SIZE} />
+        <QuestIcon type={quest.type} size={size} />
       </View>
       {status === 'completed' ? (
         <Animated.View style={[styles.badge, styles.checkBadge, checkStyle]}>
-          <Check size={11} color={colors.text.inverse} strokeWidth={3.5} />
+          <Check size={10} color={colors.text.inverse} strokeWidth={3.5} />
         </Animated.View>
       ) : (
         <View style={[styles.badge, styles.lockBadge]}>
@@ -140,10 +146,9 @@ function ProgressRing({ progress }: { progress: number | null }) {
   );
 }
 
-const BADGE = 18;
+const BADGE = 16;
 
 const styles = StyleSheet.create({
-  node: { width: NODE_SIZE, height: NODE_SIZE },
   current: {
     width: CURRENT_NODE_SIZE,
     height: CURRENT_NODE_SIZE,
@@ -155,8 +160,8 @@ const styles = StyleSheet.create({
   faded: { opacity: 0.45 },
   badge: {
     position: 'absolute',
-    right: -4,
-    bottom: -4,
+    right: -3,
+    bottom: -3,
     width: BADGE,
     height: BADGE,
     borderRadius: radius.pill,

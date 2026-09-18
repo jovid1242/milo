@@ -13,6 +13,8 @@ import { XpCounter } from './XpCounter';
 export type TodayHeaderProps = {
   journey: TodayJourney;
   moment: HomeMoment | null;
+  /** Short screens (iPhone SE class): a smaller title leaves room for today's quest. */
+  compact: boolean;
 };
 
 function summitLabel(daysToSummit: number): string {
@@ -21,7 +23,7 @@ function summitLabel(daysToSummit: number): string {
 }
 
 /** Day, chapter, streak and the 90-day trail — the whole status in one glance. */
-export function TodayHeader({ journey, moment }: TodayHeaderProps) {
+export function TodayHeader({ journey, moment, compact }: TodayHeaderProps) {
   const { chapter, day, totalDays } = journey;
   const streakGrew = moment !== null && moment.streakTo > moment.streakFrom;
   const xpGrew = moment !== null && moment.xpTo > moment.xpFrom;
@@ -43,7 +45,7 @@ export function TodayHeader({ journey, moment }: TodayHeaderProps) {
       </View>
 
       <View accessible accessibilityRole="header" style={styles.titleRow}>
-        <AppText variant="displayLarge">{`Day ${day}`}</AppText>
+        <AppText variant={compact ? 'display' : 'displayLarge'}>{`Day ${day}`}</AppText>
         <AppText variant="bodyLarge" color="tertiary">
           {`of ${totalDays}`}
         </AppText>
@@ -57,6 +59,7 @@ export function TodayHeader({ journey, moment }: TodayHeaderProps) {
           checkpointDays={journey.checkpointDays}
           isTodayComplete={journey.isComplete}
           celebrateKey={moment?.dayCompleted ? moment.id : null}
+          summitWidth={compact ? 44 : 56}
         />
         <View style={styles.captionRow}>
           <AppText variant="caption" color="secondary">

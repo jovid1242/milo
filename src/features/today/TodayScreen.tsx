@@ -45,7 +45,9 @@ const OPEN_COOLDOWN_MS = 800;
 
 function TodayContent({ journey }: { journey: TodayJourney }) {
   const router = useRouter();
-  const { width } = useWindowDimensions();
+  const { width, height } = useWindowDimensions();
+  // iPhone SE class: tighter rhythm so the current quest's button stays above the tab bar.
+  const compact = height < 700;
   const startQuest = useStartQuest();
   const moment = useJourneyMoments(journey);
   const lastOpenedAt = useRef(0);
@@ -66,11 +68,11 @@ function TodayContent({ journey }: { journey: TodayJourney }) {
       background="warm"
       overlay={<CelebrationOverlay playKey={celebrateKey} />}
       testID="today-screen">
-      <View style={styles.content}>
-        <TodayHeader journey={journey} moment={moment} />
+      <View style={[styles.content, compact && styles.contentCompact]}>
+        <TodayHeader journey={journey} moment={moment} compact={compact} />
         <MiloGreeting
           greeting={getGreeting(journey)}
-          miloWidth={clamp(Math.round(width * 0.25), 88, 116)}
+          miloWidth={compact ? 80 : clamp(Math.round(width * 0.25), 88, 116)}
           celebrateKey={celebrateKey}
         />
         <TodayJourneySection
@@ -86,4 +88,5 @@ function TodayContent({ journey }: { journey: TodayJourney }) {
 
 const styles = StyleSheet.create({
   content: { gap: spacing[6], paddingTop: spacing[3], paddingBottom: spacing[6] },
+  contentCompact: { gap: spacing[4], paddingTop: spacing[2] },
 });

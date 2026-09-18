@@ -48,7 +48,12 @@ describe('schedule', () => {
 
   it('gives every regular day the same four-step route', () => {
     for (const plan of PLANS.filter((item) => item.kind === 'regular')) {
-      expect(plan.quests.map((q) => q.type)).toEqual(['vocabulary', 'grammar', 'reading', 'review']);
+      expect(plan.quests.map((q) => q.type)).toEqual([
+        'vocabulary',
+        'grammar',
+        'reading',
+        'review',
+      ]);
     }
     expect(PLANS.find((plan) => plan.day === 7)?.quests.map((q) => q.type)).toEqual([
       'vocabulary',

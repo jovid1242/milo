@@ -24,6 +24,7 @@ export type SummitTrailProps = {
   isTodayComplete: boolean;
   /** Set when today was just completed: the "you are here" marker turns gold with a pop. */
   celebrateKey: number | null;
+  summitWidth: number;
 };
 
 const MARKER = 14;
@@ -40,6 +41,7 @@ export function SummitTrail({
   checkpointDays,
   isTodayComplete,
   celebrateKey,
+  summitWidth,
 }: SummitTrailProps) {
   const reduceMotion = useReducedMotion();
   const [width, setWidth] = useState(0);
@@ -109,7 +111,7 @@ export function SummitTrail({
           </>
         ) : null}
       </View>
-      <AssetImage asset={journeyArt.mountains} width={56} style={styles.mountain} />
+      <AssetImage asset={journeyArt.mountains} width={summitWidth} style={styles.mountain} />
     </View>
   );
 }

@@ -6,12 +6,12 @@ import Animated, {
   LinearTransition,
 } from 'react-native-reanimated';
 
-import { AppText, Badge, Button, ProgressBar } from '@/components/ui';
+import { AppText, Badge, Button } from '@/components/ui';
 import type { QuestType } from '@/schemas';
 import { colors, durations, radius, shadows, spacing } from '@/theme';
 
 import type { JourneyStep } from '../logic/today-journey';
-import { CURRENT_NODE_SIZE, NODE_SIZE, QuestNode } from './QuestNode';
+import { CURRENT_NODE_SIZE, DONE_NODE_SIZE, QuestNode, UPCOMING_NODE_SIZE } from './QuestNode';
 import { TrailConnector } from './TrailConnector';
 
 export const RAIL_WIDTH = CURRENT_NODE_SIZE;
@@ -35,7 +35,11 @@ const START_LABELS: Record<QuestType, string> = {
   finalBattle: 'Begin the last climb',
 };
 
-/** A waypoint on the rail, its trail below, and what to do there. */
+/**
+ * A waypoint on the rail, its trail below, and what to do there. Three levels
+ * of emphasis: done steps shrink to one quiet line, the current step is the one
+ * card on the screen, upcoming steps preview what is ahead.
+ */
 export function JourneyStepRow({
   step,
   index,
@@ -59,13 +63,15 @@ export function JourneyStepRow({
       {/* Skips the fade on first render; afterwards a status change fades the new content in. */}
       <LayoutAnimationConfig skipEntering>
         <Animated.View
-          key={isCurrent ? 'current' : 'summary'}
+          key={step.status === 'completed' ? 'done' : isCurrent ? 'current' : 'upcoming'}
           entering={FadeIn.duration(durations.normal).delay(isCurrent ? 180 : 0)}
-          style={styles.body}>
+          style={[styles.body, isCurrent && styles.bodyCurrent]}>
           {isCurrent ? (
             <CurrentQuestCard step={step} index={index} total={total} onOpen={onOpen} />
+          ) : step.status === 'completed' ? (
+            <DoneStep step={step} />
           ) : (
-            <StepSummary step={step} />
+            <UpcomingStep step={step} />
           )}
         </Animated.View>
       </LayoutAnimationConfig>
@@ -90,25 +96,22 @@ function CurrentQuestCard({
 
   return (
     <View style={styles.card}>
-      <View style={styles.cardTop}>
-        <AppText variant="overline" color={inProgress ? 'reward' : 'wood'}>
-          {inProgress ? 'In progress' : `Step ${index + 1} of ${total}`}
-        </AppText>
-        <Badge label={`+${quest.xpReward} XP`} tone="reward" />
-      </View>
       <View style={styles.cardText}>
-        <AppText variant="title2">{quest.title}</AppText>
+        <AppText variant="overline" color={inProgress ? 'reward' : 'wood'}>
+          {inProgress
+            ? `In progress · ${Math.round(step.progress * 100)}%`
+            : `Step ${index + 1} of ${total}`}
+        </AppText>
+        <View style={styles.titleRow}>
+          <AppText variant="title2" style={styles.title}>
+            {quest.title}
+          </AppText>
+          <Badge label={`+${quest.xpReward} XP`} tone="reward" />
+        </View>
         <AppText variant="caption" color="secondary">
           {`${quest.summary} · ${quest.estimatedMinutes} min`}
         </AppText>
       </View>
-      {inProgress ? (
-        <ProgressBar
-          progress={Math.max(step.progress, 0.04)}
-          height={6}
-          accessibilityLabel={`${quest.title} progress`}
-        />
-      ) : null}
       <Button
         label={label}
         onPress={() => onOpen(step)}
@@ -123,28 +126,40 @@ function CurrentQuestCard({
   );
 }
 
-function StepSummary({ step }: { step: JourneyStep }) {
+function DoneStep({ step }: { step: JourneyStep }) {
   const { quest } = step;
-  const done = step.status === 'completed';
-  const xp = done ? step.xpEarned : quest.xpReward;
-
   return (
     <View
       accessible
-      accessibilityLabel={`${quest.title}. ${quest.summary}. ${
-        done ? `Completed, ${xp} XP earned.` : `Locked until the step before is done. ${xp} XP.`
-      }`}
-      style={styles.summary}>
-      <View style={styles.summaryText}>
-        <AppText variant="bodyStrong" color={done ? 'secondary' : 'tertiary'}>
+      accessibilityLabel={`${quest.title}. Completed, ${step.xpEarned} XP earned.`}
+      style={[styles.line, { minHeight: DONE_NODE_SIZE }]}>
+      <AppText variant="bodyMedium" color="secondary" numberOfLines={1} style={styles.lineTitle}>
+        {quest.title}
+      </AppText>
+      <AppText variant="label" color="brand">
+        {`+${step.xpEarned} XP`}
+      </AppText>
+    </View>
+  );
+}
+
+function UpcomingStep({ step }: { step: JourneyStep }) {
+  const { quest } = step;
+  return (
+    <View
+      accessible
+      accessibilityLabel={`${quest.title}. ${quest.summary}. Locked until the step before is done. ${quest.xpReward} XP.`}
+      style={[styles.line, { minHeight: UPCOMING_NODE_SIZE }]}>
+      <View style={styles.lineTitle}>
+        <AppText variant="bodyStrong" color="tertiary">
           {quest.title}
         </AppText>
         <AppText variant="caption" color="tertiary">
           {quest.summary}
         </AppText>
       </View>
-      <AppText variant="label" color={done ? 'brand' : 'tertiary'}>
-        {`+${xp} XP`}
+      <AppText variant="label" color="tertiary">
+        {`+${quest.xpReward} XP`}
       </AppText>
     </View>
   );
@@ -153,17 +168,19 @@ function StepSummary({ step }: { step: JourneyStep }) {
 const styles = StyleSheet.create({
   row: { flexDirection: 'row', gap: spacing[3] },
   rail: { width: RAIL_WIDTH, alignItems: 'center' },
-  body: { flex: 1, paddingBottom: spacing[5] },
+  body: { flex: 1, paddingBottom: spacing[3] },
+  bodyCurrent: { paddingBottom: spacing[5] },
   // As tall as the node beside it, so the text centres on the icon.
-  summary: { minHeight: NODE_SIZE, flexDirection: 'row', alignItems: 'center', gap: spacing[3] },
-  summaryText: { flex: 1, gap: 2 },
+  line: { flexDirection: 'row', alignItems: 'center', gap: spacing[3] },
+  lineTitle: { flex: 1, gap: 2 },
   card: {
     backgroundColor: colors.surface.base,
     borderRadius: radius.xl,
     padding: spacing[4],
-    gap: spacing[3],
+    gap: spacing[4],
     ...shadows.card,
   },
-  cardTop: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  cardText: { gap: 2 },
+  cardText: { gap: spacing[1] },
+  titleRow: { flexDirection: 'row', alignItems: 'center', gap: spacing[2] },
+  title: { flex: 1 },
 });

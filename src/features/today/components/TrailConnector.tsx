@@ -37,10 +37,7 @@ export function TrailConnector({ walked, revealKey }: TrailConnectorProps) {
     reveal.set(
       withSequence(
         withTiming(0, { duration: 0 }),
-        withDelay(
-          120,
-          withTiming(1, { duration: durations.slow + 100, easing: easings.standard }),
-        ),
+        withDelay(120, withTiming(1, { duration: durations.slow + 100, easing: easings.standard })),
       ),
     );
   }, [walked, revealKey, reduceMotion, reveal]);
@@ -60,7 +57,7 @@ const styles = StyleSheet.create({
   connector: {
     flex: 1,
     width: 4,
-    minHeight: spacing[5],
+    minHeight: spacing[3],
     marginVertical: spacing[1],
     alignSelf: 'center',
   },

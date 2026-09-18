@@ -35,7 +35,11 @@ export function getGreeting(journey: TodayJourney): Greeting {
 
   if (completedCount === 0) {
     if (dayKind === 'summit') {
-      return { mascot: 'walking', title: 'The summit is close.', subtitle: 'One last climb, together.' };
+      return {
+        mascot: 'walking',
+        title: 'The summit is close.',
+        subtitle: 'One last climb, together.',
+      };
     }
     if (day === 1) {
       return { mascot: 'idle', title: 'Ready for Day 1?', subtitle: 'Our journey starts here.' };
@@ -55,7 +59,15 @@ export function getGreeting(journey: TodayJourney): Greeting {
 
   const left = steps.length - completedCount;
   if (left === 1 && current) {
-    return { mascot: 'walking', title: 'One more step!', subtitle: `${current.quest.title}, then camp.` };
+    return {
+      mascot: 'walking',
+      title: 'One more step!',
+      subtitle: `${current.quest.title}, then camp.`,
+    };
   }
-  return { mascot: 'walking', title: "Let's keep moving.", subtitle: `${plural(left, 'quest')} to camp` };
+  return {
+    mascot: 'walking',
+    title: "Let's keep moving.",
+    subtitle: `${plural(left, 'quest')} to camp`,
+  };
 }

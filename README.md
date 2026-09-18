@@ -80,11 +80,25 @@ Missing assets are listed in `missingAssets` (currently `quest-grammar.svg`).
 - `playFeedback('dayComplete')` — the sound + haptic pair for one app moment (single source of truth).
 - Both honor the user's settings (`src/stores/settings-store.ts`).
 
+## Home / Today
+
+`src/features/today`: the daily entry point. Data comes from `useTodayJourney()` (repositories →
+`loadTodayJourney` → pure `buildTodayJourney`), never from hardcoded arrays.
+
+- Quests form one route: done → current (available / in progress) → locked, ending at camp.
+  "In progress" is a row in `quest_sessions` (migration v2) without a completion.
+- `useJourneyMoments` compares what Home saw last with the new data while Home is on screen:
+  a finished quest, a completed day or a longer streak becomes one moment with its sound, haptic
+  and animation. Reopening the app shows the finished state without replaying anything.
+- The quest CTA opens `app/quest/[questId].tsx`, a placeholder until the quest screens exist.
+
 ## Development tools
 
-Profile → Developer tools (visible only in `__DEV__`): change the current day, complete or reset
-quests, set the streak, add XP, toggle achievements, simulate a weekly exam or Day 90, empty or
+Profile → Developer tools (visible only in `__DEV__`): ready-made Home states (Day 12 at 0–4 of 4,
+streak 0 / 12, Day 1 / 30 / 60 / 89 / 90, a quest in progress), change the current day, complete or
+reset quests, set the streak, add XP, toggle achievements, simulate a weekly exam or Day 90, empty or
 restore friends, simulate offline, play every feedback event and haptic pattern, reset local data.
+The quest placeholder has a "Complete quest (dev)" button to try Home's reward moments end to end.
 
 ## Conventions
 

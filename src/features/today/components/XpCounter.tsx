@@ -69,11 +69,13 @@ export function XpCounter({ value, gain }: XpCounterProps) {
     };
   });
 
+  const earned = gainTo - gainFrom;
+
   return (
     <View accessible accessibilityLabel={`${formatNumber(value)} XP`} style={styles.container}>
-      {gain && gain.to > gain.from ? (
+      {earned > 0 ? (
         <Animated.View style={[styles.float, floatStyle]}>
-          <AppText variant="label" color="reward">{`+${formatNumber(gain.to - gain.from)}`}</AppText>
+          <AppText variant="label" color="reward">{`+${formatNumber(earned)}`}</AppText>
         </Animated.View>
       ) : null}
       <AppText variant="label" color="reward">{`${formatNumber(shown)} XP`}</AppText>
