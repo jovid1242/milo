@@ -18,6 +18,8 @@ export const queryKeys = {
     state: ['progress', 'state'] as const,
     /** The Home screen's view of the current day (under `all`, so it refreshes with progress). */
     today: ['progress', 'today'] as const,
+    /** A quest with its saved session and completion. */
+    vocabulary: (questId: string) => ['progress', 'vocabulary', questId] as const,
   },
 
   achievements: {

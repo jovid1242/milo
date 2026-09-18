@@ -1,11 +1,12 @@
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { ChevronLeft } from 'lucide-react-native';
+import { X } from 'lucide-react-native';
+import { useEffect } from 'react';
 import { StyleSheet, View } from 'react-native';
 
 import { ErrorState } from '@/components/ErrorState';
 import { AppText, Button, IconButton, LoadingState, Screen } from '@/components/ui';
 import { useQuest } from '@/features/challenge/queries';
-import { useCompleteQuest } from '@/features/progress/queries';
+import { useCompleteQuest, useStartQuest } from '@/features/progress/queries';
 import type { QuestType } from '@/schemas';
 import { spacing } from '@/theme';
 
@@ -30,12 +31,18 @@ export function QuestPlaceholderScreen() {
   const router = useRouter();
   const quest = useQuest(questId);
   const complete = useCompleteQuest();
+  const { mutate: start } = useStartQuest();
+
+  // Opening a quest starts it: Home shows it as in progress from now on.
+  useEffect(() => {
+    if (questId) start(questId);
+  }, [questId, start]);
 
   return (
-    <Screen>
+    <Screen edges={['top', 'bottom']}>
       <IconButton
-        icon={ChevronLeft}
-        accessibilityLabel="Back"
+        icon={X}
+        accessibilityLabel="Close"
         onPress={() => router.back()}
         style={styles.back}
       />

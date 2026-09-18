@@ -104,6 +104,7 @@ export async function startQuest(
     startedAt: existing?.startedAt ?? timestamp,
     updatedAt: timestamp,
     progress: existing?.progress ?? 0,
+    state: existing?.state ?? null,
   });
 }
 
@@ -149,16 +150,12 @@ export async function completeQuest(
   if (!dayPlan || !quest) throw new Error(`Unknown quest: ${input.questId}`);
 
   const before = await loadProgressState(repositories, now);
-  const existing = (await repositories.progress.getCompletions()).find(
-    (completion) => completion.questId === quest.id,
-  );
 
   const totalCount = Math.max(0, Math.round(input.totalCount));
   const correctCount = clamp(Math.round(input.correctCount), 0, totalCount);
   const score = totalCount > 0 ? correctCount / totalCount : 1;
   const isPerfect = totalCount > 0 && correctCount === totalCount;
-  // XP is awarded once per quest: repeating a quest never farms XP.
-  const xpEarned = existing ? 0 : quest.xpReward + (isPerfect ? CHALLENGE.perfectScoreBonusXp : 0);
+  const reward = quest.xpReward + (isPerfect ? CHALLENGE.perfectScoreBonusXp : 0);
 
   const completion: QuestCompletion = {
     questId: quest.id,
@@ -167,20 +164,19 @@ export async function completeQuest(
     score,
     correctCount,
     totalCount,
-    xpEarned,
+    xpEarned: reward,
     source: input.source ?? 'user',
     completedAt: timestamp,
   };
 
-  await repositories.progress.saveQuestCompletion(completion, input.answers ?? []);
-  if (xpEarned > 0) {
-    await repositories.progress.addXpEvent({
-      amount: xpEarned,
-      reason: 'quest',
-      refId: quest.id,
-      createdAt: timestamp,
-    });
-  }
+  // XP is awarded once per quest: a replay changes nothing but closing its
+  // session. The repository decides atomically, so a double tap cannot farm XP.
+  const isFirstCompletion = await repositories.progress.recordFirstCompletion(
+    completion,
+    input.answers ?? [],
+    reward > 0 ? { amount: reward, reason: 'quest', refId: quest.id, createdAt: timestamp } : null,
+  );
+  const xpEarned = isFirstCompletion ? reward : 0;
 
   const after = await loadProgressState(repositories, now);
   const newAchievements = await syncAchievements(repositories, after, now);
@@ -191,7 +187,7 @@ export async function completeQuest(
 
   return {
     quest,
-    isFirstCompletion: !existing,
+    isFirstCompletion,
     xpEarned,
     isPerfect,
     dayCompleted,

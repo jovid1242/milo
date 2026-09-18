@@ -23,7 +23,7 @@ export type HapticPattern =
   | 'finalVictory';
 
 const { Light, Medium, Soft, Heavy } = Haptics.ImpactFeedbackStyle;
-const { Success, Warning, Error: ErrorFeedback } = Haptics.NotificationFeedbackType;
+const { Success, Warning } = Haptics.NotificationFeedbackType;
 
 /** Subtle by default; only the Day 90 victory uses a heavy sequence. */
 const PATTERNS: Record<HapticPattern, readonly HapticStep[]> = {
@@ -31,7 +31,12 @@ const PATTERNS: Record<HapticPattern, readonly HapticStep[]> = {
   selection: [{ kind: 'selection' }],
   answerSelect: [{ kind: 'impact', style: Soft }],
   correct: [{ kind: 'notification', type: Success }],
-  wrong: [{ kind: 'notification', type: ErrorFeedback }],
+  // Two soft taps: noticeable, never scolding.
+  wrong: [
+    { kind: 'impact', style: Soft },
+    { kind: 'wait', ms: 90 },
+    { kind: 'impact', style: Soft },
+  ],
   questComplete: [
     { kind: 'impact', style: Light },
     { kind: 'wait', ms: 90 },

@@ -85,6 +85,22 @@ export const MIGRATIONS: readonly Migration[] = [
       `);
     },
   },
+  {
+    version: 3,
+    name: 'quest session state, quest XP once',
+    up: async (db) => {
+      // A quest can hold XP only once: the database refuses a second quest
+      // XP event for the same quest, whatever the app code does.
+      await db.execAsync(`
+        ALTER TABLE quest_sessions ADD COLUMN state_json TEXT;
+
+        DELETE FROM xp_events
+        WHERE reason = 'quest'
+          AND id NOT IN (SELECT MIN(id) FROM xp_events WHERE reason = 'quest' GROUP BY ref_id);
+        CREATE UNIQUE INDEX idx_xp_events_quest_once ON xp_events (ref_id) WHERE reason = 'quest';
+      `);
+    },
+  },
 ];
 
 /** Mock team data behaves like cached server data until a backend exists. */

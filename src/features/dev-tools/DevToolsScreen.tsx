@@ -101,6 +101,15 @@ export function DevToolsScreen() {
           {chip('Start current quest', () => dev.startCurrentQuest(context))}
         </Section>
 
+        <Section title="Vocabulary quest · Day 89">
+          {(Object.keys(dev.VOCABULARY_SCENARIOS) as dev.VocabularyScenario[]).map((scenario) =>
+            chip(dev.VOCABULARY_SCENARIOS[scenario], async () => {
+              const questId = await dev.applyVocabularyScenario(context, scenario);
+              router.replace({ pathname: '/quest/[questId]', params: { questId } });
+            }),
+          )}
+        </Section>
+
         <Section title="Current day">
           {chip('−1 day', () => dev.shiftCurrentDay(context, -1))}
           {chip('+1 day', () => dev.shiftCurrentDay(context, 1))}

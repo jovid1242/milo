@@ -8,3 +8,4 @@ export * from './quest';
 export * from './quiz';
 export * from './settings';
 export * from './user';
+export * from './vocabulary';

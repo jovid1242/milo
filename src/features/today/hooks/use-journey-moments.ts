@@ -2,6 +2,7 @@ import { useIsFocused } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { AccessibilityInfo } from 'react-native';
 
+import { wasQuestCelebrated } from '@/features/quests/celebrations';
 import { playFeedback } from '@/services/feedback';
 
 import {
@@ -59,7 +60,14 @@ export function useJourneyMoments(journey: TodayJourney): HomeMoment | null {
 
   useEffect(() => {
     if (!moment) return;
-    const timers = moment.cues.map((cue) => setTimeout(() => playFeedback(cue.event), cue.delayMs));
+    // A quest that already had its own result moment is not chimed twice on Home.
+    const alreadyCelebrated =
+      moment.newlyCompletedQuestIds.length > 0 &&
+      moment.newlyCompletedQuestIds.every(wasQuestCelebrated);
+    const cues = alreadyCelebrated
+      ? moment.cues.filter((cue) => cue.event !== 'questComplete')
+      : moment.cues;
+    const timers = cues.map((cue) => setTimeout(() => playFeedback(cue.event), cue.delayMs));
     if (moment.announcement) AccessibilityInfo.announceForAccessibility(moment.announcement);
     return () => timers.forEach(clearTimeout);
   }, [moment]);

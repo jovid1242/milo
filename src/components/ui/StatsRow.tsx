@@ -1,6 +1,6 @@
 import { StyleSheet, View } from 'react-native';
 
-import { AppText } from '@/components/ui';
+import { AppText } from './AppText';
 import { colors, spacing } from '@/theme';
 
 export type Stat = { label: string; value: string };

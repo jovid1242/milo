@@ -11,6 +11,13 @@ import {
   syncAchievements,
   type QuestOutcome,
 } from '@/features/progress/use-cases';
+import {
+  INITIAL_PROGRESS,
+  reduceVocabulary,
+  type VocabularyAction,
+} from '@/features/vocabulary/logic/vocabulary-session';
+import { completeVocabularyQuest, saveVocabularyProgress } from '@/features/vocabulary/use-cases';
+import { questId as questIdFor } from '@/data/content/schedule';
 import type { AchievementId, Quest, QuestCompletion, XpEvent } from '@/schemas';
 import { clamp } from '@/utils/number';
 
@@ -131,6 +138,7 @@ export async function startCurrentQuest(ctx: DevContext, progress = 0.4): Promis
     startedAt: timestamp,
     updatedAt: timestamp,
     progress,
+    state: null,
   });
   invalidateAll(ctx);
 }
@@ -255,11 +263,80 @@ export async function applyHomeScenario(ctx: DevContext, scenario: HomeScenario)
       startedAt: timestamp,
       updatedAt: timestamp,
       progress: 0.4,
+      state: null,
     });
   }
 
   await syncAchievements(ctx.repositories, await loadProgressState(ctx.repositories));
   invalidateAll(ctx);
+}
+
+/** Quick ways into every state of the Day 89 Vocabulary quest. */
+export const VOCABULARY_SCENARIOS = {
+  intro: 'Intro',
+  word1: 'Learn word 1',
+  word6: 'Learn word 6',
+  practiceCorrect: 'Practice: correct',
+  practiceWrong: 'Practice: wrong',
+  result5: 'Result 5/6',
+  result6: 'Result 6/6',
+  completed: 'Completed quest',
+  resume: 'Resume midway',
+} as const;
+
+export type VocabularyScenario = keyof typeof VOCABULARY_SCENARIOS;
+
+/**
+ * Rebuilds Day 89 (fresh, 88 days walked) and leaves its Vocabulary quest in
+ * the chosen state, through the same reducer and use cases as the real flow.
+ * Returns the quest id to open.
+ */
+export async function applyVocabularyScenario(
+  ctx: DevContext,
+  scenario: VocabularyScenario,
+): Promise<string> {
+  await applyHomeScenario(ctx, 'day89');
+  const id = questIdFor(89, 'vocabulary');
+  const content = await ctx.repositories.challenge.getQuestContent(id);
+  if (content?.type !== 'vocabulary') throw new Error('Day 89 has no vocabulary content');
+
+  const at = new Date().toISOString();
+  const meet: VocabularyAction[] = [{ type: 'reveal' }, { type: 'learned' }];
+  const learnAll: VocabularyAction[] = [{ type: 'start' }, ...content.items.flatMap(() => meet)];
+  const answer = (index: number, right: boolean): VocabularyAction => {
+    const exercise = content.exercises[index];
+    const wrong = exercise?.optionItemIds.find((option) => option !== exercise.itemId);
+    return { type: 'answer', optionItemId: (right ? exercise?.itemId : wrong) ?? '', at };
+  };
+  const answerAll = (wrongAt?: number): VocabularyAction[] =>
+    content.exercises.flatMap((_, index) => [
+      answer(index, index !== wrongAt),
+      { type: 'continue' },
+    ]);
+
+  const actions: Record<VocabularyScenario, VocabularyAction[]> = {
+    intro: [],
+    word1: [{ type: 'start' }],
+    word6: [{ type: 'start' }, ...content.items.slice(1).flatMap(() => meet)],
+    practiceCorrect: [...learnAll, answer(0, true)],
+    practiceWrong: [...learnAll, answer(0, false)],
+    result5: [...learnAll, ...answerAll(2)],
+    result6: [...learnAll, ...answerAll()],
+    completed: [...learnAll, ...answerAll(2)],
+    resume: [...learnAll, ...answerAll().slice(0, 4)],
+  };
+  const progress = actions[scenario].reduce(
+    (state, action) => reduceVocabulary(content, state, action),
+    INITIAL_PROGRESS,
+  );
+
+  if (scenario === 'completed') {
+    await completeVocabularyQuest(ctx.repositories, { content, progress });
+  } else if (scenario !== 'intro') {
+    await saveVocabularyProgress(ctx.repositories, { content, progress, startedAt: at });
+  }
+  invalidateAll(ctx);
+  return id;
 }
 
 export async function resetProgress(ctx: DevContext): Promise<void> {

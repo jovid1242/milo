@@ -77,6 +77,15 @@ describe('authored lesson content', () => {
       expect(questIds.has(content.questId)).toBe(true);
     }
   });
+
+  it('practises every new word at least once', () => {
+    for (const content of QUEST_CONTENT.values()) {
+      if (content.type !== 'vocabulary') continue;
+      const practised = new Set(content.exercises.map((exercise) => exercise.itemId));
+      expect(content.items.filter((item) => !practised.has(item.id))).toEqual([]);
+      expect(content.items).toHaveLength(CHALLENGE.wordsPerVocabularyQuest);
+    }
+  });
 });
 
 describe('achievements', () => {

@@ -2,29 +2,13 @@ import { z } from 'zod';
 
 import { IdSchema, ScoreSchema } from './common';
 import { QuizQuestionSchema } from './quiz';
-
-export const VocabularyItemSchema = z.object({
-  id: IdSchema,
-  word: z.string().min(1),
-  phonetic: z.string().optional(),
-  partOfSpeech: z.enum(['noun', 'verb', 'adjective', 'adverb', 'phrase']),
-  definition: z.string().min(1),
-  /** Translation for the group's native language (Russian). */
-  translation: z.string().min(1),
-  example: z.string().min(1),
-});
-export type VocabularyItem = z.infer<typeof VocabularyItemSchema>;
+import { VocabularyQuestSchema } from './vocabulary';
 
 const QuizSchema = z.array(QuizQuestionSchema).min(1);
 
 /** Authored learning content behind a quest. */
 export const QuestContentSchema = z.discriminatedUnion('type', [
-  z.object({
-    type: z.literal('vocabulary'),
-    questId: IdSchema,
-    items: z.array(VocabularyItemSchema).min(1),
-    quiz: QuizSchema,
-  }),
+  VocabularyQuestSchema,
   z.object({
     type: z.literal('grammar'),
     questId: IdSchema,

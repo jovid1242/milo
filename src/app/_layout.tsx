@@ -51,7 +51,11 @@ export default function RootLayout() {
                   contentStyle: { backgroundColor: colors.background.base },
                 }}>
                 <Stack.Screen name="(tabs)" />
-                <Stack.Screen name="quest/[questId]" />
+                {/* Gameplay is immersive: full screen, no tab bar, no swipe-away mid-quest. */}
+                <Stack.Screen
+                  name="quest/[questId]"
+                  options={{ presentation: 'fullScreenModal', gestureEnabled: false }}
+                />
                 <Stack.Screen name="settings" />
                 <Stack.Screen name="dev-tools" options={{ presentation: 'modal' }} />
               </Stack>

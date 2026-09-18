@@ -4,7 +4,6 @@ import { StyleSheet, View, useWindowDimensions } from 'react-native';
 
 import { ErrorState } from '@/components/ErrorState';
 import { LoadingState, Screen } from '@/components/ui';
-import { useStartQuest } from '@/features/progress/queries';
 import { spacing } from '@/theme';
 import { clamp } from '@/utils/number';
 
@@ -48,7 +47,6 @@ function TodayContent({ journey }: { journey: TodayJourney }) {
   const { width, height } = useWindowDimensions();
   // iPhone SE class: tighter rhythm so the current quest's button stays above the tab bar.
   const compact = height < 700;
-  const startQuest = useStartQuest();
   const moment = useJourneyMoments(journey);
   const lastOpenedAt = useRef(0);
 
@@ -56,7 +54,6 @@ function TodayContent({ journey }: { journey: TodayJourney }) {
     const now = Date.now();
     if (now - lastOpenedAt.current < OPEN_COOLDOWN_MS) return;
     lastOpenedAt.current = now;
-    startQuest.mutate(step.quest.id);
     router.push({ pathname: '/quest/[questId]', params: { questId: step.quest.id } });
   };
 

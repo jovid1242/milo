@@ -4,7 +4,15 @@ import { useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 
 import { ErrorState } from '@/components/ErrorState';
-import { AppText, Avatar, Divider, LoadingState, ProgressBar, Screen } from '@/components/ui';
+import {
+  AppText,
+  Avatar,
+  Divider,
+  LoadingState,
+  ProgressBar,
+  Screen,
+  StatsRow,
+} from '@/components/ui';
 import { CHALLENGE } from '@/constants/challenge';
 import { useAchievements } from '@/features/achievements/queries';
 import { AchievementBadge } from '@/features/achievements/components/AchievementBadge';
@@ -13,7 +21,6 @@ import { spacing } from '@/theme';
 import { formatNumber } from '@/utils/number';
 
 import { LinkRow } from './components/LinkRow';
-import { StatsRow } from './components/StatsRow';
 import { useUser } from './queries';
 
 const BADGE_COLUMNS = 3;

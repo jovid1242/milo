@@ -42,13 +42,20 @@ export interface ProgressRepository {
   getCompletions(): Promise<QuestCompletion[]>;
   getTotalXp(): Promise<number>;
   /**
-   * Upserts the completion, replaces its stored answers and closes its session.
-   * XP is a separate event.
+   * Stores a quest's first completion — the completion, its answers and its XP —
+   * in one transaction, and closes its session. When the quest is already
+   * completed nothing but the session changes and it returns `false`: XP is
+   * awarded once per quest, whatever the caller does.
    */
-  saveQuestCompletion(completion: QuestCompletion, answers: readonly AnswerRecord[]): Promise<void>;
+  recordFirstCompletion(
+    completion: QuestCompletion,
+    answers: readonly AnswerRecord[],
+    xp: XpEvent | null,
+  ): Promise<boolean>;
   /** Quests that were started but not finished. */
   getQuestSessions(): Promise<QuestSession[]>;
   saveQuestSession(session: QuestSession): Promise<void>;
+  deleteQuestSession(questId: string): Promise<void>;
   addXpEvent(event: XpEvent): Promise<void>;
   /** Removes XP granted for one reason (e.g. when achievements are reset). */
   deleteXpEvents(reason: XpEventReason): Promise<void>;

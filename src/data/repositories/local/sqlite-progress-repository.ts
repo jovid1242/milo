@@ -30,6 +30,7 @@ type SessionRow = {
   started_at: string;
   updated_at: string;
   progress: number;
+  state_json: string | null;
 };
 
 const mapCompletion = (row: CompletionRow): QuestCompletion =>
@@ -45,12 +46,23 @@ const mapCompletion = (row: CompletionRow): QuestCompletion =>
     completedAt: row.completed_at,
   });
 
+/** Unreadable saved state is dropped: the quest then simply starts over. */
+function parseState(json: string | null): unknown {
+  if (json === null) return null;
+  try {
+    return JSON.parse(json);
+  } catch {
+    return null;
+  }
+}
+
 const mapSession = (row: SessionRow): QuestSession =>
   QuestSessionSchema.parse({
     questId: row.quest_id,
     startedAt: row.started_at,
     updatedAt: row.updated_at,
     progress: row.progress,
+    state: parseState(row.state_json),
   });
 
 const placeholders = (count: number) => Array.from({ length: count }, () => '?').join(', ');
@@ -83,9 +95,10 @@ export async function writeCompletion(db: SQLiteDatabase, completion: QuestCompl
   await db.runAsync('DELETE FROM quest_sessions WHERE quest_id = ?', [completion.questId]);
 }
 
+/** `OR IGNORE`: a second XP event for the same quest is refused by a unique index. */
 export async function writeXpEvent(db: SQLiteDatabase, event: XpEvent) {
   await db.runAsync(
-    'INSERT INTO xp_events (amount, reason, ref_id, created_at) VALUES (?, ?, ?, ?)',
+    'INSERT OR IGNORE INTO xp_events (amount, reason, ref_id, created_at) VALUES (?, ?, ?, ?)',
     [event.amount, event.reason, event.refId, event.createdAt],
   );
 }
@@ -117,12 +130,23 @@ export class SqliteProgressRepository implements ProgressRepository {
     return row?.total ?? 0;
   }
 
-  async saveQuestCompletion(
+  async recordFirstCompletion(
     completion: QuestCompletion,
     answers: readonly AnswerRecord[],
-  ): Promise<void> {
+    xp: XpEvent | null,
+  ): Promise<boolean> {
     const db = await getDatabase();
+    let recorded = false;
+    // Exclusive: the "already completed?" check and the writes cannot interleave
+    // with another completion of the same quest (e.g. a double tap).
     await db.withExclusiveTransactionAsync(async (txn) => {
+      await txn.runAsync('DELETE FROM quest_sessions WHERE quest_id = ?', [completion.questId]);
+      const existing = await txn.getFirstAsync<{ quest_id: string }>(
+        'SELECT quest_id FROM quest_completions WHERE quest_id = ?',
+        [completion.questId],
+      );
+      if (existing) return;
+
       await writeCompletion(txn, completion);
       await txn.runAsync('DELETE FROM answers WHERE quest_id = ?', [completion.questId]);
       for (const answer of answers) {
@@ -138,7 +162,10 @@ export class SqliteProgressRepository implements ProgressRepository {
           ],
         );
       }
+      if (xp) await writeXpEvent(txn, xp);
+      recorded = true;
     });
+    return recorded;
   }
 
   async getQuestSessions(): Promise<QuestSession[]> {
@@ -150,13 +177,25 @@ export class SqliteProgressRepository implements ProgressRepository {
   async saveQuestSession(session: QuestSession): Promise<void> {
     const db = await getDatabase();
     await db.runAsync(
-      `INSERT INTO quest_sessions (quest_id, started_at, updated_at, progress)
-       VALUES (?, ?, ?, ?)
+      `INSERT INTO quest_sessions (quest_id, started_at, updated_at, progress, state_json)
+       VALUES (?, ?, ?, ?, ?)
        ON CONFLICT(quest_id) DO UPDATE SET
          updated_at = excluded.updated_at,
-         progress = excluded.progress`,
-      [session.questId, session.startedAt, session.updatedAt, session.progress],
+         progress = excluded.progress,
+         state_json = excluded.state_json`,
+      [
+        session.questId,
+        session.startedAt,
+        session.updatedAt,
+        session.progress,
+        session.state === null ? null : JSON.stringify(session.state),
+      ],
     );
+  }
+
+  async deleteQuestSession(questId: string): Promise<void> {
+    const db = await getDatabase();
+    await db.runAsync('DELETE FROM quest_sessions WHERE quest_id = ?', [questId]);
   }
 
   async addXpEvent(event: XpEvent): Promise<void> {

@@ -1,1 +1,1 @@
-export { QuestPlaceholderScreen as default } from '@/features/quests/QuestPlaceholderScreen';
+export { QuestScreen as default } from '@/features/quests/QuestScreen';

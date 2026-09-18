@@ -42,6 +42,11 @@ export const QuestSessionSchema = z.object({
   updatedAt: TimestampSchema,
   /** Share of the quest already done, 0…1. */
   progress: ScoreSchema,
+  /**
+   * Where the user is inside the quest. Each quest type owns (and validates)
+   * its own shape, e.g. `VocabularyProgress`; storage treats it as plain JSON.
+   */
+  state: z.json().nullable(),
 });
 export type QuestSession = z.infer<typeof QuestSessionSchema>;
 

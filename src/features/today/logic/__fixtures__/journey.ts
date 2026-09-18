@@ -56,6 +56,7 @@ export function journeyFor({
     startedAt: NOW.toISOString(),
     updatedAt: NOW.toISOString(),
     progress,
+    state: null,
   }));
 
   const progress = buildProgressState({
