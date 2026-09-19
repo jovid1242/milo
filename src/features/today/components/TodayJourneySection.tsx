@@ -15,6 +15,7 @@ export type TodayJourneySectionProps = {
   moment: HomeMoment | null;
   campArtWidth: number;
   onOpenQuest: (step: JourneyStep) => void;
+  onOpenDaySummary: () => void;
 };
 
 const FIRST_STEP_DELAY = 200;
@@ -26,6 +27,7 @@ export function TodayJourneySection({
   moment,
   campArtWidth,
   onOpenQuest,
+  onOpenDaySummary,
 }: TodayJourneySectionProps) {
   const total = journey.steps.length;
   const done = journey.completedCount;
@@ -64,6 +66,7 @@ export function TodayJourneySection({
           artWidth={campArtWidth}
           celebrateKey={moment?.dayCompleted ? moment.id : null}
           entranceDelay={FIRST_STEP_DELAY + total * STEP_STAGGER}
+          onOpenSummary={journey.dayCompletion ? onOpenDaySummary : undefined}
         />
       </View>
     </View>

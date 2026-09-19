@@ -1,3 +1,4 @@
+import { ChevronRight } from 'lucide-react-native';
 import { useEffect } from 'react';
 import { StyleSheet, View } from 'react-native';
 import Animated, {
@@ -12,9 +13,10 @@ import Animated, {
 } from 'react-native-reanimated';
 
 import { AssetImage } from '@/components/AssetImage';
-import { AppText } from '@/components/ui';
+import { AppText, PressableScale } from '@/components/ui';
 import { effects, journey as journeyArt } from '@/constants/assets';
-import { durations, spacing } from '@/theme';
+import { tomorrowLabel } from '@/features/challenge/logic/tomorrow';
+import { colors, durations, spacing } from '@/theme';
 
 import type { TodayJourney } from '../logic/today-journey';
 
@@ -24,6 +26,8 @@ export type CampPointProps = {
   /** Set when the day was just completed: the fire catches with a spark. */
   celebrateKey: number | null;
   entranceDelay: number;
+  /** Once the day is complete, the camp opens the day's summary. */
+  onOpenSummary?: () => void;
 };
 
 const plural = (count: number, word: string) => `${count} ${word}${count === 1 ? '' : 's'}`;
@@ -32,7 +36,13 @@ const plural = (count: number, word: string) => `${count} ${word}${count === 1 ?
  * Where today's trail ends. The campfire is cold until every quest is done and
  * lights up when the day is complete; on Day 90 the trail ends at the summit.
  */
-export function CampPoint({ journey, artWidth, celebrateKey, entranceDelay }: CampPointProps) {
+export function CampPoint({
+  journey,
+  artWidth,
+  celebrateKey,
+  entranceDelay,
+  onOpenSummary,
+}: CampPointProps) {
   const reduceMotion = useReducedMotion();
   const spark = useSharedValue(0);
   const { isComplete, day, totalDays } = journey;
@@ -62,18 +72,14 @@ export function CampPoint({ journey, artWidth, celebrateKey, entranceDelay }: Ca
       : journeyArt.campfireOff;
   const title = summit ? 'The summit' : isComplete ? 'Camp reached' : "Tonight's camp";
   const subtitle = isComplete
-    ? day < totalDays
-      ? `Day ${day + 1} opens tomorrow`
+    ? journey.tomorrow && day < totalDays
+      ? tomorrowLabel(journey.tomorrow)
       : '90 days. You did it.'
     : `${plural(left, 'quest')} to go`;
+  const opensSummary = isComplete && onOpenSummary !== undefined;
 
-  return (
-    <Animated.View
-      entering={FadeInDown.duration(durations.normal + 70).delay(entranceDelay)}
-      layout={LinearTransition.duration(durations.normal)}
-      accessible
-      accessibilityLabel={`${title}. ${subtitle}.`}
-      style={styles.row}>
+  const content = (
+    <>
       <View>
         <AssetImage asset={art} width={artWidth} transition={durations.reward} />
         {/* Mounted only once there is something to celebrate: no idle decoding. */}
@@ -91,6 +97,29 @@ export function CampPoint({ journey, artWidth, celebrateKey, entranceDelay }: Ca
           {subtitle}
         </AppText>
       </View>
+      {opensSummary ? <ChevronRight size={20} color={colors.text.tertiary} /> : null}
+    </>
+  );
+
+  return (
+    <Animated.View
+      entering={FadeInDown.duration(durations.normal + 70).delay(entranceDelay)}
+      layout={LinearTransition.duration(durations.normal)}>
+      {opensSummary ? (
+        <PressableScale
+          onPress={onOpenSummary}
+          accessibilityRole="button"
+          accessibilityLabel={`${title}. ${subtitle}.`}
+          accessibilityHint="Shows today's summary"
+          style={styles.row}
+          testID="camp-point">
+          {content}
+        </PressableScale>
+      ) : (
+        <View accessible accessibilityLabel={`${title}. ${subtitle}.`} style={styles.row}>
+          {content}
+        </View>
+      )}
     </Animated.View>
   );
 }

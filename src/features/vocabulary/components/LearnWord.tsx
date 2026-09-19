@@ -1,12 +1,11 @@
 import { StyleSheet, View } from 'react-native';
 import Animated, { FadeIn, FadeInDown } from 'react-native-reanimated';
 
-import { AssetImage } from '@/components/AssetImage';
-import { AppText, Button, PressableScale } from '@/components/ui';
-import { mascots } from '@/constants/assets';
+import { AppText, Button } from '@/components/ui';
 import { QuestStage } from '@/features/quests/components/QuestStage';
+import { ThinkFirstHint } from '@/features/quests/components/ThinkFirstHint';
 import type { VocabularyItem } from '@/schemas';
-import { colors, durations, fontFamilies, radius, spacing } from '@/theme';
+import { colors, durations, fontFamilies, spacing } from '@/theme';
 
 export type LearnWordProps = {
   item: VocabularyItem;
@@ -66,24 +65,13 @@ export function LearnWord({ item, revealed, onReveal, onLearned }: LearnWordProp
           </View>
         </Animated.View>
       ) : (
-        <Animated.View
+        <ThinkFirstHint
           key={`hint-${item.id}`}
-          entering={FadeIn.duration(durations.normal).delay(80)}>
-          <PressableScale
-            onPress={onReveal}
-            accessibilityRole="button"
-            accessibilityLabel="Show the meaning"
-            accessibilityHint="Think of what the word means first"
-            style={styles.hint}>
-            <AssetImage asset={mascots.thinking} width={72} />
-            <View style={styles.hintText}>
-              <AppText variant="bodyStrong">Do you know it?</AppText>
-              <AppText variant="caption" color="secondary">
-                Think of the meaning, then tap to check.
-              </AppText>
-            </View>
-          </PressableScale>
-        </Animated.View>
+          title="Do you know it?"
+          message="Think of the meaning, then tap to check."
+          accessibilityLabel="Show the meaning"
+          onReveal={onReveal}
+        />
       )}
     </QuestStage>
   );
@@ -115,16 +103,4 @@ const styles = StyleSheet.create({
     borderLeftColor: colors.wood.light,
   },
   highlight: { fontFamily: fontFamilies.semiBold },
-  hint: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing[3],
-    padding: spacing[4],
-    borderRadius: radius.xl,
-    borderWidth: 1.5,
-    borderStyle: 'dashed',
-    borderColor: colors.border.warm,
-    backgroundColor: colors.surface.warm,
-  },
-  hintText: { flex: 1, gap: 2 },
 });

@@ -38,7 +38,8 @@ describe('buildTodayJourney', () => {
     expect(journey.current?.progress).toBe(0.4);
     expect(journey.completedCount).toBe(2);
     expect(journey.xpEarnedToday).toBe(35);
-    expect(journey.minutesLeft).toBe(11);
+    // Reading (5 min) and the Review (3 min) are still open.
+    expect(journey.minutesLeft).toBe(8);
     expect(journey.isComplete).toBe(false);
   });
 
@@ -59,6 +60,35 @@ describe('buildTodayJourney', () => {
     expect(journey.xpEarnedToday).toBe(65);
     expect(journey.streak).toBe(12);
     expect(journey.completedDays).toBe(12);
+    // Every fixture quest has one wrong answer: done, but not a perfect day.
+    expect(journey.isPerfectDay).toBe(false);
+    expect(journey.tomorrow).toEqual({ day: 13, kind: 'regular' });
+  });
+
+  it('finishes Day 89 at camp, one day before the summit', () => {
+    const journey = journeyFor({
+      day: 89,
+      pastDays: range(1, 88),
+      doneToday: ['vocabulary', 'grammar', 'reading', 'review'],
+    });
+
+    expect(journey.completedCount).toBe(4);
+    expect(journey.steps.every((step) => step.status === 'completed')).toBe(true);
+    expect(journey.streak).toBe(89);
+    expect(journey.completedDays).toBe(89);
+    expect(journey.daysToSummit).toBe(1);
+    expect(journey.tomorrow).toEqual({ day: 90, kind: 'summit' });
+  });
+
+  it('counts a perfect day only when every answer was right', () => {
+    const perfect = journeyFor({
+      day: 12,
+      doneToday: ['vocabulary', 'grammar', 'reading', 'review'],
+      perfect: true,
+    });
+    expect(perfect.isPerfectDay).toBe(true);
+    const unfinished = journeyFor({ day: 12, doneToday: ['vocabulary'], perfect: true });
+    expect(unfinished.isPerfectDay).toBe(false);
   });
 
   it('shapes exam days and the summit differently', () => {

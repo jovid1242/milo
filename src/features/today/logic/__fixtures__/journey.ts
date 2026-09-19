@@ -1,6 +1,7 @@
 import { CHAPTERS } from '@/data/content/chapters';
 import { buildAllDailyChallenges, questId } from '@/data/content/schedule';
 import { getStartDateForDay } from '@/features/challenge/logic/calendar';
+import { findTomorrow } from '@/features/challenge/logic/tomorrow';
 import { buildProgressState } from '@/features/progress/logic/progress-state';
 import type { QuestCompletion, QuestSession, QuestType } from '@/schemas';
 
@@ -9,12 +10,17 @@ import { buildTodayJourney, type TodayJourney } from '../today-journey';
 export const NOW = new Date(2026, 8, 18, 12, 0, 0);
 export const PLANS = buildAllDailyChallenges();
 
-const completion = (day: number, type: QuestType, xpEarned: number): QuestCompletion => ({
+const completion = (
+  day: number,
+  type: QuestType,
+  xpEarned: number,
+  perfect = false,
+): QuestCompletion => ({
   questId: questId(day, type),
   day,
   questType: type,
-  score: 0.8,
-  correctCount: 4,
+  score: perfect ? 1 : 0.8,
+  correctCount: perfect ? 5 : 4,
   totalCount: 5,
   xpEarned,
   source: 'user',
@@ -30,6 +36,8 @@ export type JourneyFixture = {
   /** Quest types opened but not finished. */
   started?: { type: QuestType; progress: number }[];
   totalXp?: number;
+  /** Today's quests were answered without a mistake. */
+  perfect?: boolean;
 };
 
 /** A TodayJourney built through the real progress pipeline. */
@@ -39,6 +47,7 @@ export function journeyFor({
   doneToday = [],
   started = [],
   totalXp = 0,
+  perfect = false,
 }: JourneyFixture): TodayJourney {
   const plan = PLANS.find((item) => item.day === day);
   if (!plan) throw new Error(`no plan for day ${day}`);
@@ -49,7 +58,7 @@ export function journeyFor({
     ),
     ...plan.quests
       .filter((quest) => doneToday.includes(quest.type))
-      .map((quest) => completion(day, quest.type, quest.xpReward)),
+      .map((quest) => completion(day, quest.type, quest.xpReward, perfect)),
   ];
   const sessions: QuestSession[] = started.map(({ type, progress }) => ({
     questId: questId(day, type),
@@ -74,5 +83,12 @@ export function journeyFor({
     now: NOW,
   });
 
-  return buildTodayJourney({ plan, chapters: CHAPTERS, progress, completions, sessions });
+  return buildTodayJourney({
+    plan,
+    chapters: CHAPTERS,
+    progress,
+    completions,
+    sessions,
+    tomorrow: findTomorrow(PLANS, day),
+  });
 }

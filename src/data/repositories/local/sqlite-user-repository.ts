@@ -1,4 +1,4 @@
-import { getDatabase } from '@/data/db/database';
+import { getDatabase, writeDatabase } from '@/data/db/database';
 import type { UserRepository } from '@/data/repositories/types';
 import { toLocalDate } from '@/lib/dates';
 import { DisplayNameSchema, UserSchema, type LocalDate, type User } from '@/schemas';
@@ -30,10 +30,12 @@ export class SqliteUserRepository implements UserRepository {
     if (existing) return mapUser(existing);
 
     const now = new Date();
-    await db.runAsync(
-      `INSERT OR IGNORE INTO user_profile (id, display_name, challenge_start_date, created_at)
-       VALUES (?, ?, ?, ?)`,
-      [LOCAL_USER_ID, DEFAULT_DISPLAY_NAME, toLocalDate(now), now.toISOString()],
+    await writeDatabase((writer) =>
+      writer.runAsync(
+        `INSERT OR IGNORE INTO user_profile (id, display_name, challenge_start_date, created_at)
+         VALUES (?, ?, ?, ?)`,
+        [LOCAL_USER_ID, DEFAULT_DISPLAY_NAME, toLocalDate(now), now.toISOString()],
+      ),
     );
     const created = await db.getFirstAsync<UserRow>('SELECT * FROM user_profile WHERE id = ?', [
       LOCAL_USER_ID,
@@ -44,22 +46,21 @@ export class SqliteUserRepository implements UserRepository {
 
   async updateDisplayName(displayName: string): Promise<User> {
     const name = DisplayNameSchema.parse(displayName);
-    const db = await getDatabase();
     await this.getUser();
-    await db.runAsync('UPDATE user_profile SET display_name = ? WHERE id = ?', [
-      name,
-      LOCAL_USER_ID,
-    ]);
+    await writeDatabase((db) =>
+      db.runAsync('UPDATE user_profile SET display_name = ? WHERE id = ?', [name, LOCAL_USER_ID]),
+    );
     return this.getUser();
   }
 
   async updateChallengeStartDate(date: LocalDate): Promise<User> {
-    const db = await getDatabase();
     await this.getUser();
-    await db.runAsync('UPDATE user_profile SET challenge_start_date = ? WHERE id = ?', [
-      date,
-      LOCAL_USER_ID,
-    ]);
+    await writeDatabase((db) =>
+      db.runAsync('UPDATE user_profile SET challenge_start_date = ? WHERE id = ?', [
+        date,
+        LOCAL_USER_ID,
+      ]),
+    );
     return this.getUser();
   }
 }

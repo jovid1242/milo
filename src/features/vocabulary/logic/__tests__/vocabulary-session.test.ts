@@ -1,4 +1,5 @@
 import { DAY_089 } from '@/data/content/lessons/day-089';
+import { scorePractice } from '@/features/quests/logic/practice';
 import type { VocabularyProgress, VocabularyQuest } from '@/schemas';
 
 import {
@@ -8,11 +9,10 @@ import {
   progressFraction,
   reduceVocabulary,
   restoreProgress,
-  vocabularyResult,
   type VocabularyAction,
 } from '../vocabulary-session';
 
-const quest = DAY_089[0] as VocabularyQuest;
+const quest = DAY_089.find((content) => content.type === 'vocabulary') as VocabularyQuest;
 const AT = '2026-09-18T10:00:00.000Z';
 
 const run = (actions: VocabularyAction[], from: VocabularyProgress = INITIAL_PROGRESS) =>
@@ -28,7 +28,7 @@ const answerAll = (wrongAt: number[] = []): VocabularyAction[] =>
   quest.exercises.flatMap((exercise, index): VocabularyAction[] => {
     const wrong = exercise.optionItemIds.find((id) => id !== exercise.itemId) ?? exercise.itemId;
     return [
-      { type: 'answer', optionItemId: wrongAt.includes(index) ? wrong : exercise.itemId, at: AT },
+      { type: 'answer', optionId: wrongAt.includes(index) ? wrong : exercise.itemId, at: AT },
       { type: 'continue' },
     ];
   });
@@ -49,45 +49,37 @@ describe('vocabulary session', () => {
     expect(progressFraction(quest, practice)).toBe(0.5);
   });
 
-  it('scores a correct and a wrong answer', () => {
+  it('does not skip a word on a double tap of "Got it"', () => {
+    const learning = run([{ type: 'start' }, { type: 'reveal' }]);
+    const next = run([{ type: 'learned' }, { type: 'learned' }], learning);
+    expect(next.learnIndex).toBe(1);
+    expect(next.learnedItemIds).toHaveLength(1);
+  });
+
+  it('scores a correct and a wrong answer against the item', () => {
     const practice = run(learnAll);
     const exercise = currentExercise(quest, practice);
     if (!exercise) throw new Error('no exercise');
 
-    const right = run([{ type: 'answer', optionItemId: exercise.itemId, at: AT }], practice);
+    const right = run([{ type: 'answer', optionId: exercise.itemId, at: AT }], practice);
     expect(right.answers[0]?.correct).toBe(true);
 
     const wrongId = exercise.optionItemIds.find((id) => id !== exercise.itemId) ?? '';
-    const wrong = run([{ type: 'answer', optionItemId: wrongId, at: AT }], practice);
+    const wrong = run([{ type: 'answer', optionId: wrongId, at: AT }], practice);
     expect(wrong.answers[0]?.correct).toBe(false);
   });
 
-  it('locks an answer in and never skips an unanswered question', () => {
-    const practice = run(learnAll);
-    expect(run([{ type: 'continue' }], practice)).toBe(practice);
-
-    const exercise = currentExercise(quest, practice);
-    if (!exercise) throw new Error('no exercise');
-    const answered = run([{ type: 'answer', optionItemId: exercise.itemId, at: AT }], practice);
-    const secondTap = run(
-      [{ type: 'answer', optionItemId: exercise.optionItemIds[0] ?? '', at: AT }],
-      answered,
-    );
-    expect(secondTap).toBe(answered);
-  });
-
-  it('ends with a result and detects a perfect run', () => {
+  it('ends with a result; perfect only when every answer is right', () => {
     const fiveOfSix = run([...learnAll, ...answerAll([3])]);
     expect(fiveOfSix.phase).toBe('result');
-    expect(vocabularyResult(quest, fiveOfSix)).toEqual({
+    expect(scorePractice(fiveOfSix.answers, quest.exercises.length)).toEqual({
       correctCount: 5,
       total: 6,
       isPerfect: false,
-      wordsLearned: ['achievement', 'confidence', 'progress', 'effort', 'consistent', 'overcome'],
     });
 
     const perfect = run([...learnAll, ...answerAll()]);
-    expect(vocabularyResult(quest, perfect).isPerfect).toBe(true);
+    expect(scorePractice(perfect.answers, quest.exercises.length).isPerfect).toBe(true);
     expect(progressFraction(quest, perfect)).toBe(1);
   });
 
@@ -101,7 +93,7 @@ describe('vocabulary session', () => {
     expect(
       restoreProgress(quest, {
         ...midway,
-        answers: [{ exerciseId: 'gone', optionItemId: 'x', correct: true, answeredAt: AT }],
+        answers: [{ exerciseId: 'gone', optionId: 'x', correct: true, answeredAt: AT }],
       }),
     ).toBe(INITIAL_PROGRESS);
   });

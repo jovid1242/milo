@@ -5,6 +5,7 @@ import type {
   AnswerRecord,
   Chapter,
   DailyChallenge,
+  DayCompletion,
   DayNumber,
   Friend,
   LocalDate,
@@ -59,7 +60,16 @@ export interface ProgressRepository {
   addXpEvent(event: XpEvent): Promise<void>;
   /** Removes XP granted for one reason (e.g. when achievements are reset). */
   deleteXpEvents(reason: XpEventReason): Promise<void>;
-  /** Removes completions, their answers, sessions and quest XP. */
+  /**
+   * Stores a finished day once. Returns `false` when the day was already
+   * recorded — the first record stays, so a day can never complete twice.
+   */
+  recordDayCompletion(record: DayCompletion): Promise<boolean>;
+  getDayCompletion(day: DayNumber): Promise<DayCompletion | null>;
+  getDayCompletions(): Promise<DayCompletion[]>;
+  /** Claims the day's celebration; only the first caller gets `true`. */
+  markDayCelebrated(day: DayNumber, at: Timestamp): Promise<boolean>;
+  /** Removes completions, their answers, sessions, quest XP and the days they finished. */
   deleteCompletions(questIds: readonly string[]): Promise<void>;
   getCompletionsForDays(days: readonly DayNumber[]): Promise<QuestCompletion[]>;
   resetProgress(): Promise<void>;
@@ -81,7 +91,11 @@ export interface FriendsRepository {
 /** Local-only operations used by the development tools. */
 export interface DevRepository {
   /** Writes simulated history in one transaction (seeding 89 days one by one is slow). */
-  seedHistory(completions: readonly QuestCompletion[], xpEvents: readonly XpEvent[]): Promise<void>;
+  seedHistory(
+    completions: readonly QuestCompletion[],
+    xpEvents: readonly XpEvent[],
+    days: readonly DayCompletion[],
+  ): Promise<void>;
   clearFriends(): Promise<void>;
   restoreFriends(): Promise<void>;
   resetAllLocalData(): Promise<void>;

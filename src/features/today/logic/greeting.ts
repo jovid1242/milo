@@ -29,7 +29,9 @@ export function getGreeting(journey: TodayJourney): Greeting {
       : {
           mascot: 'correct',
           title: `Day ${day} complete!`,
-          subtitle: `+${journey.xpEarnedToday} XP earned today`,
+          subtitle: journey.isPerfectDay
+            ? `A perfect day · +${journey.xpEarnedToday} XP`
+            : `+${journey.xpEarnedToday} XP earned today`,
         };
   }
 

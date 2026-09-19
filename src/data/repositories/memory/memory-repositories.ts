@@ -7,11 +7,13 @@ import {
   type AchievementId,
   type AchievementUnlock,
   type AnswerRecord,
+  type DayCompletion,
   type DayNumber,
   type Friend,
   type LocalDate,
   type QuestCompletion,
   type QuestSession,
+  type Timestamp,
   type User,
   type XpEvent,
   type XpEventReason,
@@ -30,7 +32,8 @@ import type {
 /**
  * In-memory repositories with the same contract as the SQLite ones — used by
  * domain tests, which cannot open a native database. Keep the semantics in step
- * with `local/`: first completion only, one quest XP event per quest.
+ * with `local/`: first completion only, one quest XP event per quest,
+ * one record and one celebration per day.
  */
 export type MemoryStore = {
   user: User;
@@ -38,6 +41,7 @@ export type MemoryStore = {
   answers: AnswerRecord[];
   sessions: Map<string, QuestSession>;
   xpEvents: XpEvent[];
+  days: Map<DayNumber, DayCompletion>;
   unlocks: Map<AchievementId, AchievementUnlock>;
   friends: Friend[];
 };
@@ -104,9 +108,32 @@ class MemoryProgressRepository implements ProgressRepository {
     this.store.xpEvents = this.store.xpEvents.filter((event) => event.reason !== reason);
   }
 
+  async recordDayCompletion(record: DayCompletion) {
+    if (this.store.days.has(record.day)) return false;
+    this.store.days.set(record.day, record);
+    return true;
+  }
+
+  async getDayCompletion(day: DayNumber) {
+    return this.store.days.get(day) ?? null;
+  }
+
+  async getDayCompletions() {
+    return [...this.store.days.values()].sort((a, b) => a.day - b.day);
+  }
+
+  async markDayCelebrated(day: DayNumber, at: Timestamp) {
+    const record = this.store.days.get(day);
+    if (!record || record.celebratedAt !== null) return false;
+    this.store.days.set(day, { ...record, celebratedAt: at });
+    return true;
+  }
+
   async deleteCompletions(questIds: readonly string[]) {
     const ids = new Set(questIds);
     for (const id of ids) {
+      const completion = this.store.completions.get(id);
+      if (completion) this.store.days.delete(completion.day);
       this.store.completions.delete(id);
       this.store.sessions.delete(id);
     }
@@ -121,6 +148,7 @@ class MemoryProgressRepository implements ProgressRepository {
     this.store.sessions.clear();
     this.store.answers = [];
     this.store.xpEvents = [];
+    this.store.days.clear();
   }
 }
 
@@ -182,10 +210,15 @@ class MemoryDevRepository implements DevRepository {
     private readonly progress: MemoryProgressRepository,
   ) {}
 
-  async seedHistory(completions: readonly QuestCompletion[], xpEvents: readonly XpEvent[]) {
+  async seedHistory(
+    completions: readonly QuestCompletion[],
+    xpEvents: readonly XpEvent[],
+    days: readonly DayCompletion[],
+  ) {
     for (const completion of completions)
       this.store.completions.set(completion.questId, completion);
     for (const event of xpEvents) await this.progress.addXpEvent(event);
+    for (const day of days) await this.progress.recordDayCompletion(day);
   }
 
   async clearFriends() {
@@ -223,6 +256,7 @@ export function createMemoryRepositories(challengeStartDate: LocalDate): Reposit
     answers: [],
     sessions: new Map(),
     xpEvents: [],
+    days: new Map(),
     unlocks: new Map(),
     friends: seedFriends(),
   };

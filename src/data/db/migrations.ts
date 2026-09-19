@@ -101,6 +101,26 @@ export const MIGRATIONS: readonly Migration[] = [
       `);
     },
   },
+  {
+    version: 4,
+    name: 'day completions',
+    up: async (db) => {
+      // One row per finished day: the primary key makes completing a day twice
+      // impossible, and celebrated_at makes the celebration play only once.
+      await db.execAsync(`
+        CREATE TABLE day_completions (
+          day INTEGER PRIMARY KEY NOT NULL,
+          completed_at TEXT NOT NULL,
+          quest_count INTEGER NOT NULL,
+          xp_earned INTEGER NOT NULL,
+          streak_before INTEGER NOT NULL,
+          streak_after INTEGER NOT NULL,
+          is_perfect INTEGER NOT NULL,
+          celebrated_at TEXT
+        );
+      `);
+    },
+  },
 ];
 
 /** Mock team data behaves like cached server data until a backend exists. */

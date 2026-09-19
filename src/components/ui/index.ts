@@ -11,4 +11,5 @@ export { PressableScale, type PressableScaleProps } from './PressableScale';
 export { ProgressBar, type ProgressBarProps } from './ProgressBar';
 export { Screen, type ScreenProps } from './Screen';
 export { SegmentedProgress, type SegmentedProgressProps } from './SegmentedProgress';
+export { Sheet, type SheetProps } from './Sheet';
 export { StatsRow, type Stat } from './StatsRow';

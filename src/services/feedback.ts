@@ -19,6 +19,7 @@ export type FeedbackEvent =
   | 'dayComplete'
   | 'perfect'
   | 'streakUp'
+  | 'streakStep'
   | 'streakLost'
   | 'levelUp'
   | 'achievementUnlock'
@@ -37,6 +38,9 @@ const FEEDBACK: Record<FeedbackEvent, { sound?: SoundName; haptic?: HapticPatter
   dayComplete: { sound: 'dayComplete', haptic: 'dayComplete' },
   perfect: { sound: 'perfect', haptic: 'achievementUnlock' },
   streakUp: { sound: 'streakUp', haptic: 'streakUp' },
+  // The streak growing inside a bigger moment (Day Complete): felt, not heard —
+  // the day's own sound is still playing.
+  streakStep: { haptic: 'streakUp' },
   streakLost: { sound: 'streakLost', haptic: 'press' },
   levelUp: { sound: 'levelUp', haptic: 'achievementUnlock' },
   achievementUnlock: { sound: 'achievementUnlock', haptic: 'achievementUnlock' },

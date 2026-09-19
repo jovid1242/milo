@@ -1,14 +1,17 @@
 import type { SQLiteDatabase } from 'expo-sqlite';
 
-import { getDatabase } from '@/data/db/database';
+import { getDatabase, writeDatabase } from '@/data/db/database';
 import type { ProgressRepository } from '@/data/repositories/types';
 import {
+  DayCompletionSchema,
   QuestCompletionSchema,
   QuestSessionSchema,
   type AnswerRecord,
+  type DayCompletion,
   type DayNumber,
   type QuestCompletion,
   type QuestSession,
+  type Timestamp,
   type XpEvent,
   type XpEventReason,
 } from '@/schemas';
@@ -32,6 +35,49 @@ type SessionRow = {
   progress: number;
   state_json: string | null;
 };
+
+type DayRow = {
+  day: number;
+  completed_at: string;
+  quest_count: number;
+  xp_earned: number;
+  streak_before: number;
+  streak_after: number;
+  is_perfect: number;
+  celebrated_at: string | null;
+};
+
+const mapDay = (row: DayRow): DayCompletion =>
+  DayCompletionSchema.parse({
+    day: row.day,
+    completedAt: row.completed_at,
+    questCount: row.quest_count,
+    xpEarned: row.xp_earned,
+    streakBefore: row.streak_before,
+    streakAfter: row.streak_after,
+    isPerfect: row.is_perfect === 1,
+    celebratedAt: row.celebrated_at,
+  });
+
+/** Shared with the dev repository, which backfills finished days in bulk. */
+export async function writeDayCompletion(db: SQLiteDatabase, record: DayCompletion) {
+  const result = await db.runAsync(
+    `INSERT OR IGNORE INTO day_completions
+       (day, completed_at, quest_count, xp_earned, streak_before, streak_after, is_perfect, celebrated_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+    [
+      record.day,
+      record.completedAt,
+      record.questCount,
+      record.xpEarned,
+      record.streakBefore,
+      record.streakAfter,
+      record.isPerfect ? 1 : 0,
+      record.celebratedAt,
+    ],
+  );
+  return result.changes > 0;
+}
 
 const mapCompletion = (row: CompletionRow): QuestCompletion =>
   QuestCompletionSchema.parse({
@@ -135,36 +181,37 @@ export class SqliteProgressRepository implements ProgressRepository {
     answers: readonly AnswerRecord[],
     xp: XpEvent | null,
   ): Promise<boolean> {
-    const db = await getDatabase();
     let recorded = false;
     // Exclusive: the "already completed?" check and the writes cannot interleave
     // with another completion of the same quest (e.g. a double tap).
-    await db.withExclusiveTransactionAsync(async (txn) => {
-      await txn.runAsync('DELETE FROM quest_sessions WHERE quest_id = ?', [completion.questId]);
-      const existing = await txn.getFirstAsync<{ quest_id: string }>(
-        'SELECT quest_id FROM quest_completions WHERE quest_id = ?',
-        [completion.questId],
-      );
-      if (existing) return;
-
-      await writeCompletion(txn, completion);
-      await txn.runAsync('DELETE FROM answers WHERE quest_id = ?', [completion.questId]);
-      for (const answer of answers) {
-        await txn.runAsync(
-          `INSERT INTO answers (quest_id, question_id, answer_json, is_correct, answered_at)
-           VALUES (?, ?, ?, ?, ?)`,
-          [
-            answer.questId,
-            answer.questionId,
-            JSON.stringify(answer.answer),
-            answer.isCorrect ? 1 : 0,
-            answer.answeredAt,
-          ],
+    await writeDatabase((db) =>
+      db.withExclusiveTransactionAsync(async (txn) => {
+        await txn.runAsync('DELETE FROM quest_sessions WHERE quest_id = ?', [completion.questId]);
+        const existing = await txn.getFirstAsync<{ quest_id: string }>(
+          'SELECT quest_id FROM quest_completions WHERE quest_id = ?',
+          [completion.questId],
         );
-      }
-      if (xp) await writeXpEvent(txn, xp);
-      recorded = true;
-    });
+        if (existing) return;
+
+        await writeCompletion(txn, completion);
+        await txn.runAsync('DELETE FROM answers WHERE quest_id = ?', [completion.questId]);
+        for (const answer of answers) {
+          await txn.runAsync(
+            `INSERT INTO answers (quest_id, question_id, answer_json, is_correct, answered_at)
+           VALUES (?, ?, ?, ?, ?)`,
+            [
+              answer.questId,
+              answer.questionId,
+              JSON.stringify(answer.answer),
+              answer.isCorrect ? 1 : 0,
+              answer.answeredAt,
+            ],
+          );
+        }
+        if (xp) await writeXpEvent(txn, xp);
+        recorded = true;
+      }),
+    );
     return recorded;
   }
 
@@ -175,61 +222,98 @@ export class SqliteProgressRepository implements ProgressRepository {
   }
 
   async saveQuestSession(session: QuestSession): Promise<void> {
-    const db = await getDatabase();
-    await db.runAsync(
-      `INSERT INTO quest_sessions (quest_id, started_at, updated_at, progress, state_json)
+    await writeDatabase((db) =>
+      db.runAsync(
+        `INSERT INTO quest_sessions (quest_id, started_at, updated_at, progress, state_json)
        VALUES (?, ?, ?, ?, ?)
        ON CONFLICT(quest_id) DO UPDATE SET
          updated_at = excluded.updated_at,
          progress = excluded.progress,
          state_json = excluded.state_json`,
-      [
-        session.questId,
-        session.startedAt,
-        session.updatedAt,
-        session.progress,
-        session.state === null ? null : JSON.stringify(session.state),
-      ],
+        [
+          session.questId,
+          session.startedAt,
+          session.updatedAt,
+          session.progress,
+          session.state === null ? null : JSON.stringify(session.state),
+        ],
+      ),
     );
   }
 
   async deleteQuestSession(questId: string): Promise<void> {
-    const db = await getDatabase();
-    await db.runAsync('DELETE FROM quest_sessions WHERE quest_id = ?', [questId]);
+    await writeDatabase((db) =>
+      db.runAsync('DELETE FROM quest_sessions WHERE quest_id = ?', [questId]),
+    );
   }
 
   async addXpEvent(event: XpEvent): Promise<void> {
+    await writeDatabase((db) => writeXpEvent(db, event));
+  }
+
+  async recordDayCompletion(record: DayCompletion): Promise<boolean> {
+    return writeDatabase((db) => writeDayCompletion(db, record));
+  }
+
+  async getDayCompletion(day: DayNumber): Promise<DayCompletion | null> {
     const db = await getDatabase();
-    await writeXpEvent(db, event);
+    const row = await db.getFirstAsync<DayRow>('SELECT * FROM day_completions WHERE day = ?', [
+      day,
+    ]);
+    return row ? mapDay(row) : null;
+  }
+
+  async getDayCompletions(): Promise<DayCompletion[]> {
+    const db = await getDatabase();
+    const rows = await db.getAllAsync<DayRow>('SELECT * FROM day_completions ORDER BY day ASC');
+    return rows.map(mapDay);
+  }
+
+  async markDayCelebrated(day: DayNumber, at: Timestamp): Promise<boolean> {
+    // Atomic claim: only the update that finds it still uncelebrated changes a row.
+    const result = await writeDatabase((db) =>
+      db.runAsync(
+        'UPDATE day_completions SET celebrated_at = ? WHERE day = ? AND celebrated_at IS NULL',
+        [at, day],
+      ),
+    );
+    return result.changes > 0;
   }
 
   async deleteXpEvents(reason: XpEventReason): Promise<void> {
-    const db = await getDatabase();
-    await db.runAsync('DELETE FROM xp_events WHERE reason = ?', [reason]);
+    await writeDatabase((db) => db.runAsync('DELETE FROM xp_events WHERE reason = ?', [reason]));
   }
 
   async deleteCompletions(questIds: readonly string[]): Promise<void> {
     if (questIds.length === 0) return;
-    const db = await getDatabase();
     const list = placeholders(questIds.length);
     const params = [...questIds];
-    await db.withExclusiveTransactionAsync(async (txn) => {
-      await txn.runAsync(`DELETE FROM quest_completions WHERE quest_id IN (${list})`, params);
-      await txn.runAsync(`DELETE FROM answers WHERE quest_id IN (${list})`, params);
-      await txn.runAsync(`DELETE FROM quest_sessions WHERE quest_id IN (${list})`, params);
-      await txn.runAsync(
-        `DELETE FROM xp_events WHERE reason = 'quest' AND ref_id IN (${list})`,
-        params,
-      );
-    });
+    await writeDatabase((db) =>
+      db.withExclusiveTransactionAsync(async (txn) => {
+        // A day without all its quests is not finished any more.
+        await txn.runAsync(
+          `DELETE FROM day_completions WHERE day IN
+           (SELECT day FROM quest_completions WHERE quest_id IN (${list}))`,
+          params,
+        );
+        await txn.runAsync(`DELETE FROM quest_completions WHERE quest_id IN (${list})`, params);
+        await txn.runAsync(`DELETE FROM answers WHERE quest_id IN (${list})`, params);
+        await txn.runAsync(`DELETE FROM quest_sessions WHERE quest_id IN (${list})`, params);
+        await txn.runAsync(
+          `DELETE FROM xp_events WHERE reason = 'quest' AND ref_id IN (${list})`,
+          params,
+        );
+      }),
+    );
   }
 
   async resetProgress(): Promise<void> {
-    const db = await getDatabase();
-    await db.withExclusiveTransactionAsync(async (txn) => {
-      await txn.execAsync(
-        'DELETE FROM quest_completions; DELETE FROM answers; DELETE FROM quest_sessions; DELETE FROM xp_events;',
-      );
-    });
+    await writeDatabase((db) =>
+      db.withExclusiveTransactionAsync(async (txn) => {
+        await txn.execAsync(
+          'DELETE FROM quest_completions; DELETE FROM answers; DELETE FROM quest_sessions; DELETE FROM xp_events; DELETE FROM day_completions;',
+        );
+      }),
+    );
   }
 }

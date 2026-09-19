@@ -107,136 +107,278 @@ export const DAY_001: readonly QuestContent[] = [
   {
     type: 'grammar',
     questId: questId(1, 'grammar'),
-    topic: 'Present Simple for habits',
-    explanation:
-      'Use the Present Simple for things you do regularly. With he, she and it, add -s or -es to the verb.',
-    examples: ['I study English every day.', 'She reads before bed.', "We don't give up."],
-    quiz: [
+    rule: {
+      title: 'Present Simple for habits',
+      lead: 'For things you do again and again.',
+      points: [
+        {
+          id: 'base',
+          name: 'I · you · we · they',
+          idea: 'The verb as it is',
+          timeline: 'repeated',
+          example: {
+            text: 'I study English every day.',
+            marks: [
+              { text: 'study', kind: 'form' },
+              { text: 'every day', kind: 'signal' },
+            ],
+          },
+          signals: ['every day', 'usually', 'on weekends'],
+        },
+        {
+          id: 'third-person',
+          name: 'he · she · it',
+          idea: 'The verb + s',
+          timeline: 'repeated',
+          example: {
+            text: 'She reads before bed.',
+            marks: [
+              { text: 'reads', kind: 'form' },
+              { text: 'before bed', kind: 'signal' },
+            ],
+          },
+          signals: ['always', 'often', 'every morning'],
+        },
+      ],
+      tip: 'He, she, it: add -s — works, reads, goes.',
+    },
+    examples: [
       {
-        kind: 'singleChoice',
-        id: 'd001-grammar-q1',
-        prompt: 'Milo ___ new words every morning.',
+        id: 'd001-grammar-ex1',
+        sentence: {
+          text: 'Milo walks to the river every morning.',
+          marks: [
+            { text: 'walks', kind: 'form' },
+            { text: 'every morning', kind: 'signal' },
+          ],
+        },
+        pointId: 'third-person',
+        question: 'Why “walks”, with -s?',
+        explanation: 'Milo is “he”, and this is a habit, so the verb takes -s.',
+      },
+      {
+        id: 'd001-grammar-ex2',
+        sentence: {
+          text: 'We practice English on weekends.',
+          marks: [
+            { text: 'practice', kind: 'form' },
+            { text: 'on weekends', kind: 'signal' },
+          ],
+        },
+        pointId: 'base',
+        question: 'Why no -s here?',
+        explanation: 'With “we”, the verb stays as it is.',
+      },
+    ],
+    exercises: [
+      {
+        kind: 'choose',
+        id: 'd001-grammar-1',
+        sentence: 'Milo ___ new words every morning.',
         options: [
-          { id: 'a', label: 'learn' },
-          { id: 'b', label: 'learns' },
-          { id: 'c', label: 'learning' },
+          { id: 'a', text: 'learn' },
+          { id: 'b', text: 'learns' },
         ],
         correctOptionId: 'b',
-        explanation: 'Milo = he, so the verb takes -s.',
+        explanation: 'Milo is “he”, so the verb takes -s.',
       },
       {
-        kind: 'singleChoice',
-        id: 'd001-grammar-q2',
-        prompt: 'They ___ English on weekends.',
+        kind: 'complete',
+        id: 'd001-grammar-2',
+        sentence: 'They ___ English on weekends.',
         options: [
-          { id: 'a', label: 'practice' },
-          { id: 'b', label: 'practices' },
-          { id: 'c', label: 'practicing' },
+          { id: 'a', text: 'practice' },
+          { id: 'b', text: 'practices' },
+          { id: 'c', text: 'practicing' },
         ],
         correctOptionId: 'a',
+        explanation: 'With “they”, use the verb as it is.',
       },
       {
-        kind: 'fillBlank',
-        id: 'd001-grammar-q3',
-        prompt: 'She ___ (read) a short story every evening.',
-        acceptedAnswers: ['reads'],
+        kind: 'spotCorrect',
+        id: 'd001-grammar-3',
+        question: 'Which sentence is correct?',
+        options: [
+          { id: 'a', text: 'He go to school by bus.' },
+          { id: 'b', text: 'He goes to school by bus.' },
+        ],
+        correctOptionId: 'b',
+        explanation: 'He, she, it take -s or -es: goes.',
+      },
+      {
+        kind: 'meaning',
+        id: 'd001-grammar-4',
+        question: 'Which sentence is about a habit?',
+        options: [
+          { id: 'a', text: 'I’m reading a book right now.' },
+          { id: 'b', text: 'I read a book every evening.' },
+        ],
+        correctOptionId: 'b',
+        explanation: '“Every evening” shows something you do again and again.',
       },
     ],
   },
   {
     type: 'reading',
     questId: questId(1, 'reading'),
-    title: 'Milo packs his backpack',
-    paragraphs: [
-      'Milo wakes up early. Today is the first day of a long journey to the top of the mountain.',
-      'He packs a notebook, a pencil and a small map. Every day he wants to learn six new words.',
-      'The path is long, but Milo is not alone. His friends walk with him, and they help each other.',
-    ],
-    quiz: [
+    story: {
+      title: 'Milo packs his backpack',
+      level: 'A2',
+      estimatedMinutes: 1,
+      paragraphs: [
+        {
+          id: 'p1',
+          text: 'Milo wakes up early. Today is the first day of a long journey to the top of the mountain.',
+        },
+        {
+          id: 'p2',
+          text: 'He packs a notebook, a pencil and a small map. Every day he wants to learn six new words.',
+        },
+        {
+          id: 'p3',
+          text: 'The path is long, but Milo is not alone. His friends walk with him, and they help each other.',
+        },
+      ],
+      words: [
+        {
+          id: 'journey',
+          text: 'journey',
+          paragraphId: 'p1',
+          phonetic: '/ˈdʒɜːrni/',
+          translation: 'путешествие',
+          definition: 'a long trip from one place to another',
+        },
+        {
+          id: 'alone',
+          text: 'alone',
+          paragraphId: 'p3',
+          phonetic: '/əˈloʊn/',
+          translation: 'один, в одиночестве',
+          definition: 'without other people',
+        },
+      ],
+    },
+    questions: [
       {
-        kind: 'singleChoice',
         id: 'd001-reading-q1',
-        prompt: 'Where does Milo want to go?',
+        kind: 'mainIdea',
+        question: 'What is the story about?',
         options: [
-          { id: 'a', label: 'To the sea' },
-          { id: 'b', label: 'To the top of the mountain' },
-          { id: 'c', label: 'To school' },
-        ],
-        correctOptionId: 'b',
-      },
-      {
-        kind: 'singleChoice',
-        id: 'd001-reading-q2',
-        prompt: 'How many new words does Milo want to learn every day?',
-        options: [
-          { id: 'a', label: 'Three' },
-          { id: 'b', label: 'Six' },
-          { id: 'c', label: 'Ten' },
-        ],
-        correctOptionId: 'b',
-      },
-      {
-        kind: 'singleChoice',
-        id: 'd001-reading-q3',
-        prompt: 'Who walks with Milo?',
-        options: [
-          { id: 'a', label: 'His friends' },
-          { id: 'b', label: 'His teacher' },
-          { id: 'c', label: 'Nobody' },
+          { id: 'a', text: 'Milo starts a long journey with his friends.' },
+          { id: 'b', text: 'Milo buys a new map for school.' },
+          { id: 'c', text: 'Milo walks to the sea on his own.' },
         ],
         correctOptionId: 'a',
+        evidence: 'It is the first day of a long journey, and his friends walk with him.',
+      },
+      {
+        id: 'd001-reading-q2',
+        kind: 'detail',
+        question: 'How many new words does Milo want to learn every day?',
+        options: [
+          { id: 'a', text: 'Three' },
+          { id: 'b', text: 'Six' },
+          { id: 'c', text: 'Ten' },
+        ],
+        correctOptionId: 'b',
+        evidence: '“Every day he wants to learn six new words.”',
+      },
+      {
+        id: 'd001-reading-q3',
+        kind: 'inference',
+        question: 'Why is the long path easier for Milo?',
+        options: [
+          { id: 'a', text: 'He has a very good map.' },
+          { id: 'b', text: 'His friends are with him and help him.' },
+          { id: 'c', text: 'He walks only a short way every day.' },
+        ],
+        correctOptionId: 'b',
+        evidence: '“Milo is not alone. His friends walk with him, and they help each other.”',
       },
     ],
   },
   {
-    // Day 1 review: today's words and rule once more, mixed.
+    // Day 1 review: back to today's words, rule and story — mixed, not in blocks.
     type: 'review',
     questId: questId(1, 'review'),
-    quiz: [
+    sources: {
+      vocabulary: questId(1, 'vocabulary'),
+      grammar: questId(1, 'grammar'),
+      reading: questId(1, 'reading'),
+    },
+    exercises: [
       {
-        kind: 'singleChoice',
-        id: 'd001-review-q1',
-        prompt: 'Translate: «привычка»',
-        options: [
-          { id: 'a', label: 'goal' },
-          { id: 'b', label: 'habit' },
-          { id: 'c', label: 'journey' },
-        ],
-        correctOptionId: 'b',
+        source: 'vocabulary',
+        exercise: {
+          kind: 'pickTranslation',
+          id: 'd001-review-1',
+          itemId: 'goal',
+          optionItemIds: ['habit', 'goal', 'journey', 'improve'],
+        },
       },
       {
-        kind: 'fillBlank',
-        id: 'd001-review-q2',
-        prompt: 'He ___ (practice) English every day.',
-        acceptedAnswers: ['practices'],
+        source: 'grammar',
+        pointId: 'third-person',
+        exercise: {
+          kind: 'choose',
+          id: 'd001-review-2',
+          sentence: 'My sister ___ to work by bike.',
+          options: [
+            { id: 'a', text: 'go' },
+            { id: 'b', text: 'goes' },
+          ],
+          correctOptionId: 'b',
+          explanation: 'She takes -s or -es: goes.',
+        },
       },
       {
-        kind: 'singleChoice',
-        id: 'd001-review-q3',
-        prompt: 'Which sentence is correct?',
-        options: [
-          { id: 'a', label: 'She read every evening.' },
-          { id: 'b', label: 'She reading every evening.' },
-          { id: 'c', label: 'She reads every evening.' },
-        ],
-        correctOptionId: 'c',
+        source: 'reading',
+        question: {
+          id: 'd001-review-3',
+          kind: 'detail',
+          question: 'What does Milo pack?',
+          options: [
+            { id: 'a', text: 'A notebook, a pencil and a map' },
+            { id: 'b', text: 'Food and water for the trip' },
+            { id: 'c', text: 'Some books and a phone' },
+          ],
+          correctOptionId: 'a',
+          evidence: '“He packs a notebook, a pencil and a small map.”',
+        },
       },
       {
-        kind: 'singleChoice',
-        id: 'd001-review-q4',
-        prompt: 'Something you want to achieve is a…',
-        options: [
-          { id: 'a', label: 'goal' },
-          { id: 'b', label: 'habit' },
-          { id: 'c', label: 'map' },
-        ],
-        correctOptionId: 'a',
+        source: 'vocabulary',
+        exercise: {
+          kind: 'pickWordByDefinition',
+          id: 'd001-review-4',
+          itemId: 'practice',
+          optionItemIds: ['confident', 'practice', 'goal', 'journey'],
+        },
       },
       {
-        kind: 'fillBlank',
-        id: 'd001-review-q5',
-        prompt: 'Every ___ starts with a single step.',
-        acceptedAnswers: ['journey'],
+        source: 'grammar',
+        pointId: 'base',
+        exercise: {
+          kind: 'spotCorrect',
+          id: 'd001-review-5',
+          question: 'Which sentence is correct?',
+          options: [
+            { id: 'a', text: 'We plays football on Sundays.' },
+            { id: 'b', text: 'We play football on Sundays.' },
+          ],
+          correctOptionId: 'b',
+          explanation: 'With “we”, the verb stays as it is.',
+        },
+      },
+      {
+        source: 'vocabulary',
+        exercise: {
+          kind: 'fillGap',
+          id: 'd001-review-6',
+          itemId: 'confident',
+          sentence: 'After a month of practice, she felt more ___ in class.',
+          optionItemIds: ['habit', 'goal', 'confident', 'journey'],
+        },
       },
     ],
   },

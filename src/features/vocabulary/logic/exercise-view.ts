@@ -2,21 +2,21 @@ import type { VocabularyExercise, VocabularyQuest } from '@/schemas';
 
 import { itemById } from './vocabulary-session';
 
-/** What an exercise shows: derived from the item ids, so content stays pure data. */
+/** What the prompt is, so it gets the right type: a word, Cyrillic, or a phrase. */
+export type VocabularyPromptKind = 'word' | 'translation' | 'definition';
+
+/** What an exercise shows — derived from item ids, so content stays pure data. */
 export type ExerciseView = {
   /** Small instruction above the prompt. */
   instruction: string;
-  /** Word or translation to recognise; `null` for sentence exercises. */
-  prompt: string | null;
-  /** The prompt is the Russian translation (needs a Cyrillic font). */
-  promptIsTranslation: boolean;
+  /** Word, translation or definition to recognise; `null` for sentence exercises. */
+  prompt: { kind: VocabularyPromptKind; text: string } | null;
   /** Sentence around the gap (fill-the-gap exercises). */
   sentence: { before: string; after: string } | null;
-  options: { itemId: string; label: string }[];
-  /** How the right answer reads, for the feedback line. */
+  options: { id: string; label: string }[];
+  /** How the right answer reads, for the gap and the feedback line. */
   answerLabel: string;
-  /** "achievement — достижение": the pair to remember after answering. */
-  pair: string;
+  feedback: { correct: string; wrong: string };
 };
 
 export function describeExercise(
@@ -24,44 +24,51 @@ export function describeExercise(
   exercise: VocabularyExercise,
 ): ExerciseView {
   const item = itemById(quest, exercise.itemId);
-  const pair = `${item.word} — ${item.translation}`;
-  const labelFor = (id: string) => {
+  const byTranslation = exercise.kind === 'pickTranslation';
+  const options = exercise.optionItemIds.map((id) => {
     const option = itemById(quest, id);
-    return exercise.kind === 'pickTranslation' ? option.translation : option.word;
+    return { id, label: byTranslation ? option.translation : option.word };
+  });
+  const answerLabel = byTranslation ? item.translation : item.word;
+  const base = {
+    options,
+    answerLabel,
+    // A right answer shows the pair to remember; a miss names the right answer.
+    feedback: {
+      correct: `${item.word} — ${item.translation}`,
+      wrong: `The answer is “${answerLabel}”.`,
+    },
   };
-  const options = exercise.optionItemIds.map((itemId) => ({ itemId, label: labelFor(itemId) }));
 
   switch (exercise.kind) {
     case 'pickTranslation':
       return {
+        ...base,
         instruction: 'What does it mean?',
-        prompt: item.word,
-        promptIsTranslation: false,
+        prompt: { kind: 'word', text: item.word },
         sentence: null,
-        options,
-        answerLabel: item.translation,
-        pair,
       };
     case 'pickWord':
       return {
+        ...base,
         instruction: 'Which word is it?',
-        prompt: item.translation,
-        promptIsTranslation: true,
+        prompt: { kind: 'translation', text: item.translation },
         sentence: null,
-        options,
-        answerLabel: item.word,
-        pair,
+      };
+    case 'pickWordByDefinition':
+      return {
+        ...base,
+        instruction: 'Which word means this?',
+        prompt: { kind: 'definition', text: item.definition },
+        sentence: null,
       };
     case 'fillGap': {
       const [before = '', after = ''] = exercise.sentence.split('___');
       return {
+        ...base,
         instruction: 'Complete the sentence',
         prompt: null,
-        promptIsTranslation: false,
         sentence: { before, after },
-        options,
-        answerLabel: item.word,
-        pair,
       };
     }
   }

@@ -99,7 +99,9 @@ function CurrentQuestCard({
       <View style={styles.cardText}>
         <AppText variant="overline" color={inProgress ? 'reward' : 'wood'}>
           {inProgress
-            ? `In progress · ${Math.round(step.progress * 100)}%`
+            ? step.progress > 0
+              ? `In progress · ${Math.round(step.progress * 100)}%`
+              : 'In progress'
             : `Step ${index + 1} of ${total}`}
         </AppText>
         <View style={styles.titleRow}>

@@ -9,6 +9,7 @@ import type {
   User,
 } from '@/schemas';
 
+import { findCompletedDays } from './day-completion';
 import { getLevelInfo } from './levels';
 import { computeStreak } from './streak';
 
@@ -27,10 +28,8 @@ export function buildProgressState(input: ProgressInputs): ProgressState {
   const { user, chapters, dailyChallenges, completions, totalXp, unlocks, now } = input;
   const currentDay = getChallengeDay(user.challengeStartDate, now);
   const completedQuestIds = new Set(completions.map((c) => c.questId));
-
-  const completedDays: DayNumber[] = dailyChallenges
-    .filter((plan) => plan.quests.every((quest) => completedQuestIds.has(quest.id)))
-    .map((plan) => plan.day);
+  const completedDaySet = findCompletedDays(dailyChallenges, completions);
+  const completedDays: DayNumber[] = [...completedDaySet].sort((a, b) => a - b);
 
   const questsById = new Map(dailyChallenges.flatMap((plan) => plan.quests).map((q) => [q.id, q]));
   const wordsLearned = completions.reduce(
@@ -48,7 +47,7 @@ export function buildProgressState(input: ProgressInputs): ProgressState {
     chapterId: findChapterForDay(chapters, currentDay).id,
     totalXp: Math.max(0, totalXp),
     level: getLevelInfo(totalXp),
-    streak: computeStreak(new Set(completedDays), currentDay),
+    streak: computeStreak(completedDaySet, currentDay),
     completedDays,
     wordsLearned,
     todayCompletedQuestIds,

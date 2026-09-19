@@ -1,8 +1,17 @@
+import { useQueryClient } from '@tanstack/react-query';
 import { useIsFocused } from 'expo-router';
-import { useEffect, useState } from 'react';
+import { useEffect, useEffectEvent, useState } from 'react';
 import { AccessibilityInfo } from 'react-native';
 
-import { wasQuestCelebrated } from '@/features/quests/celebrations';
+import { useRepositories } from '@/data/repository-provider';
+import { invalidateProgress } from '@/features/progress/queries';
+import { claimDayCelebration } from '@/features/progress/use-cases';
+import {
+  rememberDayCelebrated,
+  wasDayCelebrated,
+  wasQuestCelebrated,
+} from '@/features/quests/celebrations';
+import { logger } from '@/lib/logger';
 import { playFeedback } from '@/services/feedback';
 
 import {
@@ -25,13 +34,25 @@ export type HomeMoment = JourneyMoment & {
   announcement: string | null;
 };
 
+/** The day already had its moment — on the Day Complete screen, or earlier on Home. */
+function isDayCelebrated(journey: TodayJourney): boolean {
+  const record = journey.dayCompletion;
+  return record !== null && (record.celebratedAt !== null || wasDayCelebrated(record));
+}
+
 /**
  * Detects reward moments on Home: a quest finished, the day completed, the
  * streak grew. Moments are only taken while Home is on screen, so a quest
  * finished elsewhere is celebrated when the user comes back — and reopening the
  * app later shows the finished state without replaying anything.
+ *
+ * A day celebrated on its Day Complete screen is not celebrated again: Home
+ * simply shows the calm, finished day. Only when the user skipped that screen
+ * does Home play the day's moment — and claims it, so it never plays twice.
  */
 export function useJourneyMoments(journey: TodayJourney): HomeMoment | null {
+  const repositories = useRepositories();
+  const queryClient = useQueryClient();
   const isFocused = useIsFocused();
   const [snapshot, setSnapshot] = useState<JourneySnapshot | null>(null);
   const [moment, setMoment] = useState<HomeMoment | null>(null);
@@ -43,7 +64,7 @@ export function useJourneyMoments(journey: TodayJourney): HomeMoment | null {
     if (snapshot === null || !isSameSnapshot(snapshot, next)) {
       setSnapshot(next);
       const diff = snapshot ? diffJourney(snapshot, next) : null;
-      if (diff) {
+      if (diff && !(diff.dayCompleted && isDayCelebrated(journey))) {
         const cues = feedbackCues(diff, journey.dayKind);
         setMoment({
           ...diff,
@@ -58,8 +79,16 @@ export function useJourneyMoments(journey: TodayJourney): HomeMoment | null {
     }
   }
 
+  const claimDay = useEffectEvent(() => {
+    if (journey.dayCompletion) rememberDayCelebrated(journey.dayCompletion);
+    claimDayCelebration(repositories, journey.day)
+      .then(() => invalidateProgress(queryClient))
+      .catch((error: unknown) => logger.warn('could not save the day celebration', error));
+  });
+
   useEffect(() => {
     if (!moment) return;
+    if (moment.dayCompleted) claimDay();
     // A quest that already had its own result moment is not chimed twice on Home.
     const alreadyCelebrated =
       moment.newlyCompletedQuestIds.length > 0 &&

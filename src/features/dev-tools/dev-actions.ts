@@ -4,21 +4,51 @@ import { CHALLENGE } from '@/constants/challenge';
 import { queryKeys } from '@/data/query-keys';
 import type { Repositories } from '@/data/repositories/types';
 import { getStartDateForDay } from '@/features/challenge/logic/calendar';
+import { buildDayCompletion, findCompletedDays } from '@/features/progress/logic/day-completion';
 import { invalidateProgress } from '@/features/progress/queries';
 import {
+  completeDay,
   completeQuest,
   loadProgressState,
   syncAchievements,
   type QuestOutcome,
 } from '@/features/progress/use-cases';
 import {
+  INITIAL_GRAMMAR,
+  grammarProgress,
+  reduceGrammar,
+  type GrammarAction,
+} from '@/features/grammar/logic/grammar-session';
+import { finishQuestRun, saveQuestRun } from '@/features/quests/use-cases';
+import {
+  INITIAL_READING,
+  readingProgress,
+  reduceReading,
+  type ReadingAction,
+} from '@/features/reading/logic/reading-session';
+import { resolveReview, reviewMaterial } from '@/features/review/logic/review-items';
+import {
+  INITIAL_REVIEW,
+  reduceReview,
+  reviewProgress,
+  type ReviewAction,
+} from '@/features/review/logic/review-session';
+import {
   INITIAL_PROGRESS,
+  progressFraction,
   reduceVocabulary,
   type VocabularyAction,
 } from '@/features/vocabulary/logic/vocabulary-session';
-import { completeVocabularyQuest, saveVocabularyProgress } from '@/features/vocabulary/use-cases';
-import { questId as questIdFor } from '@/data/content/schedule';
-import type { AchievementId, Quest, QuestCompletion, XpEvent } from '@/schemas';
+import type {
+  AchievementId,
+  ChoiceAnswer,
+  DayCompletion,
+  Quest,
+  QuestCompletion,
+  QuestContent,
+  QuestType,
+  XpEvent,
+} from '@/schemas';
 import { clamp } from '@/utils/number';
 
 /**
@@ -42,13 +72,18 @@ function devRepository(ctx: DevContext) {
   return ctx.repositories.dev;
 }
 
-/** Writes finished quests (and their XP) in one transaction — for bulk simulation. */
+/**
+ * Writes finished quests (and their XP) in one transaction — for bulk
+ * simulation. Days they finish get their record too, already celebrated unless
+ * `celebrated: false`: simulated history never replays a celebration.
+ */
 async function seedCompletedQuests(
   ctx: DevContext,
   quests: readonly Quest[],
-  { perfect }: { perfect: boolean },
+  { perfect, celebrated = true }: { perfect: boolean; celebrated?: boolean },
 ): Promise<void> {
-  const done = new Set((await ctx.repositories.progress.getCompletions()).map((c) => c.questId));
+  const existing = await ctx.repositories.progress.getCompletions();
+  const done = new Set(existing.map((c) => c.questId));
   const timestamp = new Date().toISOString();
   const completions: QuestCompletion[] = [];
   const xpEvents: XpEvent[] = [];
@@ -70,7 +105,28 @@ async function seedCompletedQuests(
     });
     xpEvents.push({ amount: xpEarned, reason: 'quest', refId: quest.id, createdAt: timestamp });
   }
-  await devRepository(ctx).seedHistory(completions, xpEvents);
+
+  const [plans, recorded] = await Promise.all([
+    ctx.repositories.challenge.getDailyChallenges(),
+    ctx.repositories.progress.getDayCompletions(),
+  ]);
+  const all = [...existing, ...completions];
+  const completedDays = findCompletedDays(plans, all);
+  const recordedDays = new Set(recorded.map((record) => record.day));
+  const days = plans
+    .filter((plan) => completedDays.has(plan.day) && !recordedDays.has(plan.day))
+    .map((plan) =>
+      buildDayCompletion({
+        plan,
+        completions: all,
+        completedDays,
+        completedAt: timestamp,
+        celebratedAt: celebrated ? timestamp : null,
+      }),
+    )
+    .filter((record): record is DayCompletion => record !== null);
+
+  await devRepository(ctx).seedHistory(completions, xpEvents, days);
 }
 
 export async function setCurrentDay(ctx: DevContext, day: number): Promise<void> {
@@ -271,6 +327,69 @@ export async function applyHomeScenario(ctx: DevContext, scenario: HomeScenario)
   invalidateAll(ctx);
 }
 
+/**
+ * Rebuilds Day 89 (88 days walked) and finishes the quests before `type`, so
+ * `type` is the current quest on Home. Returns it with its content.
+ */
+async function prepareDay89Quest(
+  ctx: DevContext,
+  type: QuestType,
+): Promise<{ quest: Quest; content: QuestContent }> {
+  await applyHomeScenario(ctx, 'day89');
+  const plan = await ctx.repositories.challenge.getDailyChallenge(89);
+  const index = plan.quests.findIndex((quest) => quest.type === type);
+  const quest = plan.quests[index];
+  if (!quest) throw new Error(`Day 89 has no ${type} quest`);
+  await seedCompletedQuests(ctx, plan.quests.slice(0, index), { perfect: false });
+
+  const content = await ctx.repositories.challenge.getQuestContent(quest.id);
+  if (!content) throw new Error(`Day 89 has no ${type} content`);
+  return { quest, content };
+}
+
+/** Leaves a quest saved at `state` — or finished with its answers — like a real run would. */
+async function storeQuestState(
+  ctx: DevContext,
+  input: {
+    questId: string;
+    state: unknown;
+    progress: number;
+    answers: readonly ChoiceAnswer[];
+    exerciseCount: number;
+    finished: boolean;
+  },
+): Promise<void> {
+  if (input.finished) {
+    await finishQuestRun(ctx.repositories, {
+      questId: input.questId,
+      answers: input.answers,
+      exerciseCount: input.exerciseCount,
+    });
+  } else {
+    await saveQuestRun(ctx.repositories, {
+      questId: input.questId,
+      startedAt: new Date().toISOString(),
+      progress: input.progress,
+      state: input.state,
+    });
+  }
+  invalidateAll(ctx);
+}
+
+/** Answers exercise `index` right or wrong (the first other option). */
+function answerAction(
+  exercise: { id: string; correctOptionId: string; optionIds: readonly string[] } | undefined,
+  right: boolean,
+  at: string,
+) {
+  const wrong = exercise?.optionIds.find((option) => option !== exercise.correctOptionId);
+  return {
+    type: 'answer' as const,
+    optionId: (right ? exercise?.correctOptionId : wrong) ?? '',
+    at,
+  };
+}
+
 /** Quick ways into every state of the Day 89 Vocabulary quest. */
 export const VOCABULARY_SCENARIOS = {
   intro: 'Intro',
@@ -286,27 +405,28 @@ export const VOCABULARY_SCENARIOS = {
 
 export type VocabularyScenario = keyof typeof VOCABULARY_SCENARIOS;
 
-/**
- * Rebuilds Day 89 (fresh, 88 days walked) and leaves its Vocabulary quest in
- * the chosen state, through the same reducer and use cases as the real flow.
- * Returns the quest id to open.
- */
+/** Leaves the Day 89 Vocabulary quest in the chosen state; returns the quest id to open. */
 export async function applyVocabularyScenario(
   ctx: DevContext,
   scenario: VocabularyScenario,
 ): Promise<string> {
-  await applyHomeScenario(ctx, 'day89');
-  const id = questIdFor(89, 'vocabulary');
-  const content = await ctx.repositories.challenge.getQuestContent(id);
-  if (content?.type !== 'vocabulary') throw new Error('Day 89 has no vocabulary content');
+  const { quest, content } = await prepareDay89Quest(ctx, 'vocabulary');
+  if (content.type !== 'vocabulary') throw new Error('Day 89 vocabulary content has another type');
 
   const at = new Date().toISOString();
   const meet: VocabularyAction[] = [{ type: 'reveal' }, { type: 'learned' }];
   const learnAll: VocabularyAction[] = [{ type: 'start' }, ...content.items.flatMap(() => meet)];
   const answer = (index: number, right: boolean): VocabularyAction => {
     const exercise = content.exercises[index];
-    const wrong = exercise?.optionItemIds.find((option) => option !== exercise.itemId);
-    return { type: 'answer', optionItemId: (right ? exercise?.itemId : wrong) ?? '', at };
+    return answerAction(
+      exercise && {
+        id: exercise.id,
+        correctOptionId: exercise.itemId,
+        optionIds: exercise.optionItemIds,
+      },
+      right,
+      at,
+    );
   };
   const answerAll = (wrongAt?: number): VocabularyAction[] =>
     content.exercises.flatMap((_, index) => [
@@ -325,18 +445,361 @@ export async function applyVocabularyScenario(
     completed: [...learnAll, ...answerAll(2)],
     resume: [...learnAll, ...answerAll().slice(0, 4)],
   };
-  const progress = actions[scenario].reduce(
-    (state, action) => reduceVocabulary(content, state, action),
+  const state = actions[scenario].reduce(
+    (current, action) => reduceVocabulary(content, current, action),
     INITIAL_PROGRESS,
   );
 
-  if (scenario === 'completed') {
-    await completeVocabularyQuest(ctx.repositories, { content, progress });
-  } else if (scenario !== 'intro') {
-    await saveVocabularyProgress(ctx.repositories, { content, progress, startedAt: at });
+  if (scenario !== 'intro') {
+    await storeQuestState(ctx, {
+      questId: quest.id,
+      state,
+      progress: progressFraction(content, state),
+      answers: state.answers,
+      exerciseCount: content.exercises.length,
+      finished: scenario === 'completed',
+    });
+  } else {
+    invalidateAll(ctx);
   }
+  return quest.id;
+}
+
+/** Quick ways into every state of the Day 89 Grammar quest (Vocabulary already done). */
+export const GRAMMAR_SCENARIOS = {
+  intro: 'Intro',
+  rule: 'Rule',
+  example: 'Guided example',
+  practice1: 'Practice 1/6',
+  correct: 'Answer: correct',
+  wrong: 'Answer: wrong',
+  practice6: 'Practice 6/6',
+  result5: 'Result 5/6',
+  result6: 'Result 6/6',
+  resume: 'Resume at 3/6',
+  completed: 'Completed quest',
+} as const;
+
+export type GrammarScenario = keyof typeof GRAMMAR_SCENARIOS;
+
+/** Leaves the Day 89 Grammar quest in the chosen state; returns the quest id to open. */
+export async function applyGrammarScenario(
+  ctx: DevContext,
+  scenario: GrammarScenario,
+): Promise<string> {
+  const { quest, content } = await prepareDay89Quest(ctx, 'grammar');
+  if (content.type !== 'grammar') throw new Error('Day 89 grammar content has another type');
+
+  const at = new Date().toISOString();
+  const count = content.exercises.length;
+  const learn: GrammarAction[] = [
+    { type: 'start' },
+    { type: 'ruleLearned' },
+    ...content.examples.flatMap((): GrammarAction[] => [
+      { type: 'revealExample' },
+      { type: 'nextExample' },
+    ]),
+  ];
+  const answer = (index: number, right: boolean): GrammarAction => {
+    const exercise = content.exercises[index];
+    return answerAction(
+      exercise && {
+        id: exercise.id,
+        correctOptionId: exercise.correctOptionId,
+        optionIds: exercise.options.map((option) => option.id),
+      },
+      right,
+      at,
+    );
+  };
+  const answerFirst = (howMany: number, wrongAt?: number): GrammarAction[] =>
+    content.exercises
+      .slice(0, howMany)
+      .flatMap((_, index): GrammarAction[] => [
+        answer(index, index !== wrongAt),
+        { type: 'continue' },
+      ]);
+
+  const actions: Record<GrammarScenario, GrammarAction[]> = {
+    intro: [],
+    rule: [{ type: 'start' }],
+    example: [{ type: 'start' }, { type: 'ruleLearned' }],
+    practice1: learn,
+    correct: [...learn, answer(0, true)],
+    wrong: [...learn, answer(0, false)],
+    practice6: [...learn, ...answerFirst(count - 1)],
+    result5: [...learn, ...answerFirst(count, 1)],
+    result6: [...learn, ...answerFirst(count)],
+    resume: [...learn, ...answerFirst(2)],
+    completed: [...learn, ...answerFirst(count, 1)],
+  };
+  const state = actions[scenario].reduce(
+    (current, action) => reduceGrammar(content, current, action),
+    INITIAL_GRAMMAR,
+  );
+
+  if (scenario !== 'intro') {
+    await storeQuestState(ctx, {
+      questId: quest.id,
+      state,
+      progress: grammarProgress(content, state),
+      answers: state.answers,
+      exerciseCount: count,
+      finished: scenario === 'completed',
+    });
+  } else {
+    invalidateAll(ctx);
+  }
+  return quest.id;
+}
+
+/** Quick ways into every state of the Day 89 Reading quest (Vocabulary and Grammar done). */
+export const READING_SCENARIOS = {
+  intro: 'Intro',
+  storyStart: 'Story: beginning',
+  storyEnd: 'Story: end',
+  word: 'Word card',
+  question1: 'Question 1/4',
+  question4: 'Question 4/4',
+  correct: 'Answer: correct',
+  wrong: 'Answer: wrong',
+  result3: 'Result 3/4',
+  result4: 'Result 4/4',
+  resume: 'Resume questions',
+  completed: 'Completed quest',
+} as const;
+
+export type ReadingScenario = keyof typeof READING_SCENARIOS;
+
+/**
+ * Leaves the Day 89 Reading quest in the chosen state. Returns the quest id to
+ * open, and a word to show straight away for the word-card state.
+ */
+export async function applyReadingScenario(
+  ctx: DevContext,
+  scenario: ReadingScenario,
+): Promise<{ questId: string; devWord?: string }> {
+  const { quest, content } = await prepareDay89Quest(ctx, 'reading');
+  if (content.type !== 'reading') throw new Error('Day 89 reading content has another type');
+
+  const at = new Date().toISOString();
+  const count = content.questions.length;
+  const lastParagraph = content.story.paragraphs.length - 1;
+  const word =
+    content.story.words.find((item) => item.id === 'gradually') ?? content.story.words[0];
+  const wordParagraph = Math.max(
+    0,
+    content.story.paragraphs.findIndex((paragraph) => paragraph.id === word?.paragraphId),
+  );
+  const answer = (index: number, right: boolean): ReadingAction => {
+    const question = content.questions[index];
+    return answerAction(
+      question && {
+        id: question.id,
+        correctOptionId: question.correctOptionId,
+        optionIds: question.options.map((option) => option.id),
+      },
+      right,
+      at,
+    );
+  };
+  const read: ReadingAction[] = [{ type: 'start' }, { type: 'finishReading' }];
+  const answerFirst = (howMany: number, wrongAt?: number): ReadingAction[] =>
+    content.questions
+      .slice(0, howMany)
+      .flatMap((_, index): ReadingAction[] => [
+        answer(index, index !== wrongAt),
+        { type: 'continue' },
+      ]);
+
+  const actions: Record<ReadingScenario, ReadingAction[]> = {
+    intro: [],
+    storyStart: [{ type: 'start' }],
+    storyEnd: [
+      { type: 'start' },
+      { type: 'readTo', paragraphIndex: lastParagraph },
+      { type: 'reachEnd' },
+    ],
+    word: [{ type: 'start' }, { type: 'readTo', paragraphIndex: wordParagraph }],
+    question1: read,
+    question4: [...read, ...answerFirst(count - 1)],
+    correct: [...read, answer(0, true)],
+    wrong: [...read, answer(0, false)],
+    result3: [...read, ...answerFirst(count, 2)],
+    result4: [...read, ...answerFirst(count)],
+    resume: [
+      ...read,
+      answer(0, true),
+      { type: 'continue' },
+      answer(1, false),
+      { type: 'continue' },
+    ],
+    completed: [...read, ...answerFirst(count, 2)],
+  };
+  const state = actions[scenario].reduce(
+    (current, action) => reduceReading(content, current, action),
+    INITIAL_READING,
+  );
+
+  if (scenario !== 'intro') {
+    await storeQuestState(ctx, {
+      questId: quest.id,
+      state,
+      progress: readingProgress(content, state),
+      answers: state.answers,
+      exerciseCount: count,
+      finished: scenario === 'completed',
+    });
+  } else {
+    invalidateAll(ctx);
+  }
+  return { questId: quest.id, devWord: scenario === 'word' ? word?.id : undefined };
+}
+
+/** Quick ways into every state of the Day 89 Review quest (the other three quests done). */
+export const REVIEW_SCENARIOS = {
+  intro: 'Intro',
+  question1: 'Question 1/8',
+  question8: 'Question 8/8',
+  correct: 'Answer: correct',
+  wrong: 'Answer: wrong',
+  result7: 'Result 7/8',
+  result8: 'Perfect 8/8',
+  resume: 'Resume at 5/8',
+  completed: 'Completed quest',
+} as const;
+
+export type ReviewScenario = keyof typeof REVIEW_SCENARIOS;
+
+/** Leaves the Day 89 Review quest in the chosen state; returns the quest id to open. */
+export async function applyReviewScenario(
+  ctx: DevContext,
+  scenario: ReviewScenario,
+): Promise<string> {
+  const { quest, content } = await prepareDay89Quest(ctx, 'review');
+  if (content.type !== 'review') throw new Error('Day 89 review content has another type');
+  const sources = await Promise.all(
+    Object.values(content.sources).map((id) =>
+      id ? ctx.repositories.challenge.getQuestContent(id) : null,
+    ),
+  );
+  const items = resolveReview(
+    content,
+    reviewMaterial(
+      content,
+      sources.filter((item): item is QuestContent => item !== null),
+    ),
+  );
+
+  const at = new Date().toISOString();
+  const count = items.length;
+  const answer = (index: number, right: boolean): ReviewAction => {
+    const item = items[index];
+    return answerAction(item?.choice, right, at);
+  };
+  const answerFirst = (howMany: number, wrongAt?: number): ReviewAction[] =>
+    items
+      .slice(0, howMany)
+      .flatMap((_, index): ReviewAction[] => [
+        answer(index, index !== wrongAt),
+        { type: 'continue' },
+      ]);
+  const start: ReviewAction[] = [{ type: 'start' }];
+
+  const actions: Record<ReviewScenario, ReviewAction[]> = {
+    intro: [],
+    question1: start,
+    question8: [...start, ...answerFirst(count - 1)],
+    correct: [...start, answer(0, true)],
+    wrong: [...start, answer(0, false)],
+    result7: [...start, ...answerFirst(count, 3)],
+    result8: [...start, ...answerFirst(count)],
+    resume: [...start, ...answerFirst(4, 1)],
+    completed: [...start, ...answerFirst(count, 3)],
+  };
+  const state = actions[scenario].reduce(
+    (current, action) => reduceReview(items, current, action),
+    INITIAL_REVIEW,
+  );
+
+  if (scenario !== 'intro') {
+    await storeQuestState(ctx, {
+      questId: quest.id,
+      state,
+      progress: reviewProgress(items, state),
+      answers: state.answers,
+      exerciseCount: count,
+      finished: scenario === 'completed',
+    });
+  } else {
+    invalidateAll(ctx);
+  }
+  return quest.id;
+}
+
+/** Day 89 around its completion: Home states and the Day Complete screen. */
+export const DAY_SCENARIOS = {
+  threeOfFour: { label: 'Home · 3/4', open: 'home' },
+  fourOfFour: { label: 'Home · 4/4 done', open: 'home' },
+  firstTime: { label: 'Day Complete · first time', open: 'summary' },
+  reopen: { label: 'Day Complete · reopened', open: 'summary' },
+  perfect: { label: 'Perfect day', open: 'summary' },
+  notPerfect: { label: 'Non-perfect day', open: 'summary' },
+} as const satisfies Record<string, { label: string; open: 'home' | 'summary' }>;
+
+export type DayScenario = keyof typeof DAY_SCENARIOS;
+
+/** Rebuilds Day 89 in the chosen state; returns the day to open for the summary states. */
+export async function applyDayScenario(ctx: DevContext, scenario: DayScenario): Promise<number> {
+  await applyHomeScenario(ctx, 'day89');
+  const plan = await ctx.repositories.challenge.getDailyChallenge(89);
+  if (scenario === 'threeOfFour') {
+    await seedCompletedQuests(ctx, plan.quests.slice(0, -1), { perfect: false });
+  } else {
+    await seedCompletedQuests(ctx, plan.quests, {
+      perfect: scenario === 'perfect',
+      // Not celebrated yet: the summary plays its moment. Reopened / Home: already seen.
+      celebrated: scenario === 'fourOfFour' || scenario === 'reopen',
+    });
+  }
+  await syncAchievements(ctx.repositories, await loadProgressState(ctx.repositories));
   invalidateAll(ctx);
-  return id;
+  return plan.day;
+}
+
+/**
+ * The idempotency check, end to end: finishes the Day 89 Review twice at once
+ * (a double tap), then finishes the day twice at once and once more. Reports
+ * what each call did — XP must grow by the review's reward once, the day must be
+ * recorded once, the streak must step up by one.
+ */
+export async function finishDayTwice(ctx: DevContext): Promise<string> {
+  const { quest } = await prepareDay89Quest(ctx, 'review');
+  const before = await loadProgressState(ctx.repositories);
+  const answers: ChoiceAnswer[] = [];
+  const [first, second] = await Promise.all([
+    finishQuestRun(ctx.repositories, { questId: quest.id, answers, exerciseCount: 8 }),
+    finishQuestRun(ctx.repositories, { questId: quest.id, answers, exerciseCount: 8 }),
+  ]);
+  const days = await Promise.all([
+    completeDay(ctx.repositories, 89),
+    completeDay(ctx.repositories, 89),
+  ]);
+  const again = await completeDay(ctx.repositories, 89);
+  const after = await loadProgressState(ctx.repositories);
+  const records = (await ctx.repositories.progress.getDayCompletions()).filter(
+    (record) => record.day === 89,
+  );
+  invalidateAll(ctx);
+
+  return [
+    `Review completions: ${[first, second].filter((o) => o.isFirstCompletion).length} of 2 were first`,
+    `XP: ${before.totalXp} → ${after.totalXp} (+${after.totalXp - before.totalXp})`,
+    `Day recorded by the quest: ${first.dayCompleted || second.dayCompleted ? 'yes' : 'no'}`,
+    `completeDay ×3: first completions ${[...days, again].filter((d) => d?.isFirstCompletion).length}`,
+    `Day 89 records: ${records.length} · XP ${records[0]?.xpEarned ?? '–'}`,
+    `Streak: ${before.streak} → ${after.streak}`,
+  ].join('\n');
 }
 
 export async function resetProgress(ctx: DevContext): Promise<void> {

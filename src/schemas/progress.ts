@@ -50,6 +50,26 @@ export const QuestSessionSchema = z.object({
 });
 export type QuestSession = z.infer<typeof QuestSessionSchema>;
 
+/**
+ * A finished challenge day: written once, when every quest of the day is done.
+ * The streak itself stays derived from completed days; the record keeps the
+ * moment — what the day earned, the streak it made, and whether it was
+ * celebrated yet (the celebration plays once, ever).
+ */
+export const DayCompletionSchema = z.object({
+  day: DayNumberSchema,
+  completedAt: TimestampSchema,
+  questCount: z.number().int().positive(),
+  /** XP from the day's quests, perfect bonuses included. */
+  xpEarned: z.number().int().nonnegative(),
+  streakBefore: z.number().int().nonnegative(),
+  streakAfter: z.number().int().nonnegative(),
+  /** Every scored answer of every quest that day was right (first attempts). */
+  isPerfect: z.boolean(),
+  celebratedAt: TimestampSchema.nullable(),
+});
+export type DayCompletion = z.infer<typeof DayCompletionSchema>;
+
 export const XpEventReasonSchema = z.enum(['quest', 'achievement', 'dev']);
 export type XpEventReason = z.infer<typeof XpEventReasonSchema>;
 

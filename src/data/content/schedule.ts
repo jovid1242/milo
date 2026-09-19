@@ -22,8 +22,8 @@ const BLUEPRINTS: Record<
     estimatedMinutes: 5,
   },
   grammar: { title: 'Grammar', summary: 'One new rule', xpReward: 15, estimatedMinutes: 6 },
-  reading: { title: 'Reading', summary: 'Short story', xpReward: 20, estimatedMinutes: 7 },
-  review: { title: 'Review', summary: 'Quick recap', xpReward: 10, estimatedMinutes: 4 },
+  reading: { title: 'Reading', summary: 'Short story', xpReward: 20, estimatedMinutes: 5 },
+  review: { title: 'Review', summary: 'Quick recap', xpReward: 10, estimatedMinutes: 3 },
   weeklyExam: { title: 'Weekly exam', summary: 'Checkpoint', xpReward: 100, estimatedMinutes: 15 },
   finalBattle: {
     title: 'Final battle',

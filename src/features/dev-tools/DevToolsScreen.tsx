@@ -110,6 +110,53 @@ export function DevToolsScreen() {
           )}
         </Section>
 
+        <Section title="Grammar quest · Day 89">
+          {(Object.keys(dev.GRAMMAR_SCENARIOS) as dev.GrammarScenario[]).map((scenario) =>
+            chip(dev.GRAMMAR_SCENARIOS[scenario], async () => {
+              const questId = await dev.applyGrammarScenario(context, scenario);
+              router.replace({ pathname: '/quest/[questId]', params: { questId } });
+            }),
+          )}
+        </Section>
+
+        <Section title="Reading quest · Day 89">
+          {(Object.keys(dev.READING_SCENARIOS) as dev.ReadingScenario[]).map((scenario) =>
+            chip(dev.READING_SCENARIOS[scenario], async () => {
+              const { questId, devWord } = await dev.applyReadingScenario(context, scenario);
+              router.replace({
+                pathname: '/quest/[questId]',
+                params: devWord ? { questId, devWord } : { questId },
+              });
+            }),
+          )}
+        </Section>
+
+        <Section title="Review quest · Day 89">
+          {(Object.keys(dev.REVIEW_SCENARIOS) as dev.ReviewScenario[]).map((scenario) =>
+            chip(dev.REVIEW_SCENARIOS[scenario], async () => {
+              const questId = await dev.applyReviewScenario(context, scenario);
+              router.replace({ pathname: '/quest/[questId]', params: { questId } });
+            }),
+          )}
+        </Section>
+
+        <Section title="Day complete · Day 89">
+          {(Object.keys(dev.DAY_SCENARIOS) as dev.DayScenario[]).map((scenario) =>
+            chip(dev.DAY_SCENARIOS[scenario].label, async () => {
+              const day = await dev.applyDayScenario(context, scenario);
+              if (dev.DAY_SCENARIOS[scenario].open === 'summary') {
+                router.replace({ pathname: '/day-complete/[day]', params: { day: String(day) } });
+              } else {
+                router.back();
+              }
+            }),
+          )}
+          {chip('Finish day ×2', async () => {
+            const report = await dev.finishDayTwice(context);
+            Alert.alert('Finish day twice', report);
+          })}
+        </Section>
+
         <Section title="Current day">
           {chip('−1 day', () => dev.shiftCurrentDay(context, -1))}
           {chip('+1 day', () => dev.shiftCurrentDay(context, 1))}

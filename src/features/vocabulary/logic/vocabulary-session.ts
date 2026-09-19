@@ -1,22 +1,26 @@
+import type { RunStage } from '@/features/quests/hooks/use-quest-flow';
+import {
+  answersFit,
+  nextPracticeStep,
+  withAnswer,
+  type ChoiceExercise,
+} from '@/features/quests/logic/practice';
 import {
   VocabularyProgressSchema,
-  type AnswerRecord,
-  type VocabularyAnswer,
+  type VocabularyExercise,
   type VocabularyItem,
   type VocabularyProgress,
   type VocabularyQuest,
-  type VocabularyResult,
 } from '@/schemas';
 
 /**
  * The Vocabulary quest as a small state machine:
  *
  *   intro → learn (one word at a time: word → reveal → "Got it")
- *         → practice (answer → feedback → continue)
- *         → result
+ *         → practice (shared choice logic) → result
  *
  * One reducer owns every transition, so the screen never juggles booleans and
- * the same state can be saved and restored as-is.
+ * the same state is saved and restored as-is.
  */
 export const INITIAL_PROGRESS: VocabularyProgress = {
   phase: 'intro',
@@ -31,11 +35,20 @@ export type VocabularyAction =
   | { type: 'start' }
   | { type: 'reveal' }
   | { type: 'learned' }
-  | { type: 'answer'; optionItemId: string; at: string }
+  | { type: 'answer'; optionId: string; at: string }
   | { type: 'continue' };
 
-export function answerFor(state: VocabularyProgress, exerciseId: string): VocabularyAnswer | null {
-  return state.answers.find((answer) => answer.exerciseId === exerciseId) ?? null;
+/** Vocabulary exercises in the shared shape: the options are item ids. */
+export function asChoice(exercise: VocabularyExercise): ChoiceExercise {
+  return { id: exercise.id, correctOptionId: exercise.itemId, optionIds: exercise.optionItemIds };
+}
+
+export function currentItem(quest: VocabularyQuest, state: VocabularyProgress) {
+  return quest.items[state.learnIndex] ?? null;
+}
+
+export function currentExercise(quest: VocabularyQuest, state: VocabularyProgress) {
+  return state.phase === 'practice' ? (quest.exercises[state.practiceIndex] ?? null) : null;
 }
 
 export function reduceVocabulary(
@@ -53,7 +66,8 @@ export function reduceVocabulary(
       return state.phase === 'learn' ? { ...state, revealed: true } : state;
 
     case 'learned': {
-      const item = state.phase === 'learn' ? quest.items[state.learnIndex] : undefined;
+      // Only a word whose meaning was seen: a double tap cannot skip the next word.
+      const item = state.phase === 'learn' && state.revealed ? currentItem(quest, state) : null;
       if (!item) return state;
       const learnedItemIds = state.learnedItemIds.includes(item.id)
         ? state.learnedItemIds
@@ -65,39 +79,22 @@ export function reduceVocabulary(
     }
 
     case 'answer': {
-      const exercise =
-        state.phase === 'practice' ? quest.exercises[state.practiceIndex] : undefined;
-      // An answer is final: tapping again (or another option) changes nothing.
-      if (!exercise || answerFor(state, exercise.id)) return state;
-      if (!exercise.optionItemIds.includes(action.optionItemId)) return state;
-      const answer: VocabularyAnswer = {
-        exerciseId: exercise.id,
-        optionItemId: action.optionItemId,
-        correct: action.optionItemId === exercise.itemId,
-        answeredAt: action.at,
-      };
-      return { ...state, answers: [...state.answers, answer] };
+      const exercise = currentExercise(quest, state);
+      return exercise ? withAnswer(state, asChoice(exercise), action.optionId, action.at) : state;
     }
 
     case 'continue': {
-      const exercise =
-        state.phase === 'practice' ? quest.exercises[state.practiceIndex] : undefined;
-      // No skipping: continue only moves on from an answered exercise.
-      if (!exercise || !answerFor(state, exercise.id)) return state;
-      const next = state.practiceIndex + 1;
-      return next < quest.exercises.length
-        ? { ...state, practiceIndex: next }
-        : { ...state, phase: 'result' };
+      const exercise = currentExercise(quest, state);
+      const next = nextPracticeStep(state, exercise && asChoice(exercise), quest.exercises.length);
+      if (next === null) return state;
+      return next === 'done' ? { ...state, phase: 'result' } : { ...state, practiceIndex: next };
     }
   }
 }
 
-export function currentItem(quest: VocabularyQuest, state: VocabularyProgress) {
-  return quest.items[state.learnIndex] ?? null;
-}
-
-export function currentExercise(quest: VocabularyQuest, state: VocabularyProgress) {
-  return quest.exercises[state.practiceIndex] ?? null;
+export function vocabularyStage(state: VocabularyProgress): RunStage {
+  if (state.phase === 'intro') return 'intro';
+  return state.phase === 'result' ? 'result' : 'playing';
 }
 
 export function itemById(quest: VocabularyQuest, id: string): VocabularyItem {
@@ -106,11 +103,14 @@ export function itemById(quest: VocabularyQuest, id: string): VocabularyItem {
   return item;
 }
 
-/** Learned words plus answered exercises, over everything the quest asks for. */
+/** Steps done — learned words plus answered exercises — for the progress bar. */
+export function vocabularyStepsDone(quest: VocabularyQuest, state: VocabularyProgress): number {
+  if (state.phase === 'result') return quest.items.length + quest.exercises.length;
+  return state.learnedItemIds.length + state.answers.length;
+}
+
 export function progressFraction(quest: VocabularyQuest, state: VocabularyProgress): number {
-  if (state.phase === 'result') return 1;
-  const total = quest.items.length + quest.exercises.length;
-  return (state.learnedItemIds.length + state.answers.length) / total;
+  return vocabularyStepsDone(quest, state) / (quest.items.length + quest.exercises.length);
 }
 
 /** Something the user would lose by leaving — then leaving asks first. */
@@ -118,37 +118,9 @@ export function hasProgress(state: VocabularyProgress): boolean {
   return state.revealed || state.learnedItemIds.length > 0 || state.answers.length > 0;
 }
 
-export function vocabularyResult(
-  quest: VocabularyQuest,
-  state: VocabularyProgress,
-): VocabularyResult {
-  const correctCount = state.answers.filter((answer) => answer.correct).length;
-  const total = quest.exercises.length;
-  return {
-    correctCount,
-    total,
-    isPerfect: correctCount === total,
-    wordsLearned: quest.items.map((item) => item.word),
-  };
-}
-
-/** Answers in the shape the progress repository stores for every quest type. */
-export function toAnswerRecords(
-  questId: string,
-  answers: readonly VocabularyAnswer[],
-): AnswerRecord[] {
-  return answers.map((answer) => ({
-    questId,
-    questionId: answer.exerciseId,
-    answer: { kind: 'singleChoice', optionId: answer.optionItemId },
-    isCorrect: answer.correct,
-    answeredAt: answer.answeredAt,
-  }));
-}
-
 /**
- * Saved progress is untrusted: it may be from an older version of the content.
- * Anything that does not fit today's quest starts over instead of crashing.
+ * Saved progress is untrusted: it may come from an older version of the
+ * content. Anything that does not fit today's quest starts over instead of crashing.
  */
 export function restoreProgress(quest: VocabularyQuest, saved: unknown): VocabularyProgress {
   const parsed = VocabularyProgressSchema.safeParse(saved);
@@ -156,15 +128,9 @@ export function restoreProgress(quest: VocabularyQuest, saved: unknown): Vocabul
   const state = parsed.data;
 
   const itemIds = new Set(quest.items.map((item) => item.id));
-  const exercises = new Map(quest.exercises.map((exercise) => [exercise.id, exercise]));
   const fits =
     state.learnIndex < quest.items.length &&
-    state.practiceIndex < quest.exercises.length &&
     state.learnedItemIds.every((id) => itemIds.has(id)) &&
-    state.answers.length <= state.practiceIndex + 1 &&
-    state.answers.every((answer) => {
-      const exercise = exercises.get(answer.exerciseId);
-      return exercise !== undefined && answer.correct === (answer.optionItemId === exercise.itemId);
-    });
+    answersFit(state.answers, quest.exercises.map(asChoice), state.practiceIndex);
   return fits ? state : INITIAL_PROGRESS;
 }

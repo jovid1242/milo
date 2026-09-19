@@ -1,106 +1,102 @@
-import { useQueryClient } from '@tanstack/react-query';
-import { useRouter } from 'expo-router';
-import { useEffect, useEffectEvent, useState, type ReactNode } from 'react';
-import { BackHandler, StyleSheet, View } from 'react-native';
+import { useState } from 'react';
+import { StyleSheet, View } from 'react-native';
 
 import { ErrorState } from '@/components/ErrorState';
-import { ConfirmSheet, LoadingState, Screen } from '@/components/ui';
-import { CHALLENGE } from '@/constants/challenge';
-import { invalidateProgress } from '@/features/progress/queries';
+import { LoadingState } from '@/components/ui';
+import { mascots } from '@/constants/assets';
+import { ChoiceQuestion } from '@/features/quests/components/ChoiceQuestion';
+import { ExitQuestSheet } from '@/features/quests/components/ExitQuestSheet';
+import { QuestCompleted } from '@/features/quests/components/QuestCompleted';
+import { QuestIntro } from '@/features/quests/components/QuestIntro';
+import { QuestResult } from '@/features/quests/components/QuestResult';
 import { QuestTopBar } from '@/features/quests/components/QuestTopBar';
 import { QuestUnavailable } from '@/features/quests/components/QuestUnavailable';
-import type { VocabularyPhase, VocabularyProgress, VocabularyQuest } from '@/schemas';
+import { useExitQuest } from '@/features/quests/hooks/use-exit-quest';
+import {
+  playAnswerFeedback,
+  useQuestFlow,
+  type RunMode,
+} from '@/features/quests/hooks/use-quest-flow';
+import { useQuestScreen } from '@/features/quests/hooks/use-quest-screen';
+import { answerFor } from '@/features/quests/logic/practice';
+import type { QuestRun } from '@/features/quests/use-cases';
+import type { VocabularyProgress, VocabularyQuest } from '@/schemas';
 
 import { LearnWord } from './components/LearnWord';
-import { PracticeExercise } from './components/PracticeExercise';
-import { VocabularyCompleted } from './components/VocabularyCompleted';
-import { VocabularyIntro } from './components/VocabularyIntro';
-import { VocabularyResult } from './components/VocabularyResult';
-import { useVocabularyFlow, type FlowMode } from './hooks/use-vocabulary-flow';
+import { VocabularyPrompt } from './components/VocabularyPrompt';
+import { WordChips } from './components/WordChips';
 import { describeExercise } from './logic/exercise-view';
 import {
   INITIAL_PROGRESS,
-  answerFor,
   currentExercise,
   currentItem,
   hasProgress,
+  progressFraction,
+  reduceVocabulary,
+  restoreProgress,
+  vocabularyStage,
+  vocabularyStepsDone,
+  type VocabularyAction,
 } from './logic/vocabulary-session';
-import { useVocabularyQuest } from './queries';
-import type { VocabularyQuestData } from './use-cases';
 
-type Mode = FlowMode | 'completed';
+const TITLE = 'Vocabulary';
 
 /**
- * The Vocabulary quest, full screen: no tab bar, one close button. Opens where
- * the user left off, or on the result of a finished quest.
+ * The Vocabulary quest. Opens where the user left off, or on the summary of a
+ * finished quest (with an XP-free replay).
  */
 export function VocabularyQuestScreen({ questId }: { questId: string }) {
-  const router = useRouter();
-  const queryClient = useQueryClient();
-  const query = useVocabularyQuest(questId);
-  // Decided once, from fresh data: later refetches must not swap the screen.
-  const [mode, setMode] = useState<Mode | null>(null);
-  const data = query.data;
-  const ready = data !== undefined && !query.isFetching;
-  if (ready && mode === null) setMode(data.completion ? 'completed' : 'play');
+  const { query, mode, setMode, close } = useQuestScreen(questId);
+  const run = query.data;
 
-  const close = () => {
-    invalidateProgress(queryClient);
-    router.back();
-  };
-
-  let body: ReactNode;
   if (query.isError) {
-    body = <ErrorState error={query.error} onRetry={() => void query.refetch()} />;
-  } else if (!data || mode === null) {
-    body = <LoadingState />;
-  } else if (!data.content) {
-    body = (
+    return <ErrorState error={query.error} onRetry={() => void query.refetch()} />;
+  }
+  if (!run || mode === null) return <LoadingState />;
+
+  const content = run.content?.type === 'vocabulary' ? run.content : null;
+  if (!content) {
+    return (
       <>
-        <QuestTopBar title="Vocabulary" stepLabel="" groups={[]} done={0} onClose={close} />
-        <QuestUnavailable day={data.quest.day} onClose={close} />
+        <QuestTopBar title={TITLE} stepLabel="" groups={[]} done={0} onClose={close} />
+        <QuestUnavailable day={run.quest.day} onClose={close} />
       </>
     );
-  } else if (mode === 'completed' && data.completion) {
-    const total = data.content.items.length + data.content.exercises.length;
-    body = (
+  }
+
+  if (mode === 'completed' && run.completion) {
+    return (
       <>
         <QuestTopBar
-          title="Vocabulary"
+          title={TITLE}
           stepLabel="Done"
-          groups={[data.content.items.length, data.content.exercises.length]}
-          done={total}
+          groups={[content.items.length, content.exercises.length]}
+          done={content.items.length + content.exercises.length}
           onClose={close}
         />
-        <VocabularyCompleted
-          completion={data.completion}
-          words={data.content.items.map((item) => item.word)}
+        <QuestCompleted
+          completion={run.completion}
           onPracticeAgain={() => setMode('replay')}
-          onClose={close}
-        />
+          onClose={close}>
+          <WordChips words={content.items.map((item) => item.word)} />
+        </QuestCompleted>
       </>
-    );
-  } else {
-    body = (
-      <VocabularyFlow
-        key={mode}
-        data={data}
-        content={data.content}
-        mode={mode === 'replay' ? 'replay' : 'play'}
-        onClose={close}
-      />
     );
   }
 
   return (
-    <Screen fullScreenModal edges={['top', 'bottom']} background="warm" testID="vocabulary-quest">
-      <View style={styles.fill}>{body}</View>
-    </Screen>
+    <VocabularyRun
+      key={mode}
+      run={run}
+      content={content}
+      mode={mode === 'replay' ? 'replay' : 'play'}
+      onClose={close}
+    />
   );
 }
 
-function stepLabelFor(phase: VocabularyPhase, state: VocabularyProgress, content: VocabularyQuest) {
-  switch (phase) {
+function stepLabelFor(state: VocabularyProgress, content: VocabularyQuest): string {
+  switch (state.phase) {
     case 'intro':
       return `${content.items.length} words`;
     case 'learn':
@@ -112,63 +108,65 @@ function stepLabelFor(phase: VocabularyPhase, state: VocabularyProgress, content
   }
 }
 
-function VocabularyFlow({
-  data,
+function VocabularyRun({
+  run,
   content: initialContent,
   mode,
   onClose,
 }: {
-  data: VocabularyQuestData;
+  run: QuestRun;
   content: VocabularyQuest;
-  mode: FlowMode;
+  mode: RunMode;
   onClose: () => void;
 }) {
   // The quest is fixed for this run, whatever refetches bring.
   const [content] = useState(initialContent);
-  const flow = useVocabularyFlow({
-    content,
-    initial: mode === 'replay' ? INITIAL_PROGRESS : data.progress,
-    savedStartedAt: mode === 'replay' ? null : data.startedAt,
-    mode,
-    perfectBonusXp: CHALLENGE.perfectScoreBonusXp,
+  const [initial] = useState(() =>
+    mode === 'replay' ? INITIAL_PROGRESS : restoreProgress(content, run.savedState),
+  );
+  const flow = useQuestFlow(
+    (state: VocabularyProgress, action: VocabularyAction) =>
+      reduceVocabulary(content, state, action),
+    initial,
+    {
+      questId: content.questId,
+      mode,
+      savedStartedAt: mode === 'replay' ? null : run.startedAt,
+      exerciseCount: content.exercises.length,
+      stageOf: vocabularyStage,
+      progressOf: (state) => progressFraction(content, state),
+      answersOf: (state) => state.answers,
+    },
+  );
+  const { state, dispatch } = flow;
+
+  const leave = () => void flow.flush().then(onClose);
+  const exit = useExitQuest({
+    confirm: mode === 'play' && flow.stage === 'playing' && hasProgress(state),
+    onExit: leave,
   });
-  const { state } = flow;
-  const [confirming, setConfirming] = useState(false);
 
-  const leave = () => {
-    void flow.flush().then(onClose);
-  };
-  const requestClose = () => {
-    if (mode === 'play' && state.phase !== 'result' && hasProgress(state)) setConfirming(true);
-    else leave();
+  const answer = (optionId: string) => {
+    const exercise = currentExercise(content, state);
+    if (!exercise || answerFor(state.answers, exercise.id)) return;
+    playAnswerFeedback(optionId === exercise.itemId);
+    dispatch({ type: 'answer', optionId, at: new Date().toISOString() });
   };
 
-  // Android's back button asks the same question as the close button. (The
-  // quest is a full-screen modal: it is focused for as long as it is mounted.)
-  const onHardwareBack = useEffectEvent(() => requestClose());
-  useEffect(() => {
-    const subscription = BackHandler.addEventListener('hardwareBackPress', () => {
-      onHardwareBack();
-      return true;
-    });
-    return () => subscription.remove();
-  }, []);
-
-  const itemCount = content.items.length;
-  const exerciseCount = content.exercises.length;
-  const done =
-    state.phase === 'result'
-      ? itemCount + exerciseCount
-      : state.learnedItemIds.length + state.answers.length;
-
-  let stage: ReactNode = null;
+  let stage = null;
   if (state.phase === 'intro') {
     stage = (
-      <VocabularyIntro
-        quest={data.quest}
-        wordCount={itemCount}
+      <QuestIntro
+        mascot={mascots.vocabulary}
+        overline={`Day ${run.quest.day} · ${TITLE}`}
+        title={`${content.items.length} new words`}
+        subtitle="Meet each word, then use it."
+        duration={`about ${run.quest.estimatedMinutes} min`}
+        xpReward={run.quest.xpReward}
         replay={mode === 'replay'}
-        onStart={flow.start}
+        ctaLabel="Start"
+        ctaHint="Begins with the first new word"
+        onStart={() => dispatch({ type: 'start' })}
       />
     );
   } else if (state.phase === 'learn') {
@@ -178,57 +176,56 @@ function VocabularyFlow({
         <LearnWord
           item={item}
           revealed={state.revealed}
-          onReveal={flow.reveal}
-          onLearned={flow.learned}
+          onReveal={() => dispatch({ type: 'reveal' })}
+          onLearned={() => dispatch({ type: 'learned' })}
         />
       );
     }
   } else if (state.phase === 'practice') {
     const exercise = currentExercise(content, state);
     if (exercise) {
+      const view = describeExercise(content, exercise);
+      const given = answerFor(state.answers, exercise.id);
       stage = (
-        <PracticeExercise
-          exercise={exercise}
-          view={describeExercise(content, exercise)}
-          answer={answerFor(state, exercise.id)}
-          onAnswer={flow.answer}
-          onContinue={flow.next}
+        <ChoiceQuestion
+          id={exercise.id}
+          instruction={view.instruction}
+          prompt={<VocabularyPrompt view={view} answered={given !== null} />}
+          options={view.options}
+          correctOptionId={exercise.itemId}
+          answer={given}
+          feedback={view.feedback}
+          onAnswer={answer}
+          onContinue={() => dispatch({ type: 'continue' })}
         />
       );
     }
-  } else if (flow.summary) {
+  } else if (flow.result) {
     stage = (
-      <VocabularyResult
-        summary={flow.summary}
+      <QuestResult
+        questLabel={TITLE}
+        takeaway={`${content.items.length} new words for the journey.`}
+        result={flow.result}
+        extraStats={[{ label: 'words', value: String(content.items.length) }]}
         saveFailed={flow.saveFailed}
         onRetrySave={flow.retrySave}
-        onContinue={leave}
-      />
+        onContinue={leave}>
+        <WordChips words={content.items.map((item) => item.word)} />
+      </QuestResult>
     );
   }
 
   return (
     <View style={styles.fill}>
       <QuestTopBar
-        title="Vocabulary"
-        stepLabel={stepLabelFor(state.phase, state, content)}
-        groups={[itemCount, exerciseCount]}
-        done={done}
-        onClose={requestClose}
+        title={TITLE}
+        stepLabel={stepLabelFor(state, content)}
+        groups={[content.items.length, content.exercises.length]}
+        done={vocabularyStepsDone(content, state)}
+        onClose={exit.requestExit}
       />
       {stage}
-      <ConfirmSheet
-        visible={confirming}
-        title="Leave this quest?"
-        message="Your progress will be saved."
-        stayLabel="Keep learning"
-        leaveLabel="Leave"
-        onStay={() => setConfirming(false)}
-        onLeave={() => {
-          setConfirming(false);
-          leave();
-        }}
-      />
+      <ExitQuestSheet {...exit.sheet} />
     </View>
   );
 }

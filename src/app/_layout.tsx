@@ -56,6 +56,16 @@ export default function RootLayout() {
                   name="quest/[questId]"
                   options={{ presentation: 'fullScreenModal', gestureEnabled: false }}
                 />
+                {/* The end of a day: fades in over the last quest's result and closes
+                    with its own button, never by accident. */}
+                <Stack.Screen
+                  name="day-complete/[day]"
+                  options={{
+                    presentation: 'fullScreenModal',
+                    animation: 'fade',
+                    gestureEnabled: false,
+                  }}
+                />
                 <Stack.Screen name="settings" />
                 <Stack.Screen name="dev-tools" options={{ presentation: 'modal' }} />
               </Stack>

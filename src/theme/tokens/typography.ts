@@ -69,6 +69,15 @@ export const typography = {
     style: { fontFamily: fontFamilies.semiBold, fontSize: 28, lineHeight: 34, letterSpacing: -0.4 },
     maxFontSizeMultiplier: 1.3,
   },
+  /**
+   * Long-form story text: Inter (not the display serif) at a size and line
+   * height made for reading several paragraphs comfortably. Scales further
+   * with Dynamic Type than UI text, because reading is what it is for.
+   */
+  reading: {
+    style: { fontFamily: fontFamilies.regular, fontSize: 18, lineHeight: 30, letterSpacing: 0.1 },
+    maxFontSizeMultiplier: 2,
+  },
   /** Milo's voice: short lines in speech bubbles. */
   speech: {
     style: {

@@ -33,3 +33,8 @@ export function findChapterForDay<T extends Pick<Chapter, 'startDay' | 'endDay'>
   if (!chapter) throw new Error(`No chapter covers day ${day}`);
   return chapter;
 }
+
+/** Chapter ends shown along the 90-day trail (the last two sit on the summit itself). */
+export function trailCheckpoints(chapters: readonly Pick<Chapter, 'endDay'>[]): DayNumber[] {
+  return chapters.map((chapter) => chapter.endDay).filter((day) => day < CHALLENGE.totalDays - 1);
+}

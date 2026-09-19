@@ -42,6 +42,17 @@ describe('getGreeting', () => {
     });
   });
 
+  it('mentions a perfect day quietly, without a badge', () => {
+    const greeting = getGreeting(
+      journeyFor({
+        day: 12,
+        doneToday: ['vocabulary', 'grammar', 'reading', 'review'],
+        perfect: true,
+      }),
+    );
+    expect(greeting.subtitle).toBe('A perfect day · +65 XP');
+  });
+
   it('reacts to a broken streak, day 1, exam days and the summit', () => {
     expect(getGreeting(journeyFor({ day: 12, pastDays: range(1, 10) })).title).toBe(
       'Fresh start today.',

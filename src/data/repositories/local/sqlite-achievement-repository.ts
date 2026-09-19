@@ -1,7 +1,7 @@
 import { z } from 'zod';
 
 import { ACHIEVEMENTS } from '@/data/content/achievements';
-import { getDatabase } from '@/data/db/database';
+import { getDatabase, writeDatabase } from '@/data/db/database';
 import type { AchievementRepository } from '@/data/repositories/types';
 import {
   AchievementSchema,
@@ -39,35 +39,34 @@ export class SqliteAchievementRepository implements AchievementRepository {
 
   async unlock(ids: readonly AchievementId[], unlockedAt: Timestamp): Promise<AchievementId[]> {
     if (ids.length === 0) return [];
-    const db = await getDatabase();
-    const alreadyUnlocked = new Set(
-      (await this.getUnlocks()).map((unlock) => unlock.achievementId),
-    );
-    const newIds = ids.filter((id) => !alreadyUnlocked.has(id));
-    if (newIds.length === 0) return [];
-
-    await db.withExclusiveTransactionAsync(async (txn) => {
-      for (const id of newIds) {
-        await txn.runAsync(
-          'INSERT OR IGNORE INTO achievement_unlocks (achievement_id, unlocked_at) VALUES (?, ?)',
-          [id, unlockedAt],
-        );
-      }
+    // Decided inside the transaction: two syncs at once cannot both unlock
+    // (and pay XP for) the same achievement.
+    return writeDatabase(async (db) => {
+      const added: AchievementId[] = [];
+      await db.withExclusiveTransactionAsync(async (txn) => {
+        for (const id of ids) {
+          const result = await txn.runAsync(
+            'INSERT OR IGNORE INTO achievement_unlocks (achievement_id, unlocked_at) VALUES (?, ?)',
+            [id, unlockedAt],
+          );
+          if (result.changes > 0) added.push(id);
+        }
+      });
+      return added;
     });
-    return newIds;
   }
 
   async lock(ids: readonly AchievementId[]): Promise<void> {
     if (ids.length === 0) return;
-    const db = await getDatabase();
-    await db.runAsync(
-      `DELETE FROM achievement_unlocks WHERE achievement_id IN (${placeholders(ids.length)})`,
-      [...ids],
+    await writeDatabase((db) =>
+      db.runAsync(
+        `DELETE FROM achievement_unlocks WHERE achievement_id IN (${placeholders(ids.length)})`,
+        [...ids],
+      ),
     );
   }
 
   async resetUnlocks(): Promise<void> {
-    const db = await getDatabase();
-    await db.execAsync('DELETE FROM achievement_unlocks;');
+    await writeDatabase((db) => db.execAsync('DELETE FROM achievement_unlocks;'));
   }
 }

@@ -1,6 +1,7 @@
 import { z } from 'zod';
 
-import { IdSchema, TimestampSchema } from './common';
+import { IdSchema } from './common';
+import { ChoiceAnswerSchema, type ChoiceAnswer } from './practice';
 
 export const VocabularyItemSchema = z.object({
   id: IdSchema,
@@ -30,6 +31,8 @@ export const VocabularyExerciseSchema = z.discriminatedUnion('kind', [
   z.object({ kind: z.literal('pickTranslation'), ...choice }),
   /** Translation → pick the English word. */
   z.object({ kind: z.literal('pickWord'), ...choice }),
+  /** Plain-English definition → pick the word (recall without the translation). */
+  z.object({ kind: z.literal('pickWordByDefinition'), ...choice }),
   /** A sentence with a gap (`___`) → pick the word that fits. */
   z.object({ kind: z.literal('fillGap'), ...choice, sentence: z.string().includes('___') }),
 ]);
@@ -62,14 +65,9 @@ export const VocabularyQuestSchema = z
   });
 export type VocabularyQuest = z.infer<typeof VocabularyQuestSchema>;
 
-/** One locked-in answer during practice. */
-export const VocabularyAnswerSchema = z.object({
-  exerciseId: IdSchema,
-  optionItemId: IdSchema,
-  correct: z.boolean(),
-  answeredAt: TimestampSchema,
-});
-export type VocabularyAnswer = z.infer<typeof VocabularyAnswerSchema>;
+/** One locked-in answer during practice; the option id is the chosen item's id. */
+export const VocabularyAnswerSchema = ChoiceAnswerSchema;
+export type VocabularyAnswer = ChoiceAnswer;
 
 export const VocabularyPhaseSchema = z.enum(['intro', 'learn', 'practice', 'result']);
 export type VocabularyPhase = z.infer<typeof VocabularyPhaseSchema>;

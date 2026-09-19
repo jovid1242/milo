@@ -39,7 +39,7 @@ export function TodayScreen() {
   return <TodayContent journey={journey.data} />;
 }
 
-/** Guards against a double tap pushing the quest screen twice. */
+/** Guards against a double tap pushing a screen twice. */
 const OPEN_COOLDOWN_MS = 800;
 
 function TodayContent({ journey }: { journey: TodayJourney }) {
@@ -55,6 +55,13 @@ function TodayContent({ journey }: { journey: TodayJourney }) {
     if (now - lastOpenedAt.current < OPEN_COOLDOWN_MS) return;
     lastOpenedAt.current = now;
     router.push({ pathname: '/quest/[questId]', params: { questId: step.quest.id } });
+  };
+
+  const openDaySummary = () => {
+    const now = Date.now();
+    if (now - lastOpenedAt.current < OPEN_COOLDOWN_MS) return;
+    lastOpenedAt.current = now;
+    router.push({ pathname: '/day-complete/[day]', params: { day: String(journey.day) } });
   };
 
   const celebrateKey = moment?.dayCompleted ? moment.id : null;
@@ -77,6 +84,7 @@ function TodayContent({ journey }: { journey: TodayJourney }) {
           moment={moment}
           campArtWidth={clamp(Math.round(width * 0.34), 116, 150)}
           onOpenQuest={openQuest}
+          onOpenDaySummary={openDaySummary}
         />
       </View>
     </Screen>

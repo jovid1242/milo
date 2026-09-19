@@ -1,7 +1,10 @@
 import { CHALLENGE } from '@/constants/challenge';
+import { trailCheckpoints } from '@/features/challenge/logic/calendar';
+import type { Tomorrow } from '@/features/challenge/logic/tomorrow';
 import type {
   Chapter,
   DailyChallenge,
+  DayCompletion,
   DayKind,
   DayNumber,
   ProgressState,
@@ -38,6 +41,10 @@ export type TodayJourney = {
   current: JourneyStep | null;
   completedCount: number;
   isComplete: boolean;
+  /** Today's record once the day is complete (with whether it was celebrated yet). */
+  dayCompletion: DayCompletion | null;
+  /** Every answer of every quest today was right. Shown gently — never a badge. */
+  isPerfectDay: boolean;
   /** XP earned from today's quests, bonuses included. */
   xpEarnedToday: number;
   /** Estimated minutes for the quests still open today. */
@@ -47,6 +54,8 @@ export type TodayJourney = {
   /** Fully completed challenge days. */
   completedDays: number;
   daysToSummit: number;
+  /** `null` on the last day. */
+  tomorrow: Tomorrow | null;
 };
 
 export type TodayJourneyInput = {
@@ -56,6 +65,8 @@ export type TodayJourneyInput = {
   /** Completions of any day; only the plan's quests are used. */
   completions: readonly QuestCompletion[];
   sessions: readonly QuestSession[];
+  dayCompletion?: DayCompletion | null;
+  tomorrow?: Tomorrow | null;
 };
 
 export function buildTodayJourney({
@@ -64,6 +75,8 @@ export function buildTodayJourney({
   progress,
   completions,
   sessions,
+  dayCompletion = null,
+  tomorrow = null,
 }: TodayJourneyInput): TodayJourney {
   const completionById = new Map(completions.map((c) => [c.questId, c]));
   const sessionById = new Map(sessions.map((s) => [s.questId, s]));
@@ -86,22 +99,31 @@ export function buildTodayJourney({
   if (!chapter) throw new Error(`No chapter covers day ${plan.day}`);
 
   const open = steps.filter((step) => step.status !== 'completed');
+  const isComplete = open.length === 0;
+  const record = isComplete && dayCompletion?.day === plan.day ? dayCompletion : null;
+  const allRight = plan.quests.every((quest) => {
+    const completion = completionById.get(quest.id);
+    return completion !== undefined && completion.correctCount === completion.totalCount;
+  });
 
   return {
     day: plan.day,
     totalDays: CHALLENGE.totalDays,
     dayKind: plan.kind,
     chapter,
-    checkpointDays: chapters.map((c) => c.endDay).filter((day) => day < CHALLENGE.totalDays - 1),
+    checkpointDays: trailCheckpoints(chapters),
     steps,
     current: steps[currentIndex] ?? null,
     completedCount: steps.length - open.length,
-    isComplete: open.length === 0,
+    isComplete,
+    dayCompletion: record,
+    isPerfectDay: record ? record.isPerfect : isComplete && allRight,
     xpEarnedToday: steps.reduce((sum, step) => sum + step.xpEarned, 0),
     minutesLeft: open.reduce((sum, step) => sum + step.quest.estimatedMinutes, 0),
     streak: progress.streak,
     totalXp: progress.totalXp,
     completedDays: progress.completedDays.length,
     daysToSummit: CHALLENGE.totalDays - plan.day,
+    tomorrow,
   };
 }

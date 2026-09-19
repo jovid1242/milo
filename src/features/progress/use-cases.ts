@@ -6,12 +6,15 @@ import type {
   Achievement,
   AnswerRecord,
   CompletionSource,
+  DayCompletion,
+  DayNumber,
   ProgressState,
   Quest,
   QuestCompletion,
 } from '@/schemas';
 import { clamp } from '@/utils/number';
 
+import { buildDayCompletion, findCompletedDays } from './logic/day-completion';
 import { buildProgressState } from './logic/progress-state';
 
 /** Reads every fact the progress view needs and derives the current state. */
@@ -108,6 +111,64 @@ export async function startQuest(
   });
 }
 
+export type DayCompletionResult = {
+  /** The day as first recorded — a repeated call returns the same record. */
+  record: DayCompletion;
+  /** This call finished the day. */
+  isFirstCompletion: boolean;
+};
+
+/**
+ * Finishes a day once every one of its quests is done — the only place a day
+ * becomes complete. Safe to call any number of times (a double tap, a re-render,
+ * the quest completion and the "Finish day" button): the first record stays, so
+ * the day's XP, streak step and celebration are never counted twice. Returns
+ * `null` while any quest of the day is still open; wrong answers never block it.
+ */
+export async function completeDay(
+  repositories: Repositories,
+  day: DayNumber,
+  now: Date = new Date(),
+): Promise<DayCompletionResult | null> {
+  const existing = await repositories.progress.getDayCompletion(day);
+  if (existing) return { record: existing, isFirstCompletion: false };
+
+  const [plans, completions] = await Promise.all([
+    repositories.challenge.getDailyChallenges(),
+    repositories.progress.getCompletions(),
+  ]);
+  const plan = plans.find((item) => item.day === day);
+  if (!plan) throw new Error(`Unknown day: ${day}`);
+
+  const record = buildDayCompletion({
+    plan,
+    completions,
+    completedDays: findCompletedDays(plans, completions),
+    completedAt: now.toISOString(),
+  });
+  if (!record) return null;
+
+  if (await repositories.progress.recordDayCompletion(record)) {
+    return { record, isFirstCompletion: true };
+  }
+  // A concurrent call recorded the day first; its record is the truth.
+  const stored = await repositories.progress.getDayCompletion(day);
+  return stored ? { record: stored, isFirstCompletion: false } : null;
+}
+
+/**
+ * Claims a finished day's celebration. Only the first claim — ever — gets
+ * `true`, so the confetti, sound and streak moment play once, even across
+ * restarts.
+ */
+export async function claimDayCelebration(
+  repositories: Repositories,
+  day: DayNumber,
+  now: Date = new Date(),
+): Promise<boolean> {
+  return repositories.progress.markDayCelebrated(day, now.toISOString());
+}
+
 export type CompleteQuestInput = {
   questId: string;
   correctCount: number;
@@ -123,7 +184,10 @@ export type QuestOutcome = {
   isFirstCompletion: boolean;
   xpEarned: number;
   isPerfect: boolean;
+  /** This quest finished its day. */
   dayCompleted: boolean;
+  /** The day's record once all of its quests are done (also on later replays). */
+  dayCompletion: DayCompletion | null;
   isSummit: boolean;
   /** Only for weekly exams. */
   examPassed: boolean | null;
@@ -177,13 +241,13 @@ export async function completeQuest(
     reward > 0 ? { amount: reward, reason: 'quest', refId: quest.id, createdAt: timestamp } : null,
   );
   const xpEarned = isFirstCompletion ? reward : 0;
+  const day = await completeDay(repositories, quest.day, now);
 
   const after = await loadProgressState(repositories, now);
   const newAchievements = await syncAchievements(repositories, after, now);
   const progress = newAchievements.length > 0 ? await loadProgressState(repositories, now) : after;
 
-  const dayCompleted =
-    progress.completedDays.includes(quest.day) && !before.completedDays.includes(quest.day);
+  const dayCompleted = day?.isFirstCompletion ?? false;
 
   return {
     quest,
@@ -191,6 +255,7 @@ export async function completeQuest(
     xpEarned,
     isPerfect,
     dayCompleted,
+    dayCompletion: day?.record ?? null,
     isSummit: dayPlan.kind === 'summit' && dayCompleted,
     examPassed: quest.type === 'weeklyExam' ? score >= CHALLENGE.examPassingScore : null,
     streakBefore: before.streak,
