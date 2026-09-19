@@ -141,11 +141,30 @@ components (`VocabularyPrompt`, `GrammarPrompt`, `ReadingPrompt`).
   reopening the day — from Home's camp, after a restart — shows the same summary quietly. If the
   user leaves the result without "Finish Day", Home celebrates instead and claims it the same way.
 
+## Journey (90-day map)
+
+`src/features/journey`: the whole challenge as one trail, from the base camp (bottom) to the
+summit (top). It adds no progress of its own:
+
+- `buildJourney` (`logic/journey.ts`, Zod: `schemas/journey.ts`) derives every day's state
+  from the challenge state — `completed`, `available` (today), `missed` (passed without its
+  quests), `locked` — its kind (`weeklyExam`, `chapterEnd`, `summit`) and stored facts only
+  (XP, date, perfect) from `day_completions` or the quest completions.
+- `buildMapLayout` (`logic/map-layout.ts`) turns it into geometry for the screen width: days on
+  a sine wave (one swing every 8 days), a gate per chapter (its illustration), one scenery
+  illustration per chapter where the trail swings away, flags at chapter ends, Milo and today's
+  campfire beside today's node. Tests check that nothing overlaps at 320–440 pt, on every day.
+- Rendering stays light: the trail is small views (solid behind today, dotted ahead) — no tall
+  canvas; only what lies within ~1.5 screens of the viewport is mounted.
+- The map opens on today (or where the user left it this session), follows a new day, and a
+  node opens the day's details; today's CTA leads to Home — the map never starts gameplay.
+
 ## Development tools
 
 Profile → Developer tools (visible only in `__DEV__`): ready-made Home states (Day 12 at 0–4 of 4,
-streak 0 / 12, Day 1 / 30 / 60 / 89 / 90, a quest in progress), every state of the Day 89
-Vocabulary, Grammar, Reading and Review quests (intro, questions, right/wrong answers, results,
+streak 0 / 12, Day 1 / 30 / 60 / 89 / 90, a quest in progress), the Journey map on every chapter
+boundary (Day 1 / 5 / 10 / 11 / 30 / 31 / 60 / 61 / 89, Day 89 completed, Day 90 available, 90/90,
+missed days), every state of the Day 89 Vocabulary, Grammar, Reading and Review quests (intro, questions, right/wrong answers, results,
 resume, completed), Day 89 around its end (Home 3/4 and 4/4, Day Complete first time / reopened,
 perfect and non-perfect day, "Finish day ×2" — two completions racing on the real database, with a
 report), change the current day, complete or reset quests, set the streak, add XP, toggle

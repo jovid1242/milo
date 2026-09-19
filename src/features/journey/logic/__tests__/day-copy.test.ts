@@ -26,7 +26,9 @@ describe('day accessibility labels', () => {
       dayAccessibilityLabel(day({ day: 90, kind: 'summit', state: 'locked', isPerfect: null })),
     ).toBe('Day 90, final challenge, locked');
     expect(
-      dayAccessibilityLabel(day({ day: 89, kind: 'chapterEnd', state: 'available', isToday: true })),
+      dayAccessibilityLabel(
+        day({ day: 89, kind: 'chapterEnd', state: 'available', isToday: true }),
+      ),
     ).toBe('Day 89, chapter milestone, today, available');
     expect(dayAccessibilityLabel(day({ kind: 'regular', state: 'missed', isPerfect: null }))).toBe(
       'Day 42, missed',
@@ -35,7 +37,16 @@ describe('day accessibility labels', () => {
 });
 
 describe('day status', () => {
-  const today = day({ day: 89, kind: 'chapterEnd', state: 'available', isToday: true });
+  const today = day({
+    day: 89,
+    kind: 'chapterEnd',
+    state: 'available',
+    isToday: true,
+    completedQuestCount: 0,
+    xpEarned: null,
+    isPerfect: null,
+    completedAt: null,
+  });
 
   it('explains a locked day with the calendar, not a promise', () => {
     const tomorrow = day({ day: 90, kind: 'summit', state: 'locked', isPerfect: null });
@@ -46,14 +57,18 @@ describe('day status', () => {
     });
     const doneToday = { ...today, state: 'completed' as const };
     expect(dayStatus(tomorrow, doneToday).detail).toBe('Opens tomorrow.');
-    expect(dayStatus(day({ day: 95 - 10, state: 'locked' }), day({ day: 60, isToday: true })).detail).toBe(
-      'Opens in 25 days.',
-    );
+    expect(
+      dayStatus(day({ day: 95 - 10, state: 'locked' }), day({ day: 60, isToday: true })).detail,
+    ).toBe('Opens in 25 days.');
   });
 
   it('describes today, missed and completed days', () => {
-    expect(dayStatus(today, today)).toMatchObject({ tone: 'today', detail: '3 quests waiting on Home.' });
-    expect(dayStatus({ ...today, completedQuestCount: 2 }, today).detail).toBe('2 of 3 quests done.');
+    expect(dayStatus(today, today)).toMatchObject({
+      tone: 'today',
+      detail: '3 quests waiting on Home.',
+    });
+    // Once something is done, the numbers in the sheet say it.
+    expect(dayStatus({ ...today, completedQuestCount: 2 }, today).detail).toBeNull();
     expect(dayStatus(day({ state: 'missed' }), today).label).toBe('Missed');
     expect(dayStatus(day({ isPerfect: true }), today)).toMatchObject({
       label: 'Completed',

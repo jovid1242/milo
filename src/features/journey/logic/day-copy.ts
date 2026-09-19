@@ -42,9 +42,10 @@ export function dayStatus(day: JourneyDay, today: JourneyDay): DayStatus {
       return {
         tone: 'today',
         label: 'Today',
+        // Once something is done the numbers below say it; before that, where to go.
         detail:
           day.completedQuestCount > 0
-            ? `${day.completedQuestCount} of ${plural(day.questCount, 'quest')} done.`
+            ? null
             : `${plural(day.questCount, 'quest')} waiting on Home.`,
       };
     case 'missed':

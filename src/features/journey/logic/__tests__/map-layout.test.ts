@@ -15,6 +15,7 @@ import {
 const PLANS = buildAllDailyChallenges();
 const RATIOS: MapArtRatios = {
   camp: 800 / 1200,
+  campfire: 800 / 1200,
   summit: 800 / 1200,
   gate: 0.6,
   milo: 702 / 768,
@@ -25,21 +26,28 @@ const RATIOS: MapArtRatios = {
 const WIDTHS = [320, 375, 402, 440];
 
 function journeyAt(currentDay: number, completedThrough: number) {
-  const completions: QuestCompletion[] = PLANS.filter((plan) => plan.day <= completedThrough).flatMap(
-    (plan) =>
-      plan.quests.map((quest) => ({
-        questId: quest.id,
-        day: plan.day,
-        questType: quest.type,
-        score: 1,
-        correctCount: 5,
-        totalCount: 5,
-        xpEarned: quest.xpReward,
-        source: 'user' as const,
-        completedAt: '2026-09-18T10:00:00.000Z',
-      })),
+  const completions: QuestCompletion[] = PLANS.filter(
+    (plan) => plan.day <= completedThrough,
+  ).flatMap((plan) =>
+    plan.quests.map((quest) => ({
+      questId: quest.id,
+      day: plan.day,
+      questType: quest.type,
+      score: 1,
+      correctCount: 5,
+      totalCount: 5,
+      xpEarned: quest.xpReward,
+      source: 'user' as const,
+      completedAt: '2026-09-18T10:00:00.000Z',
+    })),
   );
-  return buildJourney({ plans: PLANS, chapters: CHAPTERS, completions, dayCompletions: [], currentDay });
+  return buildJourney({
+    plans: PLANS,
+    chapters: CHAPTERS,
+    completions,
+    dayCompletions: [],
+    currentDay,
+  });
 }
 
 const SCENARIOS: [string, number, number][] = [
@@ -63,7 +71,11 @@ const nodeRect = (node: MapLayout['nodes'][number], margin = 0): Rect => ({
 describe.each(WIDTHS)('map layout at %ipt', (width) => {
   it.each(SCENARIOS)('%s: everything fits and nothing overlaps', (_, currentDay, done) => {
     const layout = buildMapLayout(journeyAt(currentDay, done), width, RATIOS);
-    const inside = (rect: Rect) => rect.x >= 0 && rect.x + rect.width <= width && rect.y >= 0 && rect.y + rect.height <= layout.height;
+    const inside = (rect: Rect) =>
+      rect.x >= 0 &&
+      rect.x + rect.width <= width &&
+      rect.y >= 0 &&
+      rect.y + rect.height <= layout.height;
 
     // Day 1 at the bottom, Day 90 at the top: the trail climbs.
     for (let index = 1; index < layout.nodes.length; index++) {
@@ -73,20 +85,31 @@ describe.each(WIDTHS)('map layout at %ipt', (width) => {
 
     // Nodes never touch each other.
     for (let index = 1; index < layout.nodes.length; index++) {
-      expect(rectsOverlap(nodeRect(layout.nodes[index]!, 2), nodeRect(layout.nodes[index - 1]!, 2))).toBe(false);
+      expect(
+        rectsOverlap(nodeRect(layout.nodes[index]!, 2), nodeRect(layout.nodes[index - 1]!, 2)),
+      ).toBe(false);
     }
 
     // Art stays on screen and off the nodes; Milo and flags stand beside theirs.
-    const art: Rect[] = [...layout.scenery, ...layout.gates, ...layout.flags];
+    const art: Rect[] = [
+      ...layout.scenery,
+      ...layout.gates,
+      ...layout.flags,
+      ...(layout.campfire ? [layout.campfire] : []),
+    ];
     for (const rect of [...art, layout.milo]) expect(inside(rect)).toBe(true);
     for (const node of layout.nodes) {
-      for (const rect of [...layout.scenery, ...layout.gates, ...layout.flags]) {
-        expect(rectsOverlap(nodeRect(node, 2), rect)).toBe(false);
-      }
+      for (const rect of art) expect(rectsOverlap(nodeRect(node, 2), rect)).toBe(false);
       expect(rectsOverlap(nodeRect(node), layout.milo)).toBe(false);
     }
     for (const rect of [...layout.scenery, ...layout.flags]) {
       expect(rectsOverlap(rect, layout.milo)).toBe(false);
+    }
+    if (layout.campfire) {
+      expect(rectsOverlap(layout.campfire, layout.milo)).toBe(false);
+      for (const rect of [...layout.scenery, ...layout.flags]) {
+        expect(rectsOverlap(layout.campfire, rect)).toBe(false);
+      }
     }
   });
 });
@@ -98,7 +121,8 @@ describe('Milo on any day', () => {
       expect(layout.milo.day).toBe(day);
       expect(layout.milo.x).toBeGreaterThanOrEqual(0);
       expect(layout.milo.x + layout.milo.width).toBeLessThanOrEqual(width);
-      for (const node of layout.nodes) expect(rectsOverlap(nodeRect(node), layout.milo)).toBe(false);
+      for (const node of layout.nodes)
+        expect(rectsOverlap(nodeRect(node), layout.milo)).toBe(false);
     }
   });
 });
@@ -130,6 +154,12 @@ describe('map layout', () => {
     // Everything ahead of Day 45 lies above its node.
     const day45 = middle.nodes[44]!;
     expect(middle.ahead.every((dot) => dot.y < day45.y + 1)).toBe(true);
+  });
+
+  it('lights today’s camp beside the node on regular days, not on the summit', () => {
+    const regular = buildMapLayout(journeyAt(45, 44), 402, RATIOS);
+    expect(regular.campfire?.day).toBe(45);
+    expect(buildMapLayout(journeyAt(90, 89), 402, RATIOS).campfire).toBeNull();
   });
 
   it('keeps Milo beside today’s node — also on Day 89, one step from the summit', () => {

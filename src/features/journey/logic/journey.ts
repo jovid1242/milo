@@ -73,7 +73,11 @@ export function buildJourney({
         .filter((completion): completion is QuestCompletion => completion !== undefined);
       const completed = completedDays.has(plan.day);
       const record = records.get(plan.day) ?? null;
-      const lastDone = done.map((completion) => completion.completedAt).sort().at(-1) ?? null;
+      const lastDone =
+        done
+          .map((completion) => completion.completedAt)
+          .sort()
+          .at(-1) ?? null;
 
       return {
         day: plan.day,

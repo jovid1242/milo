@@ -72,6 +72,14 @@ export const colors = {
     progress: palette.gold400,
   },
   streak: palette.ember500,
+  /** The 90-day map: each chapter's environment, always light. */
+  journey: {
+    beginning: palette.cream100,
+    momentum: palette.forest50,
+    habit: palette.river50,
+    growth: palette.sky50,
+    summit: palette.white,
+  },
   overlay: {
     scrim: 'rgba(21, 26, 22, 0.45)',
     pressed: 'rgba(21, 26, 22, 0.04)',

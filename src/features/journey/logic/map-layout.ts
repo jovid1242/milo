@@ -29,6 +29,8 @@ export type MapScenery = Rect & { key: SceneryKey; chapterId: ChapterId };
 export type MapGate = Rect & { chapterId: ChapterId };
 export type MapFlag = Rect & { day: DayNumber };
 export type MapMilo = Rect & { day: DayNumber; facing: Side };
+/** Today's camp beside the node: unlit until the day is done — like on Home. */
+export type MapCampfire = Rect & { day: DayNumber };
 
 /** Trail pieces: solid behind the user, dotted ahead. */
 export type TrailSegment = { x: number; y: number; length: number; angle: number };
@@ -47,6 +49,7 @@ export type MapLayout = {
   scenery: MapScenery[];
   flags: MapFlag[];
   milo: MapMilo;
+  campfire: MapCampfire | null;
   summit: Rect;
   camp: Rect;
   bands: MapBand[];
@@ -55,6 +58,7 @@ export type MapLayout = {
 /** Asset aspect ratios (height / width), mirrored from the registry. */
 export type MapArtRatios = {
   camp: number;
+  campfire: number;
   summit: number;
   gate: number;
   milo: number;
@@ -82,6 +86,7 @@ export function mapMetrics(width: number) {
     gateGap: 28,
     miloWidth: clamp(Math.round(width * 0.15), 54, 64),
     flagWidth: 40,
+    campfireWidth: 64,
   };
 }
 
@@ -120,9 +125,7 @@ function besideNode(
 ): (Rect & { side: Side }) | null {
   for (const side of [preferred, preferred === 'left' ? 'right' : 'left'] as const) {
     const x =
-      side === 'left'
-        ? node.x - node.size / 2 - 4 - size.width
-        : node.x + node.size / 2 + 4;
+      side === 'left' ? node.x - node.size / 2 - 4 - size.width : node.x + node.size / 2 + 4;
     const rect = { x, y: node.y + node.size / 2 - size.height + 6, ...size, side };
     const fits = rect.x >= margin / 2 && rect.x + rect.width <= width - margin / 2;
     const clear =
@@ -196,15 +199,13 @@ export function buildMapLayout(journey: Journey, width: number, ratios: MapArtRa
     return { day: day.day, x, y: top(up), size: nodeSize(day) };
   });
 
-  const gates = gatesUp.map(
-    ({ chapterId, bottom }): MapGate => ({
-      chapterId,
-      x: (width - m.gateWidth) / 2,
-      y: top(bottom + gateHeight),
-      width: m.gateWidth,
-      height: gateHeight,
-    }),
-  );
+  const gates = gatesUp.map(({ chapterId, bottom }): MapGate => ({
+    chapterId,
+    x: (width - m.gateWidth) / 2,
+    y: top(bottom + gateHeight),
+    width: m.gateWidth,
+    height: gateHeight,
+  }));
   const summit: Rect = {
     x: (width - summitWidth) / 2,
     y: top(summitBottom + summitHeight),
@@ -225,6 +226,13 @@ export function buildMapLayout(journey: Journey, width: number, ratios: MapArtRa
     hard: journey.currentDay === journey.totalDays ? gates : [...gates, summit],
   });
   const flags = placeFlags(journey, nodes, milo, scenery, width, ratios, m);
+  const campfire = placeCampfire(journey, nodes, width, ratios, m, [
+    milo,
+    ...flags,
+    ...scenery,
+    ...gates,
+    summit,
+  ]);
   const { walked, ahead } = buildTrail(journey, nodes, width, {
     start: { x: m.center, y: top(trailStart) },
     hidden: [...gates, summit],
@@ -240,6 +248,7 @@ export function buildMapLayout(journey: Journey, width: number, ratios: MapArtRa
     scenery,
     flags,
     milo,
+    campfire,
     summit,
     camp,
     bands: bandsUp.map((band) => ({
@@ -357,6 +366,23 @@ function placeFlags(
   return flags;
 }
 
+/** Today's campfire, opposite Milo — left out where there is no clear room (or on the summit). */
+function placeCampfire(
+  journey: Journey,
+  nodes: readonly MapNode[],
+  width: number,
+  ratios: MapArtRatios,
+  m: ReturnType<typeof mapMetrics>,
+  obstacles: readonly Rect[],
+): MapCampfire | null {
+  const node = nodes[journey.currentDay - 1];
+  if (!node || journey.currentDay === journey.totalDays) return null;
+  const size = { width: m.campfireWidth, height: m.campfireWidth * ratios.campfire };
+  const side = freeSide(width, journey.currentDay) === 'left' ? 'right' : 'left';
+  const spot = besideNode(node, size, side, nodes, width, m.margin, obstacles);
+  return spot ? { ...spot, day: node.day } : null;
+}
+
 /**
  * Samples the trail from the camp through every day, evenly along its length.
  * Behind today it is solid (segments), ahead of today dotted. Parts under the
@@ -410,7 +436,8 @@ function buildTrail(
 
   const hidden = (x: number, y: number) =>
     options.hidden.some(
-      (rect) => x > rect.x && x < rect.x + rect.width && y > rect.y + 6 && y < rect.y + rect.height - 6,
+      (rect) =>
+        x > rect.x && x < rect.x + rect.width && y > rect.y + 6 && y < rect.y + rect.height - 6,
     );
 
   const walked: TrailSegment[] = [];

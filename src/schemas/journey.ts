@@ -62,7 +62,11 @@ export const JourneySchema = z
   .superRefine((journey, ctx) => {
     journey.days.forEach((day, index) => {
       if (day.day !== index + 1) {
-        ctx.addIssue({ code: 'custom', message: 'days must run 1…n in order', path: ['days', index] });
+        ctx.addIssue({
+          code: 'custom',
+          message: 'days must run 1…n in order',
+          path: ['days', index],
+        });
       }
     });
     if (journey.days.filter((day) => day.isToday).length !== 1) {

@@ -48,6 +48,11 @@ export const palette = {
   ink700: '#3A433C',
   ink900: '#151A16',
 
+  // Journey environments, sampled from the journey art (river water, mountain sky)
+  // and lightened to background strength.
+  river50: '#EEF7FA',
+  sky50: '#F1F4F9',
+
   ember500: '#E8641E',
   red50: '#FBEAE7',
   red500: '#C8473B',

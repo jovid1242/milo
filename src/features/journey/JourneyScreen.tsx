@@ -1,94 +1,66 @@
+import { useRouter } from 'expo-router';
 import { useState } from 'react';
-import { StyleSheet, View } from 'react-native';
 
 import { ErrorState } from '@/components/ErrorState';
-import { AppText, LoadingState, Screen } from '@/components/ui';
-import { useChapters } from '@/features/challenge/queries';
-import { useProgressState } from '@/features/progress/queries';
-import type { Chapter, ProgressState } from '@/schemas';
-import { spacing } from '@/theme';
+import { LoadingState, Screen } from '@/components/ui';
+import { triggerHaptic } from '@/services/haptics/haptics';
 
-import { ChapterCard, type ChapterStatus } from './components/ChapterCard';
+import { DayDetailsSheet } from './components/DayDetailsSheet';
+import { JourneyHeader } from './components/JourneyHeader';
+import { JourneyMap } from './components/JourneyMap';
+import { useJourney } from './queries';
 
-function statusFor(chapter: Chapter, state: ProgressState): ChapterStatus {
-  if (state.currentDay < chapter.startDay) return 'locked';
-  if (state.currentDay > chapter.endDay) return 'completed';
-  return 'current';
-}
-
+/** The 90-day map: the whole challenge as one adventure, from base camp to the summit. */
 export function JourneyScreen() {
-  const chapters = useChapters();
-  const progress = useProgressState();
-  const [cardWidth, setCardWidth] = useState(0);
+  const router = useRouter();
+  const query = useJourney();
+  const [selectedDay, setSelectedDay] = useState<number | null>(null);
 
-  if (chapters.isPending || progress.isPending) {
+  if (query.isPending) {
     return (
-      <Screen>
+      <Screen background="warm">
         <LoadingState label="Loading the journey" />
       </Screen>
     );
   }
-
-  if (chapters.isError || progress.isError) {
+  if (query.isError) {
     return (
-      <Screen>
-        <ErrorState
-          error={chapters.error ?? progress.error}
-          onRetry={() => {
-            void chapters.refetch();
-            void progress.refetch();
-          }}
-        />
+      <Screen background="warm">
+        <ErrorState error={query.error} onRetry={() => void query.refetch()} />
       </Screen>
     );
   }
 
-  const state = progress.data;
-  const completedDays = new Set(state.completedDays);
+  const journey = query.data;
+  const today = journey.days[journey.currentDay - 1];
+  const selected = selectedDay === null ? null : (journey.days[selectedDay - 1] ?? null);
+  if (!today) return null;
 
   return (
-    <Screen scroll>
-      <View
-        style={styles.content}
-        onLayout={(event) => setCardWidth(event.nativeEvent.layout.width)}>
-        <View style={styles.header}>
-          <AppText variant="overline" color="wood">
-            The journey
-          </AppText>
-          <AppText variant="title1">90 days to the summit</AppText>
-        </View>
-
-        {cardWidth > 0
-          ? chapters.data.map((chapter) => (
-              <View key={chapter.id} style={styles.chapter}>
-                <ChapterCard
-                  chapter={chapter}
-                  status={statusFor(chapter, state)}
-                  currentDay={state.currentDay}
-                  completedDays={
-                    [...completedDays].filter(
-                      (day) => day >= chapter.startDay && day <= chapter.endDay,
-                    ).length
-                  }
-                  width={cardWidth}
-                />
-                <View style={styles.caption}>
-                  <AppText variant="title3">{chapter.title}</AppText>
-                  <AppText variant="caption" color="secondary">
-                    {`Days ${chapter.startDay}–${chapter.endDay} · ${chapter.tagline}`}
-                  </AppText>
-                </View>
-              </View>
-            ))
-          : null}
-      </View>
+    <Screen padded={false} background="warm" testID="journey-screen">
+      <JourneyHeader journey={journey} />
+      <JourneyMap
+        journey={journey}
+        onSelectDay={(day) => {
+          // A calm map: a light tap feel, no sound.
+          triggerHaptic('selection');
+          setSelectedDay(day.day);
+        }}
+      />
+      <DayDetailsSheet
+        day={selected}
+        today={today}
+        chapters={journey.chapters.map((entry) => entry.chapter)}
+        onClose={() => setSelectedDay(null)}
+        onContinueToday={() => {
+          setSelectedDay(null);
+          router.navigate('/');
+        }}
+        onOpenTodaySummary={() => {
+          setSelectedDay(null);
+          router.push({ pathname: '/day-complete/[day]', params: { day: String(today.day) } });
+        }}
+      />
     </Screen>
   );
 }
-
-const styles = StyleSheet.create({
-  content: { gap: spacing[6], paddingTop: spacing[4] },
-  header: { gap: spacing[1] },
-  chapter: { gap: spacing[3] },
-  caption: { gap: spacing[1], paddingHorizontal: spacing[1] },
-});

@@ -295,7 +295,37 @@ export const HOME_SCENARIOS = {
 export type HomeScenario = keyof typeof HOME_SCENARIOS;
 
 export async function applyHomeScenario(ctx: DevContext, scenario: HomeScenario): Promise<void> {
-  const spec: HomeScenarioSpec = HOME_SCENARIOS[scenario];
+  await rebuildProgress(ctx, HOME_SCENARIOS[scenario]);
+}
+
+/** Journey states across every chapter boundary, plus the end of the challenge. */
+export const JOURNEY_SCENARIOS = {
+  day1: { label: 'Day 1', day: 1, todayDone: 0 },
+  day5: { label: 'Day 5', day: 5, todayDone: 0 },
+  day10: { label: 'Day 10', day: 10, todayDone: 0 },
+  day11: { label: 'Day 11', day: 11, todayDone: 0 },
+  day30: { label: 'Day 30', day: 30, todayDone: 0 },
+  day31: { label: 'Day 31', day: 31, todayDone: 0 },
+  day60: { label: 'Day 60', day: 60, todayDone: 0 },
+  day61: { label: 'Day 61', day: 61, todayDone: 0 },
+  day89: { label: 'Day 89', day: 89, todayDone: 0 },
+  day89done: { label: 'Day 89 completed', day: 89, todayDone: 4 },
+  day90: { label: 'Day 90 available', day: 90, todayDone: 0 },
+  complete: { label: '90/90 completed', day: 90, todayDone: 2 },
+  missed: { label: 'Day 40 · 3 missed', day: 40, todayDone: 1, missedDays: [12, 25, 33] },
+} as const satisfies Record<string, HomeScenarioSpec>;
+
+export type JourneyScenario = keyof typeof JOURNEY_SCENARIOS;
+
+export async function applyJourneyScenario(ctx: DevContext, scenario: JourneyScenario) {
+  await rebuildProgress(ctx, JOURNEY_SCENARIOS[scenario]);
+}
+
+/**
+ * Rebuilds progress from scratch: the day, every earlier day completed except
+ * `missedDays`, and part of today.
+ */
+async function rebuildProgress(ctx: DevContext, spec: HomeScenarioSpec): Promise<void> {
   const missed = new Set(spec.missedDays ?? []);
 
   await ctx.repositories.progress.resetProgress();
