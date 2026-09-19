@@ -8,6 +8,7 @@ import type {
   DayCompletion,
   DayNumber,
   Friend,
+  LearnedWord,
   LocalDate,
   QuestCompletion,
   QuestContent,
@@ -69,7 +70,11 @@ export interface ProgressRepository {
   getDayCompletions(): Promise<DayCompletion[]>;
   /** Claims the day's celebration; only the first caller gets `true`. */
   markDayCelebrated(day: DayNumber, at: Timestamp): Promise<boolean>;
-  /** Removes completions, their answers, sessions, quest XP and the days they finished. */
+  /** Records learned words; a word already learned in that quest is ignored. */
+  recordLearnedWords(words: readonly LearnedWord[]): Promise<void>;
+  /** Different words learned, whichever quests taught them. */
+  countLearnedWords(): Promise<number>;
+  /** Removes completions, their answers, sessions, quest XP, learned words and the days they finished. */
   deleteCompletions(questIds: readonly string[]): Promise<void>;
   getCompletionsForDays(days: readonly DayNumber[]): Promise<QuestCompletion[]>;
   resetProgress(): Promise<void>;
@@ -80,6 +85,8 @@ export interface AchievementRepository {
   getUnlocks(): Promise<AchievementUnlock[]>;
   /** Unlocks ids that are not unlocked yet; returns the ones actually added. */
   unlock(ids: readonly AchievementId[], unlockedAt: Timestamp): Promise<AchievementId[]>;
+  /** Marks unlocks as celebrated; returns the ones that were not yet (shown once, ever). */
+  markCelebrated(ids: readonly AchievementId[], at: Timestamp): Promise<AchievementId[]>;
   lock(ids: readonly AchievementId[]): Promise<void>;
   resetUnlocks(): Promise<void>;
 }
@@ -95,6 +102,7 @@ export interface DevRepository {
     completions: readonly QuestCompletion[],
     xpEvents: readonly XpEvent[],
     days: readonly DayCompletion[],
+    words: readonly LearnedWord[],
   ): Promise<void>;
   clearFriends(): Promise<void>;
   restoreFriends(): Promise<void>;

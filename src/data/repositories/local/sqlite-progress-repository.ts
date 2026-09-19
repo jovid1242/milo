@@ -9,6 +9,7 @@ import {
   type AnswerRecord,
   type DayCompletion,
   type DayNumber,
+  type LearnedWord,
   type QuestCompletion,
   type QuestSession,
   type Timestamp,
@@ -58,6 +59,16 @@ const mapDay = (row: DayRow): DayCompletion =>
     isPerfect: row.is_perfect === 1,
     celebratedAt: row.celebrated_at,
   });
+
+/** Shared with the dev repository, which seeds history in bulk. */
+export async function writeLearnedWords(db: SQLiteDatabase, words: readonly LearnedWord[]) {
+  for (const word of words) {
+    await db.runAsync(
+      'INSERT OR IGNORE INTO learned_words (word_id, quest_id, learned_at) VALUES (?, ?, ?)',
+      [word.wordId, word.questId, word.learnedAt],
+    );
+  }
+}
 
 /** Shared with the dev repository, which backfills finished days in bulk. */
 export async function writeDayCompletion(db: SQLiteDatabase, record: DayCompletion) {
@@ -280,6 +291,19 @@ export class SqliteProgressRepository implements ProgressRepository {
     return result.changes > 0;
   }
 
+  async recordLearnedWords(words: readonly LearnedWord[]): Promise<void> {
+    if (words.length === 0) return;
+    await writeDatabase((db) => db.withExclusiveTransactionAsync((txn) => writeLearnedWords(txn, words)));
+  }
+
+  async countLearnedWords(): Promise<number> {
+    const db = await getDatabase();
+    const row = await db.getFirstAsync<{ count: number }>(
+      'SELECT COUNT(DISTINCT word_id) AS count FROM learned_words',
+    );
+    return row?.count ?? 0;
+  }
+
   async deleteXpEvents(reason: XpEventReason): Promise<void> {
     await writeDatabase((db) => db.runAsync('DELETE FROM xp_events WHERE reason = ?', [reason]));
   }
@@ -298,6 +322,7 @@ export class SqliteProgressRepository implements ProgressRepository {
         );
         await txn.runAsync(`DELETE FROM quest_completions WHERE quest_id IN (${list})`, params);
         await txn.runAsync(`DELETE FROM answers WHERE quest_id IN (${list})`, params);
+        await txn.runAsync(`DELETE FROM learned_words WHERE quest_id IN (${list})`, params);
         await txn.runAsync(`DELETE FROM quest_sessions WHERE quest_id IN (${list})`, params);
         await txn.runAsync(
           `DELETE FROM xp_events WHERE reason = 'quest' AND ref_id IN (${list})`,
@@ -311,7 +336,7 @@ export class SqliteProgressRepository implements ProgressRepository {
     await writeDatabase((db) =>
       db.withExclusiveTransactionAsync(async (txn) => {
         await txn.execAsync(
-          'DELETE FROM quest_completions; DELETE FROM answers; DELETE FROM quest_sessions; DELETE FROM xp_events; DELETE FROM day_completions;',
+          'DELETE FROM quest_completions; DELETE FROM answers; DELETE FROM quest_sessions; DELETE FROM xp_events; DELETE FROM day_completions; DELETE FROM learned_words;',
         );
       }),
     );

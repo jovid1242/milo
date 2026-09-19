@@ -1,6 +1,7 @@
 import type { SQLiteDatabase } from 'expo-sqlite';
 
 import { FRIENDS_SEED } from '@/data/content/friends-seed';
+import { QUEST_CONTENT } from '@/data/content/lessons';
 import { logger } from '@/lib/logger';
 
 type Migration = {
@@ -119,6 +120,38 @@ export const MIGRATIONS: readonly Migration[] = [
           celebrated_at TEXT
         );
       `);
+    },
+  },
+  {
+    version: 5,
+    name: 'learned words, achievement celebrations',
+    up: async (db) => {
+      // Unique words need their ids: one row per word and quest, counted distinct.
+      // Unlocks remember whether their celebration was shown (existing ones were).
+      await db.execAsync(`
+        CREATE TABLE learned_words (
+          word_id TEXT NOT NULL,
+          quest_id TEXT NOT NULL,
+          learned_at TEXT NOT NULL,
+          PRIMARY KEY (word_id, quest_id)
+        );
+        ALTER TABLE achievement_unlocks ADD COLUMN celebrated_at TEXT;
+        UPDATE achievement_unlocks SET celebrated_at = unlocked_at;
+      `);
+      // Words of vocabulary quests finished before this version.
+      const done = await db.getAllAsync<{ quest_id: string; completed_at: string }>(
+        "SELECT quest_id, completed_at FROM quest_completions WHERE quest_type = 'vocabulary'",
+      );
+      for (const row of done) {
+        const content = QUEST_CONTENT.get(row.quest_id);
+        if (content?.type !== 'vocabulary') continue;
+        for (const item of content.items) {
+          await db.runAsync(
+            'INSERT OR IGNORE INTO learned_words (word_id, quest_id, learned_at) VALUES (?, ?, ?)',
+            [item.id, row.quest_id, row.completed_at],
+          );
+        }
+      }
     },
   },
 ];

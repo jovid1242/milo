@@ -10,6 +10,7 @@ import {
   type DayCompletion,
   type DayNumber,
   type Friend,
+  type LearnedWord,
   type LocalDate,
   type QuestCompletion,
   type QuestSession,
@@ -42,6 +43,8 @@ export type MemoryStore = {
   sessions: Map<string, QuestSession>;
   xpEvents: XpEvent[];
   days: Map<DayNumber, DayCompletion>;
+  /** Keyed by `word|quest`, like the SQLite primary key. */
+  words: Map<string, LearnedWord>;
   unlocks: Map<AchievementId, AchievementUnlock>;
   friends: Friend[];
 };
@@ -129,6 +132,17 @@ class MemoryProgressRepository implements ProgressRepository {
     return true;
   }
 
+  async recordLearnedWords(words: readonly LearnedWord[]) {
+    for (const word of words) {
+      const key = `${word.wordId}|${word.questId}`;
+      if (!this.store.words.has(key)) this.store.words.set(key, word);
+    }
+  }
+
+  async countLearnedWords() {
+    return new Set([...this.store.words.values()].map((word) => word.wordId)).size;
+  }
+
   async deleteCompletions(questIds: readonly string[]) {
     const ids = new Set(questIds);
     for (const id of ids) {
@@ -138,6 +152,7 @@ class MemoryProgressRepository implements ProgressRepository {
       this.store.sessions.delete(id);
     }
     this.store.answers = this.store.answers.filter((answer) => !ids.has(answer.questId));
+    for (const [key, word] of this.store.words) if (ids.has(word.questId)) this.store.words.delete(key);
     this.store.xpEvents = this.store.xpEvents.filter(
       (event) => !(event.reason === 'quest' && event.refId !== null && ids.has(event.refId)),
     );
@@ -149,6 +164,7 @@ class MemoryProgressRepository implements ProgressRepository {
     this.store.answers = [];
     this.store.xpEvents = [];
     this.store.days.clear();
+    this.store.words.clear();
   }
 }
 
@@ -182,9 +198,22 @@ class MemoryAchievementRepository implements AchievementRepository {
   }
 
   async unlock(ids: readonly AchievementId[], unlockedAt: string) {
-    const added = ids.filter((id) => !this.store.unlocks.has(id));
-    for (const id of added) this.store.unlocks.set(id, { achievementId: id, unlockedAt });
+    const added = [...new Set(ids)].filter((id) => !this.store.unlocks.has(id));
+    for (const id of added) {
+      this.store.unlocks.set(id, { achievementId: id, unlockedAt, celebratedAt: null });
+    }
     return added;
+  }
+
+  async markCelebrated(ids: readonly AchievementId[], at: string) {
+    const claimed: AchievementId[] = [];
+    for (const id of ids) {
+      const unlock = this.store.unlocks.get(id);
+      if (!unlock || unlock.celebratedAt !== null) continue;
+      this.store.unlocks.set(id, { ...unlock, celebratedAt: at });
+      claimed.push(id);
+    }
+    return claimed;
   }
 
   async lock(ids: readonly AchievementId[]) {
@@ -214,11 +243,13 @@ class MemoryDevRepository implements DevRepository {
     completions: readonly QuestCompletion[],
     xpEvents: readonly XpEvent[],
     days: readonly DayCompletion[],
+    words: readonly LearnedWord[],
   ) {
     for (const completion of completions)
       this.store.completions.set(completion.questId, completion);
     for (const event of xpEvents) await this.progress.addXpEvent(event);
     for (const day of days) await this.progress.recordDayCompletion(day);
+    await this.progress.recordLearnedWords(words);
   }
 
   async clearFriends() {
@@ -257,6 +288,7 @@ export function createMemoryRepositories(challengeStartDate: LocalDate): Reposit
     sessions: new Map(),
     xpEvents: [],
     days: new Map(),
+    words: new Map(),
     unlocks: new Map(),
     friends: seedFriends(),
   };

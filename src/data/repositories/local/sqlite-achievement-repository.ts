@@ -12,7 +12,7 @@ import {
   type Timestamp,
 } from '@/schemas';
 
-type UnlockRow = { achievement_id: string; unlocked_at: string };
+type UnlockRow = { achievement_id: string; unlocked_at: string; celebrated_at: string | null };
 
 let definitions: Achievement[] | null = null;
 
@@ -33,6 +33,7 @@ export class SqliteAchievementRepository implements AchievementRepository {
       AchievementUnlockSchema.parse({
         achievementId: row.achievement_id,
         unlockedAt: row.unlocked_at,
+        celebratedAt: row.celebrated_at,
       }),
     );
   }
@@ -53,6 +54,24 @@ export class SqliteAchievementRepository implements AchievementRepository {
         }
       });
       return added;
+    });
+  }
+
+  async markCelebrated(ids: readonly AchievementId[], at: Timestamp): Promise<AchievementId[]> {
+    if (ids.length === 0) return [];
+    // Decided row by row inside one transaction: two claims cannot both win.
+    return writeDatabase(async (db) => {
+      const claimed: AchievementId[] = [];
+      await db.withExclusiveTransactionAsync(async (txn) => {
+        for (const id of ids) {
+          const result = await txn.runAsync(
+            'UPDATE achievement_unlocks SET celebrated_at = ? WHERE achievement_id = ? AND celebrated_at IS NULL',
+            [at, id],
+          );
+          if (result.changes > 0) claimed.push(id);
+        }
+      });
+      return claimed;
     });
   }
 

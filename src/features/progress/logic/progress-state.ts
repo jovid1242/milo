@@ -20,23 +20,20 @@ export type ProgressInputs = {
   completions: readonly QuestCompletion[];
   totalXp: number;
   unlocks: readonly AchievementUnlock[];
+  /** Different words learned (stored by word id). */
+  wordsLearned: number;
   now: Date;
 };
 
 /** Derives everything the UI needs about progress from raw persisted facts. */
 export function buildProgressState(input: ProgressInputs): ProgressState {
-  const { user, chapters, dailyChallenges, completions, totalXp, unlocks, now } = input;
+  const { user, chapters, dailyChallenges, completions, totalXp, unlocks, wordsLearned, now } =
+    input;
   const currentDay = getChallengeDay(user.challengeStartDate, now);
   const completedQuestIds = new Set(completions.map((c) => c.questId));
   const completedDaySet = findCompletedDays(dailyChallenges, completions);
   const completedDays: DayNumber[] = [...completedDaySet].sort((a, b) => a - b);
 
-  const questsById = new Map(dailyChallenges.flatMap((plan) => plan.quests).map((q) => [q.id, q]));
-  const wordsLearned = completions.reduce(
-    (sum, c) =>
-      sum + (c.questType === 'vocabulary' ? (questsById.get(c.questId)?.wordCount ?? 0) : 0),
-    0,
-  );
 
   const today = dailyChallenges.find((plan) => plan.day === currentDay);
   const todayCompletedQuestIds =

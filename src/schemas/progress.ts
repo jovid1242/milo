@@ -70,6 +70,17 @@ export const DayCompletionSchema = z.object({
 });
 export type DayCompletion = z.infer<typeof DayCompletionSchema>;
 
+/**
+ * A vocabulary word the user has learned. One row per word and quest: the
+ * same word met again in another lesson is still one word (counted distinct).
+ */
+export const LearnedWordSchema = z.object({
+  wordId: IdSchema,
+  questId: IdSchema,
+  learnedAt: TimestampSchema,
+});
+export type LearnedWord = z.infer<typeof LearnedWordSchema>;
+
 export const XpEventReasonSchema = z.enum(['quest', 'achievement', 'dev']);
 export type XpEventReason = z.infer<typeof XpEventReasonSchema>;
 

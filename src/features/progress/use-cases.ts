@@ -1,7 +1,6 @@
 import { CHALLENGE } from '@/constants/challenge';
 import type { Repositories } from '@/data/repositories/types';
-import { findNewlyEarnedAchievements } from '@/features/achievements/logic/evaluate-achievements';
-import { computeTeamStreak } from '@/features/friends/logic/team-streak';
+import { syncAchievements } from '@/features/achievements/use-cases';
 import type {
   Achievement,
   AnswerRecord,
@@ -22,14 +21,16 @@ export async function loadProgressState(
   repositories: Repositories,
   now: Date = new Date(),
 ): Promise<ProgressState> {
-  const [user, chapters, dailyChallenges, completions, totalXp, unlocks] = await Promise.all([
-    repositories.user.getUser(),
-    repositories.challenge.getChapters(),
-    repositories.challenge.getDailyChallenges(),
-    repositories.progress.getCompletions(),
-    repositories.progress.getTotalXp(),
-    repositories.achievements.getUnlocks(),
-  ]);
+  const [user, chapters, dailyChallenges, completions, totalXp, unlocks, wordsLearned] =
+    await Promise.all([
+      repositories.user.getUser(),
+      repositories.challenge.getChapters(),
+      repositories.challenge.getDailyChallenges(),
+      repositories.progress.getCompletions(),
+      repositories.progress.getTotalXp(),
+      repositories.achievements.getUnlocks(),
+      repositories.progress.countLearnedWords(),
+    ]);
   return buildProgressState({
     user,
     chapters,
@@ -37,52 +38,9 @@ export async function loadProgressState(
     completions,
     totalXp,
     unlocks,
+    wordsLearned,
     now,
   });
-}
-
-/** Unlocks every achievement whose criteria are now met and awards its XP. */
-export async function syncAchievements(
-  repositories: Repositories,
-  state: ProgressState,
-  now: Date = new Date(),
-): Promise<Achievement[]> {
-  const [definitions, friends] = await Promise.all([
-    repositories.achievements.getDefinitions(),
-    repositories.friends.getFriends(),
-  ]);
-
-  const earned = findNewlyEarnedAchievements(
-    definitions,
-    {
-      completedDays: state.completedDays.length,
-      streak: state.streak,
-      wordsLearned: state.wordsLearned,
-      hasPerfectQuiz: state.hasPerfectQuiz,
-      teamStreak: computeTeamStreak(state.streak, friends),
-    },
-    new Set(state.unlockedAchievementIds),
-  );
-  if (earned.length === 0) return [];
-
-  const timestamp = now.toISOString();
-  const unlockedIds = await repositories.achievements.unlock(
-    earned.map((achievement) => achievement.id),
-    timestamp,
-  );
-  const unlocked = earned.filter((achievement) => unlockedIds.includes(achievement.id));
-
-  for (const achievement of unlocked) {
-    if (achievement.xpReward > 0) {
-      await repositories.progress.addXpEvent({
-        amount: achievement.xpReward,
-        reason: 'achievement',
-        refId: achievement.id,
-        createdAt: timestamp,
-      });
-    }
-  }
-  return unlocked;
 }
 
 /**
@@ -169,6 +127,19 @@ export async function claimDayCelebration(
   return repositories.progress.markDayCelebrated(day, now.toISOString());
 }
 
+/**
+ * A finished vocabulary quest teaches its words. Stored by word id, so the
+ * same word from another lesson (or a replay) is still one word.
+ */
+async function recordLearnedWords(repositories: Repositories, quest: Quest, at: string) {
+  if (quest.type !== 'vocabulary') return;
+  const content = await repositories.challenge.getQuestContent(quest.id);
+  if (content?.type !== 'vocabulary') return;
+  await repositories.progress.recordLearnedWords(
+    content.items.map((item) => ({ wordId: item.id, questId: quest.id, learnedAt: at })),
+  );
+}
+
 export type CompleteQuestInput = {
   questId: string;
   correctCount: number;
@@ -241,10 +212,12 @@ export async function completeQuest(
     reward > 0 ? { amount: reward, reason: 'quest', refId: quest.id, createdAt: timestamp } : null,
   );
   const xpEarned = isFirstCompletion ? reward : 0;
+  await recordLearnedWords(repositories, quest, timestamp);
   const day = await completeDay(repositories, quest.day, now);
 
+  // After the quest and the day are stored: the badges see the new progress.
   const after = await loadProgressState(repositories, now);
-  const newAchievements = await syncAchievements(repositories, after, now);
+  const newAchievements = await syncAchievements(repositories, now);
   const progress = newAchievements.length > 0 ? await loadProgressState(repositories, now) : after;
 
   const dayCompleted = day?.isFirstCompletion ?? false;
