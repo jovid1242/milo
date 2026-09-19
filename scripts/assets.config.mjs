@@ -185,6 +185,47 @@ export default {
     files: {},
   },
 
+  // Sprite sheets cut into separate originals by `npm run assets:slice`
+  // (scripts/slice-assets.mjs). Rects are in sheet pixels; `erase` clears a
+  // caption that touches the art. Each flag's base sits on its bottom edge,
+  // so a flag can be anchored bottom-centre on the map.
+  slices: {
+    'journey/journey-flag.png': {
+      'journey/journey-flag-large.png': { left: 25, top: 29, width: 735, height: 945 },
+      'journey/journey-flag-normal.png': { left: 753, top: 12, width: 252, height: 311 },
+      'journey/journey-flag-checkpoint.png': {
+        left: 998,
+        top: 20,
+        width: 250,
+        height: 306,
+        erase: [{ left: 1053, top: 323, width: 159, height: 3 }],
+      },
+      'journey/journey-flag-complete.png': {
+        left: 1242,
+        top: 20,
+        width: 290,
+        height: 306,
+        erase: [{ left: 1323, top: 323, width: 143, height: 3 }],
+      },
+      'journey/journey-flag-locked.png': {
+        left: 753,
+        top: 383,
+        width: 257,
+        height: 323,
+        erase: [{ left: 824, top: 702, width: 127, height: 4 }],
+      },
+      'journey/journey-flag-banner.png': { left: 1017, top: 375, width: 233, height: 320 },
+      'journey/journey-flag-small.png': { left: 1303, top: 433, width: 206, height: 268 },
+      'journey/journey-flag-string.png': {
+        left: 831,
+        top: 752,
+        width: 586,
+        height: 207,
+        erase: [{ left: 1065, top: 951, width: 115, height: 8 }],
+      },
+    },
+  },
+
   // Findings from manual visual/aural review. Automatic checks add their own
   // flags (alpha, clipping, loudness, duplicates, <text> in SVG, ...).
   review: {
@@ -230,7 +271,7 @@ export default {
     },
     'journey/journey-flag.png': {
       flags: ['VISUAL_REVIEW_REQUIRED'],
-      note: 'Это лист-референс из 8 вариантов флага с вшитыми подписями (Normal, Checkpoint, Complete, Locked, Banner, «Stnall» — опечатка, String). Как один ассет не используется: нужно нарезать на отдельные файлы без подписей.',
+      note: 'Лист-референс из 8 вариантов флага с вшитыми подписями (Normal, Checkpoint, Complete, Locked, Banner, «Stnall» — опечатка, String). Сам лист в приложении не используется: он нарезан на journey-flag-{large,normal,checkpoint,complete,locked,banner,small,string} без подписей (slices выше, npm run assets:slice).',
     },
     'effects/stars.png': {
       flags: ['VISUAL_REVIEW_REQUIRED'],

@@ -15,6 +15,7 @@
     "verify": "npm run typecheck && npm run lint && npm run test",
     "assets:optimize": "node scripts/optimize-assets.mjs && node scripts/generate-asset-registry.mjs",
     "assets:check": "node scripts/optimize-assets.mjs --check",
+    "assets:slice": "node scripts/slice-assets.mjs",
     "assets:registry": "node scripts/generate-asset-registry.mjs"
   },
   "engines": {

@@ -14,6 +14,7 @@ npm test                  # jest-expo unit tests (domain logic + content validat
 npm run verify            # typecheck + lint + test
 npm run assets:optimize   # re-optimize assets/ from assets-original/ and regenerate the registry
 npm run assets:check      # validate assets/ against assets-manifest.json
+npm run assets:slice      # cut sprite sheets into separate originals (assets.config.mjs → slices)
 npm run assets:registry   # regenerate src/constants/assets/registry.generated.ts
 ```
 
@@ -77,6 +78,12 @@ playSound('questComplete');
 
 Each entry carries intrinsic size, alpha and the review status from `ASSET_MANIFEST.md`.
 Missing assets are listed in `missingAssets` (currently `quest-grammar.svg`).
+
+Sprite sheets are cut into separate originals by `npm run assets:slice` (rects live in
+`assets.config.mjs → slices`), then optimised like any other original. The flag sheet
+`journey-flag` is only a reference: use `journey.flagNormal`, `flagCheckpoint`, `flagComplete`,
+`flagLocked`, `flagBanner`, `flagSmall`, `flagString` or `flagLarge` — each base sits on the
+image's bottom edge, so a flag anchors bottom-centre.
 
 ## Sound & haptics
 

@@ -175,17 +175,17 @@
     }
   },
   "totals": {
-    "files": 74,
-    "originalBytes": 109289609,
-    "optimizedBytes": 12216482,
-    "savedBytes": 97073127,
+    "files": 82,
+    "originalBytes": 112148181,
+    "optimizedBytes": 12610254,
+    "savedBytes": 99537927,
     "reductionPercent": 88.8,
     "byKind": {
       "image": {
-        "files": 53,
-        "originalBytes": 108556661,
-        "optimizedBytes": 11900430,
-        "savedBytes": 96656231,
+        "files": 61,
+        "originalBytes": 111415233,
+        "optimizedBytes": 12294202,
+        "savedBytes": 99121031,
         "reductionPercent": 89
       },
       "svg": {
@@ -215,27 +215,27 @@
     "passed": true,
     "checks": {
       "outputFilesExist": {
-        "passed": 74,
+        "passed": 82,
         "failed": 0
       },
       "manifestMatchesFiles": {
-        "passed": 74,
+        "passed": 82,
         "failed": 0
       },
       "imagesDecode": {
-        "passed": 53,
+        "passed": 61,
         "failed": 0
       },
       "dimensionsValid": {
-        "passed": 58,
+        "passed": 66,
         "failed": 0
       },
       "alphaPreserved": {
-        "passed": 47,
+        "passed": 55,
         "failed": 0
       },
       "qualityGate": {
-        "passed": 58,
+        "passed": 66,
         "failed": 0
       },
       "svgValid": {
@@ -251,11 +251,11 @@
         "failed": 0
       },
       "filenames": {
-        "passed": 74,
+        "passed": 82,
         "failed": 0
       },
       "sourcesAccountedFor": {
-        "passed": 74,
+        "passed": 82,
         "failed": 0
       }
     },
@@ -2837,6 +2837,929 @@
         "settingsHash": "0daf50b64b048c78"
       }
     },
+    "journey-flag-banner": {
+      "file": "assets/journey/journey-flag-banner.webp",
+      "format": "webp",
+      "width": 233,
+      "height": 320,
+      "size": 27574,
+      "hasAlpha": true,
+      "status": "READY",
+      "flags": [],
+      "notes": [],
+      "kind": "image",
+      "transparency": "cutout",
+      "sha256": "fcce8366b318059a5c6cef7c44fc49a5aa29960bd911876e0963ac4f7e55ed46",
+      "reductionPercent": 83.7,
+      "renamed": false,
+      "original": {
+        "file": "assets-original/journey/journey-flag-banner.png",
+        "format": "png",
+        "width": 233,
+        "height": 320,
+        "size": 169174,
+        "sha256": "8ae3c14314874f47b3f268afac99ad1702f4c8c5ea148073cc583af042c0badd"
+      },
+      "image": {
+        "profile": "scene",
+        "profileReason": "content-width illustration: 400pt @3x",
+        "resized": false,
+        "maxCrispSizePt": {
+          "width": 77,
+          "height": 106
+        },
+        "encoding": {
+          "codec": "webp",
+          "quality": 97,
+          "alphaQuality": 100,
+          "effort": 6,
+          "smartSubsample": true
+        },
+        "quality": {
+          "ssim": 0.99046,
+          "ssimP1": 0.98299,
+          "ssimChroma": 0.98067,
+          "psnr": 43.1,
+          "alphaMaxError": 0,
+          "alphaMeanError": 0
+        },
+        "decision": "webp q97 is 74% smaller than png lossless (oxipng)",
+        "candidates": [
+          {
+            "label": "webp q90",
+            "bytes": 19576,
+            "pass": false,
+            "ssim": 0.97365,
+            "ssimP1": 0.95183,
+            "ssimChroma": 0.97352,
+            "alphaMaxError": 0
+          },
+          {
+            "label": "webp q94",
+            "bytes": 23790,
+            "pass": false,
+            "ssim": 0.98539,
+            "ssimP1": 0.97223,
+            "ssimChroma": 0.97758,
+            "alphaMaxError": 0
+          },
+          {
+            "label": "webp q97",
+            "bytes": 27574,
+            "pass": true,
+            "ssim": 0.99046,
+            "ssimP1": 0.98299,
+            "ssimChroma": 0.98067,
+            "alphaMaxError": 0
+          },
+          {
+            "label": "png8 (pngquant + oxipng)",
+            "bytes": 23215,
+            "pass": false,
+            "ssim": 0.99393,
+            "ssimP1": 0.98351,
+            "ssimChroma": 0.9874,
+            "alphaMaxError": 43
+          },
+          {
+            "label": "png lossless (oxipng)",
+            "bytes": 107898,
+            "pass": true,
+            "ssim": 1,
+            "ssimP1": 1,
+            "ssimChroma": 1,
+            "alphaMaxError": 0
+          }
+        ],
+        "source": {
+          "background": null,
+          "alpha": {
+            "transparentPct": 48.02,
+            "opaquePct": 0,
+            "softPct": 8.66,
+            "minAlpha": 0,
+            "ringMeanAlpha": 7.5,
+            "ringOpaquePct": 1.6
+          },
+          "contentBox": {
+            "x": 12,
+            "y": 12,
+            "width": 209,
+            "height": 308
+          },
+          "metadata": {
+            "icc": false,
+            "exif": false,
+            "xmp": false
+          }
+        }
+      },
+      "pipeline": {
+        "settingsHash": "07e1ab6b5e792dfc"
+      }
+    },
+    "journey-flag-checkpoint": {
+      "file": "assets/journey/journey-flag-checkpoint.webp",
+      "format": "webp",
+      "width": 250,
+      "height": 306,
+      "size": 22682,
+      "hasAlpha": true,
+      "status": "READY",
+      "flags": [],
+      "notes": [],
+      "kind": "image",
+      "transparency": "cutout",
+      "sha256": "935afaffbee397f9be2e658147f5d64a2fdf03d2d453d1aef6b7a31ed4a9cbb4",
+      "reductionPercent": 87,
+      "renamed": false,
+      "original": {
+        "file": "assets-original/journey/journey-flag-checkpoint.png",
+        "format": "png",
+        "width": 250,
+        "height": 306,
+        "size": 174403,
+        "sha256": "269af7b1e40d61a1ca4a39d6d7c720682bbc28e7488bc312f92b7c7b3a053dce"
+      },
+      "image": {
+        "profile": "scene",
+        "profileReason": "content-width illustration: 400pt @3x",
+        "resized": false,
+        "maxCrispSizePt": {
+          "width": 83,
+          "height": 102
+        },
+        "encoding": {
+          "codec": "webp",
+          "quality": 94,
+          "alphaQuality": 100,
+          "effort": 6,
+          "smartSubsample": true
+        },
+        "quality": {
+          "ssim": 0.98889,
+          "ssimP1": 0.97674,
+          "ssimChroma": 0.98116,
+          "psnr": 43.9,
+          "alphaMaxError": 0,
+          "alphaMeanError": 0
+        },
+        "decision": "webp q94 is 78% smaller than png lossless (oxipng)",
+        "candidates": [
+          {
+            "label": "webp q90",
+            "bytes": 18792,
+            "pass": false,
+            "ssim": 0.97852,
+            "ssimP1": 0.95735,
+            "ssimChroma": 0.9769,
+            "alphaMaxError": 0
+          },
+          {
+            "label": "webp q94",
+            "bytes": 22682,
+            "pass": true,
+            "ssim": 0.98889,
+            "ssimP1": 0.97674,
+            "ssimChroma": 0.98116,
+            "alphaMaxError": 0
+          },
+          {
+            "label": "png8 (pngquant + oxipng)",
+            "bytes": 21424,
+            "pass": false,
+            "ssim": 0.99295,
+            "ssimP1": 0.98447,
+            "ssimChroma": 0.97405,
+            "alphaMaxError": 36
+          },
+          {
+            "label": "png lossless (oxipng)",
+            "bytes": 105155,
+            "pass": true,
+            "ssim": 1,
+            "ssimP1": 1,
+            "ssimChroma": 1,
+            "alphaMaxError": 0
+          }
+        ],
+        "source": {
+          "background": null,
+          "alpha": {
+            "transparentPct": 51.11,
+            "opaquePct": 0,
+            "softPct": 10.16,
+            "minAlpha": 0,
+            "ringMeanAlpha": 18.5,
+            "ringOpaquePct": 3.6
+          },
+          "contentBox": {
+            "x": 12,
+            "y": 12,
+            "width": 232,
+            "height": 294
+          },
+          "metadata": {
+            "icc": false,
+            "exif": false,
+            "xmp": false
+          }
+        }
+      },
+      "pipeline": {
+        "settingsHash": "6bb5f92a6c704890"
+      }
+    },
+    "journey-flag-complete": {
+      "file": "assets/journey/journey-flag-complete.webp",
+      "format": "webp",
+      "width": 290,
+      "height": 306,
+      "size": 36560,
+      "hasAlpha": true,
+      "status": "READY",
+      "flags": [],
+      "notes": [],
+      "kind": "image",
+      "transparency": "soft",
+      "sha256": "f4d08e1e70c1ae41b50451438612653b0d1860b66cd8940122b74abfd095b4f6",
+      "reductionPercent": 84.9,
+      "renamed": false,
+      "original": {
+        "file": "assets-original/journey/journey-flag-complete.png",
+        "format": "png",
+        "width": 290,
+        "height": 306,
+        "size": 241673,
+        "sha256": "ac3fb1053e605d17c682f813a2ebf281425017b01590e58f9248fc57f2aa7358"
+      },
+      "image": {
+        "profile": "scene",
+        "profileReason": "content-width illustration: 400pt @3x",
+        "resized": false,
+        "maxCrispSizePt": {
+          "width": 96,
+          "height": 102
+        },
+        "encoding": {
+          "codec": "webp",
+          "quality": 94,
+          "alphaQuality": 100,
+          "effort": 6,
+          "smartSubsample": true
+        },
+        "quality": {
+          "ssim": 0.99277,
+          "ssimP1": 0.97789,
+          "ssimChroma": 0.9848,
+          "psnr": 45.27,
+          "alphaMaxError": 0,
+          "alphaMeanError": 0
+        },
+        "decision": "webp q94 is 73% smaller than png lossless (oxipng)",
+        "candidates": [
+          {
+            "label": "webp q90",
+            "bytes": 31172,
+            "pass": false,
+            "ssim": 0.9831,
+            "ssimP1": 0.94939,
+            "ssimChroma": 0.98213,
+            "alphaMaxError": 0
+          },
+          {
+            "label": "webp q94",
+            "bytes": 36560,
+            "pass": true,
+            "ssim": 0.99277,
+            "ssimP1": 0.97789,
+            "ssimChroma": 0.9848,
+            "alphaMaxError": 0
+          },
+          {
+            "label": "png8 (pngquant + oxipng)",
+            "bytes": 31329,
+            "pass": false,
+            "ssim": 0.99125,
+            "ssimP1": 0.9767,
+            "ssimChroma": 0.98212,
+            "alphaMaxError": 31
+          },
+          {
+            "label": "png lossless (oxipng)",
+            "bytes": 136026,
+            "pass": true,
+            "ssim": 1,
+            "ssimP1": 1,
+            "ssimChroma": 1,
+            "alphaMaxError": 0
+          }
+        ],
+        "source": {
+          "background": null,
+          "alpha": {
+            "transparentPct": 19.49,
+            "opaquePct": 0,
+            "softPct": 45.37,
+            "minAlpha": 0,
+            "ringMeanAlpha": 18,
+            "ringOpaquePct": 3.3
+          },
+          "contentBox": {
+            "x": 6,
+            "y": 12,
+            "width": 272,
+            "height": 294
+          },
+          "metadata": {
+            "icc": false,
+            "exif": false,
+            "xmp": false
+          }
+        }
+      },
+      "pipeline": {
+        "settingsHash": "e5cb050ff50faeef"
+      }
+    },
+    "journey-flag-large": {
+      "file": "assets/journey/journey-flag-large.webp",
+      "format": "webp",
+      "width": 735,
+      "height": 945,
+      "size": 200892,
+      "hasAlpha": true,
+      "status": "READY",
+      "flags": [],
+      "notes": [],
+      "kind": "image",
+      "transparency": "cutout",
+      "sha256": "4b03578a12841c3c18c8891c1bdf34f5c6eda12765237c09afc698c1d79e6ef1",
+      "reductionPercent": 86.4,
+      "renamed": false,
+      "original": {
+        "file": "assets-original/journey/journey-flag-large.png",
+        "format": "png",
+        "width": 735,
+        "height": 945,
+        "size": 1474036,
+        "sha256": "a1ee6cde9b0d1bdd4a0cc1219019f43dbf9b6547863393e1b39339299cade485"
+      },
+      "image": {
+        "profile": "scene",
+        "profileReason": "content-width illustration: 400pt @3x",
+        "resized": false,
+        "maxCrispSizePt": {
+          "width": 245,
+          "height": 315
+        },
+        "encoding": {
+          "codec": "webp",
+          "quality": 97,
+          "alphaQuality": 100,
+          "effort": 6,
+          "smartSubsample": true
+        },
+        "quality": {
+          "ssim": 0.99139,
+          "ssimP1": 0.97398,
+          "ssimChroma": 0.97249,
+          "psnr": 43.56,
+          "alphaMaxError": 0,
+          "alphaMeanError": 0
+        },
+        "decision": "webp q97 is 79% smaller than png lossless (oxipng)",
+        "candidates": [
+          {
+            "label": "webp q90",
+            "bytes": 134622,
+            "pass": false,
+            "ssim": 0.96975,
+            "ssimP1": 0.90962,
+            "ssimChroma": 0.96246,
+            "alphaMaxError": 0
+          },
+          {
+            "label": "webp q94",
+            "bytes": 167588,
+            "pass": false,
+            "ssim": 0.98698,
+            "ssimP1": 0.96768,
+            "ssimChroma": 0.96817,
+            "alphaMaxError": 0
+          },
+          {
+            "label": "webp q97",
+            "bytes": 200892,
+            "pass": true,
+            "ssim": 0.99139,
+            "ssimP1": 0.97398,
+            "ssimChroma": 0.97249,
+            "alphaMaxError": 0
+          },
+          {
+            "label": "png8 (pngquant + oxipng)",
+            "bytes": 159098,
+            "pass": false,
+            "ssim": 0.98972,
+            "ssimP1": 0.97021,
+            "ssimChroma": 0.96531,
+            "alphaMaxError": 63
+          },
+          {
+            "label": "png lossless (oxipng)",
+            "bytes": 946852,
+            "pass": true,
+            "ssim": 1,
+            "ssimP1": 1,
+            "ssimChroma": 1,
+            "alphaMaxError": 0
+          }
+        ],
+        "source": {
+          "background": null,
+          "alpha": {
+            "transparentPct": 56.95,
+            "opaquePct": 0,
+            "softPct": 3.19,
+            "minAlpha": 0,
+            "ringMeanAlpha": 9.4,
+            "ringOpaquePct": 2.4
+          },
+          "contentBox": {
+            "x": 12,
+            "y": 12,
+            "width": 711,
+            "height": 933
+          },
+          "metadata": {
+            "icc": false,
+            "exif": false,
+            "xmp": false
+          }
+        }
+      },
+      "pipeline": {
+        "settingsHash": "ceb12e7b57d65ded"
+      }
+    },
+    "journey-flag-locked": {
+      "file": "assets/journey/journey-flag-locked.webp",
+      "format": "webp",
+      "width": 257,
+      "height": 323,
+      "size": 25730,
+      "hasAlpha": true,
+      "status": "READY",
+      "flags": [],
+      "notes": [],
+      "kind": "image",
+      "transparency": "cutout",
+      "sha256": "f83033edfb1f090a8f8e8d768587566c4a19d44247376f8beb36b270472628d3",
+      "reductionPercent": 86.1,
+      "renamed": false,
+      "original": {
+        "file": "assets-original/journey/journey-flag-locked.png",
+        "format": "png",
+        "width": 257,
+        "height": 323,
+        "size": 184804,
+        "sha256": "6dd76b905428c8a8582755674b7427118c735e2ecb5ecdfd9926520ed8ef7884"
+      },
+      "image": {
+        "profile": "scene",
+        "profileReason": "content-width illustration: 400pt @3x",
+        "resized": false,
+        "maxCrispSizePt": {
+          "width": 85,
+          "height": 107
+        },
+        "encoding": {
+          "codec": "webp",
+          "quality": 94,
+          "alphaQuality": 100,
+          "effort": 6,
+          "smartSubsample": true
+        },
+        "quality": {
+          "ssim": 0.99163,
+          "ssimP1": 0.98202,
+          "ssimChroma": 0.98341,
+          "psnr": 44.08,
+          "alphaMaxError": 0,
+          "alphaMeanError": 0
+        },
+        "decision": "webp q94 is 78% smaller than png lossless (oxipng)",
+        "candidates": [
+          {
+            "label": "webp q90",
+            "bytes": 21388,
+            "pass": false,
+            "ssim": 0.98257,
+            "ssimP1": 0.96521,
+            "ssimChroma": 0.97996,
+            "alphaMaxError": 0
+          },
+          {
+            "label": "webp q94",
+            "bytes": 25730,
+            "pass": true,
+            "ssim": 0.99163,
+            "ssimP1": 0.98202,
+            "ssimChroma": 0.98341,
+            "alphaMaxError": 0
+          },
+          {
+            "label": "png8 (pngquant + oxipng)",
+            "bytes": 23257,
+            "pass": false,
+            "ssim": 0.9953,
+            "ssimP1": 0.99124,
+            "ssimChroma": 0.97681,
+            "alphaMaxError": 33
+          },
+          {
+            "label": "png lossless (oxipng)",
+            "bytes": 116815,
+            "pass": true,
+            "ssim": 1,
+            "ssimP1": 1,
+            "ssimChroma": 1,
+            "alphaMaxError": 0
+          }
+        ],
+        "source": {
+          "background": null,
+          "alpha": {
+            "transparentPct": 54.29,
+            "opaquePct": 0,
+            "softPct": 8.67,
+            "minAlpha": 0,
+            "ringMeanAlpha": 22.3,
+            "ringOpaquePct": 5.8
+          },
+          "contentBox": {
+            "x": 12,
+            "y": 12,
+            "width": 233,
+            "height": 311
+          },
+          "metadata": {
+            "icc": false,
+            "exif": false,
+            "xmp": false
+          }
+        }
+      },
+      "pipeline": {
+        "settingsHash": "04acfb122761ba83"
+      }
+    },
+    "journey-flag-normal": {
+      "file": "assets/journey/journey-flag-normal.webp",
+      "format": "webp",
+      "width": 252,
+      "height": 311,
+      "size": 25974,
+      "hasAlpha": true,
+      "status": "READY",
+      "flags": [],
+      "notes": [],
+      "kind": "image",
+      "transparency": "cutout",
+      "sha256": "9be5710c017bd7c81b70e9fada33f596a756d28cc78333f86ac3cb26192d5c12",
+      "reductionPercent": 85.4,
+      "renamed": false,
+      "original": {
+        "file": "assets-original/journey/journey-flag-normal.png",
+        "format": "png",
+        "width": 252,
+        "height": 311,
+        "size": 178147,
+        "sha256": "13a5d8b5633da159393d0388a27b8bb43f1a73369f56cb3f71430b369b3f89c3"
+      },
+      "image": {
+        "profile": "scene",
+        "profileReason": "content-width illustration: 400pt @3x",
+        "resized": false,
+        "maxCrispSizePt": {
+          "width": 84,
+          "height": 103
+        },
+        "encoding": {
+          "codec": "webp",
+          "quality": 97,
+          "alphaQuality": 100,
+          "effort": 6,
+          "smartSubsample": true
+        },
+        "quality": {
+          "ssim": 0.99076,
+          "ssimP1": 0.98284,
+          "ssimChroma": 0.98297,
+          "psnr": 42.68,
+          "alphaMaxError": 0,
+          "alphaMeanError": 0
+        },
+        "decision": "webp q97 is 76% smaller than png lossless (oxipng)",
+        "candidates": [
+          {
+            "label": "webp q90",
+            "bytes": 18388,
+            "pass": false,
+            "ssim": 0.97326,
+            "ssimP1": 0.94462,
+            "ssimChroma": 0.97615,
+            "alphaMaxError": 0
+          },
+          {
+            "label": "webp q94",
+            "bytes": 21830,
+            "pass": false,
+            "ssim": 0.98531,
+            "ssimP1": 0.96967,
+            "ssimChroma": 0.97969,
+            "alphaMaxError": 0
+          },
+          {
+            "label": "webp q97",
+            "bytes": 25974,
+            "pass": true,
+            "ssim": 0.99076,
+            "ssimP1": 0.98284,
+            "ssimChroma": 0.98297,
+            "alphaMaxError": 0
+          },
+          {
+            "label": "png8 (pngquant + oxipng)",
+            "bytes": 19575,
+            "pass": false,
+            "ssim": 0.99218,
+            "ssimP1": 0.98304,
+            "ssimChroma": 0.97718,
+            "alphaMaxError": 50
+          },
+          {
+            "label": "png lossless (oxipng)",
+            "bytes": 106430,
+            "pass": true,
+            "ssim": 1,
+            "ssimP1": 1,
+            "ssimChroma": 1,
+            "alphaMaxError": 0
+          }
+        ],
+        "source": {
+          "background": null,
+          "alpha": {
+            "transparentPct": 54.41,
+            "opaquePct": 0,
+            "softPct": 8.28,
+            "minAlpha": 0,
+            "ringMeanAlpha": 21.4,
+            "ringOpaquePct": 5.4
+          },
+          "contentBox": {
+            "x": 12,
+            "y": 12,
+            "width": 228,
+            "height": 299
+          },
+          "metadata": {
+            "icc": false,
+            "exif": false,
+            "xmp": false
+          }
+        }
+      },
+      "pipeline": {
+        "settingsHash": "b04e68cbf9b16d40"
+      }
+    },
+    "journey-flag-small": {
+      "file": "assets/journey/journey-flag-small.webp",
+      "format": "webp",
+      "width": 206,
+      "height": 268,
+      "size": 15706,
+      "hasAlpha": true,
+      "status": "READY",
+      "flags": [],
+      "notes": [],
+      "kind": "image",
+      "transparency": "cutout",
+      "sha256": "db64370f368728480a0c47dd7cd29837d61d2accc2c00264e04442bba3540ee8",
+      "reductionPercent": 87.2,
+      "renamed": false,
+      "original": {
+        "file": "assets-original/journey/journey-flag-small.png",
+        "format": "png",
+        "width": 206,
+        "height": 268,
+        "size": 123047,
+        "sha256": "6dded97cedb178ea25f322a664070bfdfc790c6c4e490e336cdc370a74c54f22"
+      },
+      "image": {
+        "profile": "scene",
+        "profileReason": "content-width illustration: 400pt @3x",
+        "resized": false,
+        "maxCrispSizePt": {
+          "width": 68,
+          "height": 89
+        },
+        "encoding": {
+          "codec": "webp",
+          "quality": 94,
+          "alphaQuality": 100,
+          "effort": 6,
+          "smartSubsample": true
+        },
+        "quality": {
+          "ssim": 0.99076,
+          "ssimP1": 0.97874,
+          "ssimChroma": 0.97903,
+          "psnr": 41.51,
+          "alphaMaxError": 0,
+          "alphaMeanError": 0
+        },
+        "decision": "webp q94 is 78% smaller than png lossless (oxipng)",
+        "candidates": [
+          {
+            "label": "webp q90",
+            "bytes": 13416,
+            "pass": false,
+            "ssim": 0.98163,
+            "ssimP1": 0.9518,
+            "ssimChroma": 0.97516,
+            "alphaMaxError": 0
+          },
+          {
+            "label": "webp q94",
+            "bytes": 15706,
+            "pass": true,
+            "ssim": 0.99076,
+            "ssimP1": 0.97874,
+            "ssimChroma": 0.97903,
+            "alphaMaxError": 0
+          },
+          {
+            "label": "png8 (pngquant + oxipng)",
+            "bytes": 12409,
+            "pass": false,
+            "ssim": 0.99334,
+            "ssimP1": 0.99058,
+            "ssimChroma": 0.97587,
+            "alphaMaxError": 57
+          },
+          {
+            "label": "png lossless (oxipng)",
+            "bytes": 72931,
+            "pass": true,
+            "ssim": 1,
+            "ssimP1": 1,
+            "ssimChroma": 1,
+            "alphaMaxError": 0
+          }
+        ],
+        "source": {
+          "background": null,
+          "alpha": {
+            "transparentPct": 62.64,
+            "opaquePct": 0,
+            "softPct": 9.37,
+            "minAlpha": 0,
+            "ringMeanAlpha": 17.8,
+            "ringOpaquePct": 2
+          },
+          "contentBox": {
+            "x": 12,
+            "y": 12,
+            "width": 182,
+            "height": 256
+          },
+          "metadata": {
+            "icc": false,
+            "exif": false,
+            "xmp": false
+          }
+        }
+      },
+      "pipeline": {
+        "settingsHash": "c4fb47d1fe2e31f3"
+      }
+    },
+    "journey-flag-string": {
+      "file": "assets/journey/journey-flag-string.webp",
+      "format": "webp",
+      "width": 586,
+      "height": 207,
+      "size": 38654,
+      "hasAlpha": true,
+      "status": "READY",
+      "flags": [],
+      "notes": [],
+      "kind": "image",
+      "transparency": "cutout",
+      "sha256": "b1b0b8b6b44709bbf2dbce98aed64bac10cadade2eb1c596852916c0ad18bb38",
+      "reductionPercent": 87.7,
+      "renamed": false,
+      "original": {
+        "file": "assets-original/journey/journey-flag-string.png",
+        "format": "png",
+        "width": 586,
+        "height": 207,
+        "size": 313288,
+        "sha256": "6dd9820549a3ff8a1ce8f32c9ba886f2523137a945007371cf45c051a422934a"
+      },
+      "image": {
+        "profile": "scene",
+        "profileReason": "content-width illustration: 400pt @3x",
+        "resized": false,
+        "maxCrispSizePt": {
+          "width": 195,
+          "height": 69
+        },
+        "encoding": {
+          "codec": "webp",
+          "quality": 90,
+          "alphaQuality": 100,
+          "effort": 6,
+          "smartSubsample": true
+        },
+        "quality": {
+          "ssim": 0.98807,
+          "ssimP1": 0.96981,
+          "ssimChroma": 0.97406,
+          "psnr": 40.72,
+          "alphaMaxError": 0,
+          "alphaMeanError": 0
+        },
+        "decision": "webp q90 is 78% smaller than png lossless (oxipng)",
+        "candidates": [
+          {
+            "label": "webp q90",
+            "bytes": 38654,
+            "pass": true,
+            "ssim": 0.98807,
+            "ssimP1": 0.96981,
+            "ssimChroma": 0.97406,
+            "alphaMaxError": 0
+          },
+          {
+            "label": "webp q85",
+            "bytes": 33710,
+            "pass": false,
+            "ssim": 0.97493,
+            "ssimP1": 0.93828,
+            "ssimChroma": 0.96624,
+            "alphaMaxError": 0
+          },
+          {
+            "label": "png8 (pngquant + oxipng)",
+            "bytes": 28659,
+            "pass": false,
+            "ssim": 0.98839,
+            "ssimP1": 0.97158,
+            "ssimChroma": 0.95908,
+            "alphaMaxError": 37
+          },
+          {
+            "label": "png lossless (oxipng)",
+            "bytes": 173677,
+            "pass": true,
+            "ssim": 1,
+            "ssimP1": 1,
+            "ssimChroma": 1,
+            "alphaMaxError": 0
+          }
+        ],
+        "source": {
+          "background": null,
+          "alpha": {
+            "transparentPct": 51.48,
+            "opaquePct": 0,
+            "softPct": 19.42,
+            "minAlpha": 0,
+            "ringMeanAlpha": 22.5,
+            "ringOpaquePct": 4.9
+          },
+          "contentBox": {
+            "x": 12,
+            "y": 12,
+            "width": 562,
+            "height": 195
+          },
+          "metadata": {
+            "icc": false,
+            "exif": false,
+            "xmp": false
+          }
+        }
+      },
+      "pipeline": {
+        "settingsHash": "520ae383c997eb91"
+      }
+    },
     "journey-flag": {
       "file": "assets/journey/journey-flag.webp",
       "format": "webp",
@@ -2851,7 +3774,7 @@
       "notes": [
         {
           "flag": "VISUAL_REVIEW_REQUIRED",
-          "text": "Это лист-референс из 8 вариантов флага с вшитыми подписями (Normal, Checkpoint, Complete, Locked, Banner, «Stnall» — опечатка, String). Как один ассет не используется: нужно нарезать на отдельные файлы без подписей."
+          "text": "Лист-референс из 8 вариантов флага с вшитыми подписями (Normal, Checkpoint, Complete, Locked, Banner, «Stnall» — опечатка, String). Сам лист в приложении не используется: он нарезан на journey-flag-{large,normal,checkpoint,complete,locked,banner,small,string} без подписей (slices выше, npm run assets:slice)."
         }
       ],
       "kind": "image",

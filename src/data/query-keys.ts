@@ -22,6 +22,8 @@ export const queryKeys = {
     questRun: (questId: string) => ['progress', 'quest-run', questId] as const,
     /** One finished day's summary. */
     day: (day: DayNumber) => ['progress', 'day', day] as const,
+    /** The 90-day map. */
+    journey: ['progress', 'journey'] as const,
   },
 
   achievements: {

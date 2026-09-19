@@ -219,6 +219,78 @@ export const journey = {
     hasAlpha: true,
     status: 'VISUAL_REVIEW_REQUIRED',
   },
+  /** assets/journey/journey-flag-banner.webp · 233×320 · READY */
+  flagBanner: {
+    kind: 'image',
+    source: require('../../../assets/journey/journey-flag-banner.webp'),
+    width: 233,
+    height: 320,
+    hasAlpha: true,
+    status: 'READY',
+  },
+  /** assets/journey/journey-flag-checkpoint.webp · 250×306 · READY */
+  flagCheckpoint: {
+    kind: 'image',
+    source: require('../../../assets/journey/journey-flag-checkpoint.webp'),
+    width: 250,
+    height: 306,
+    hasAlpha: true,
+    status: 'READY',
+  },
+  /** assets/journey/journey-flag-complete.webp · 290×306 · READY */
+  flagComplete: {
+    kind: 'image',
+    source: require('../../../assets/journey/journey-flag-complete.webp'),
+    width: 290,
+    height: 306,
+    hasAlpha: true,
+    status: 'READY',
+  },
+  /** assets/journey/journey-flag-large.webp · 735×945 · READY */
+  flagLarge: {
+    kind: 'image',
+    source: require('../../../assets/journey/journey-flag-large.webp'),
+    width: 735,
+    height: 945,
+    hasAlpha: true,
+    status: 'READY',
+  },
+  /** assets/journey/journey-flag-locked.webp · 257×323 · READY */
+  flagLocked: {
+    kind: 'image',
+    source: require('../../../assets/journey/journey-flag-locked.webp'),
+    width: 257,
+    height: 323,
+    hasAlpha: true,
+    status: 'READY',
+  },
+  /** assets/journey/journey-flag-normal.webp · 252×311 · READY */
+  flagNormal: {
+    kind: 'image',
+    source: require('../../../assets/journey/journey-flag-normal.webp'),
+    width: 252,
+    height: 311,
+    hasAlpha: true,
+    status: 'READY',
+  },
+  /** assets/journey/journey-flag-small.webp · 206×268 · READY */
+  flagSmall: {
+    kind: 'image',
+    source: require('../../../assets/journey/journey-flag-small.webp'),
+    width: 206,
+    height: 268,
+    hasAlpha: true,
+    status: 'READY',
+  },
+  /** assets/journey/journey-flag-string.webp · 586×207 · READY */
+  flagString: {
+    kind: 'image',
+    source: require('../../../assets/journey/journey-flag-string.webp'),
+    width: 586,
+    height: 207,
+    hasAlpha: true,
+    status: 'READY',
+  },
   /** assets/journey/journey-forest.webp · 1200×800 · READY */
   forest: {
     kind: 'image',

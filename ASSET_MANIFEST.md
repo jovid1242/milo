@@ -7,24 +7,24 @@
 
 | Тип | Файлов | Оригиналы | Production | Сэкономлено | Уменьшение |
 | --- | ---: | ---: | ---: | ---: | ---: |
-| Растровые изображения | 53 | 103.53 MB | 11.35 MB | 92.18 MB | 89% |
+| Растровые изображения | 61 | 106.25 MB | 11.72 MB | 94.53 MB | 89% |
 | SVG | 5 | 9.7 KB | 7.0 KB | 2.7 KB | 28% |
 | Звуки | 15 | 688.5 KB | 284.1 KB | 404.4 KB | 58.7% |
 | Прочее (JSON) | 1 | 17.5 KB | 17.5 KB | 0 B | 0% |
-| **Всего** | **74** | **104.23 MB** | **11.65 MB** | **92.58 MB** | **88.8%** |
+| **Всего** | **82** | **106.95 MB** | **12.03 MB** | **94.93 MB** | **88.8%** |
 
 ```
-TOTAL ORIGINAL SIZE     104.23 MB   (109289609 bytes)
-TOTAL OPTIMIZED SIZE     11.65 MB   (12216482 bytes)
-TOTAL SAVED              92.58 MB   (97073127 bytes)
+TOTAL ORIGINAL SIZE     106.95 MB   (112148181 bytes)
+TOTAL OPTIMIZED SIZE     12.03 MB   (12610254 bytes)
+TOTAL SAVED              94.93 MB   (99537927 bytes)
 TOTAL REDUCTION             88.8%
 ```
 
-**Валидация:** ✅ пройдена — 533 проверок, ошибок: 0, предупреждений: 0 (подробности в разделе «Валидация»).
+**Валидация:** ✅ пройдена — 597 проверок, ошибок: 0, предупреждений: 0 (подробности в разделе «Валидация»).
 
 ## Требует внимания
 
-Ассетов с флагами: **16** из 74, отсутствует: **1**. Один ассет может иметь несколько флагов.
+Ассетов с флагами: **16** из 82, отсутствует: **1**. Один ассет может иметь несколько флагов.
 
 | Status | Ассетов |
 | --- | ---: |
@@ -32,7 +32,7 @@ TOTAL REDUCTION             88.8%
 | `VISUAL_REVIEW_REQUIRED` | 13 |
 | `AUDIO_REVIEW_REQUIRED` | 2 |
 | `NEEDS_ALPHA_REVIEW` | 10 |
-| `READY` | 58 |
+| `READY` | 66 |
 
 ### MISSING (1)
 
@@ -45,7 +45,7 @@ TOTAL REDUCTION             88.8%
 - `assets/effects/stars.webp`
   - Прозрачность корректная. Но это лист из ~10 разных звёзд (с лицом, в лавровом венке, падающая, рейтинг из 5 звёзд, в свечении, мелкие) — не один эффект. Решить: нарезать или использовать как декор целиком.
 - `assets/journey/journey-flag.webp`
-  - Это лист-референс из 8 вариантов флага с вшитыми подписями (Normal, Checkpoint, Complete, Locked, Banner, «Stnall» — опечатка, String). Как один ассет не используется: нужно нарезать на отдельные файлы без подписей.
+  - Лист-референс из 8 вариантов флага с вшитыми подписями (Normal, Checkpoint, Complete, Locked, Banner, «Stnall» — опечатка, String). Сам лист в приложении не используется: он нарезан на journey-flag-{large,normal,checkpoint,complete,locked,banner,small,string} без подписей (slices выше, npm run assets:slice).
 - `assets/mascots/milo-achievement.webp` _(также: NEEDS_ALPHA_REVIEW)_
   - Сцена в теме программиста: постеры «Same Developer — A Brighter Future», «Code / Build / Learn»; встроенная UI-карточка «milo Achievement Unlocked!»; фигурка GitHub Octocat и логотип Apple на ноутбуке (чужие товарные знаки).
 - `assets/mascots/milo-champion.webp` _(также: NEEDS_ALPHA_REVIEW)_
@@ -138,6 +138,14 @@ TOTAL REDUCTION             88.8%
 | `journey/journey-camp.webp` | journey | PNG | WebP | 1536×1024 | 1200×800 | 2.42 MB | 289.6 KB | 88.3% | alpha · вырезка | READY |
 | `journey/journey-campfire-off.webp` | journey | PNG | WebP | 1536×1024 | 1200×800 | 2.64 MB | 374.5 KB | 86.1% | alpha · вырезка | READY |
 | `journey/journey-campfire.webp` | journey | PNG | WebP | 1536×1024 | 1200×800 | 2.56 MB | 388.8 KB | 85.2% | alpha · вырезка | READY |
+| `journey/journey-flag-banner.webp` | journey | PNG | WebP | 233×320 | 233×320 | 165.2 KB | 26.9 KB | 83.7% | alpha · вырезка | READY |
+| `journey/journey-flag-checkpoint.webp` | journey | PNG | WebP | 250×306 | 250×306 | 170.3 KB | 22.2 KB | 87% | alpha · вырезка | READY |
+| `journey/journey-flag-complete.webp` | journey | PNG | WebP | 290×306 | 290×306 | 236.0 KB | 35.7 KB | 84.9% | alpha · мягкое свечение | READY |
+| `journey/journey-flag-large.webp` | journey | PNG | WebP | 735×945 | 735×945 | 1.41 MB | 196.2 KB | 86.4% | alpha · вырезка | READY |
+| `journey/journey-flag-locked.webp` | journey | PNG | WebP | 257×323 | 257×323 | 180.5 KB | 25.1 KB | 86.1% | alpha · вырезка | READY |
+| `journey/journey-flag-normal.webp` | journey | PNG | WebP | 252×311 | 252×311 | 174.0 KB | 25.4 KB | 85.4% | alpha · вырезка | READY |
+| `journey/journey-flag-small.webp` | journey | PNG | WebP | 206×268 | 206×268 | 120.2 KB | 15.3 KB | 87.2% | alpha · вырезка | READY |
+| `journey/journey-flag-string.webp` | journey | PNG | WebP | 586×207 | 586×207 | 305.9 KB | 37.7 KB | 87.7% | alpha · вырезка | READY |
 | `journey/journey-flag.webp` | journey | PNG | WebP | 1536×1024 | 1200×800 | 2.17 MB | 281.0 KB | 87.4% | alpha · вырезка | VISUAL_REVIEW_REQUIRED |
 | `journey/journey-forest.webp` | journey | PNG | WebP | 1536×1024 | 1200×800 | 2.95 MB | 431.1 KB | 85.7% | alpha · вырезка | READY |
 | `journey/journey-mountains.webp` | journey | PNG | WebP | 1536×1024 | 1200×800 | 2.91 MB | 379.0 KB | 87.3% | alpha · вырезка | READY |
@@ -234,6 +242,14 @@ TOTAL REDUCTION             88.8%
 | `assets-original/journey/journey-camp.png` | `assets/journey/journey-camp.webp` |
 | `assets-original/journey/journey-campfire-off.png` | `assets/journey/journey-campfire-off.webp` |
 | `assets-original/journey/journey-campfire.png` | `assets/journey/journey-campfire.webp` |
+| `assets-original/journey/journey-flag-banner.png` | `assets/journey/journey-flag-banner.webp` |
+| `assets-original/journey/journey-flag-checkpoint.png` | `assets/journey/journey-flag-checkpoint.webp` |
+| `assets-original/journey/journey-flag-complete.png` | `assets/journey/journey-flag-complete.webp` |
+| `assets-original/journey/journey-flag-large.png` | `assets/journey/journey-flag-large.webp` |
+| `assets-original/journey/journey-flag-locked.png` | `assets/journey/journey-flag-locked.webp` |
+| `assets-original/journey/journey-flag-normal.png` | `assets/journey/journey-flag-normal.webp` |
+| `assets-original/journey/journey-flag-small.png` | `assets/journey/journey-flag-small.webp` |
+| `assets-original/journey/journey-flag-string.png` | `assets/journey/journey-flag-string.webp` |
 | `assets-original/journey/journey-flag.png` | `assets/journey/journey-flag.webp` |
 | `assets-original/journey/journey-forest.png` | `assets/journey/journey-forest.webp` |
 | `assets-original/journey/journey-mountains.png` | `assets/journey/journey-mountains.webp` |
@@ -266,7 +282,7 @@ TOTAL REDUCTION             88.8%
 
 </details>
 
-## Конвертация PNG → WebP (53)
+## Конвертация PNG → WebP (61)
 
 Для каждого файла выбрано минимальное качество WebP, прошедшее гейт; PNG-альтернатива — лучший PNG, прошедший тот же гейт (palette PNG, если проходит, иначе lossless). Alpha кодируется без потерь.
 
@@ -301,6 +317,14 @@ TOTAL REDUCTION             88.8%
 | `journey/journey-camp.webp` | 90 | 0.9893 | 0.9743 | бит-в-бит | png lossless (oxipng) | 1.23 MB | 289.6 KB | 77% |
 | `journey/journey-campfire-off.webp` | 90 | 0.9925 | 0.9814 | бит-в-бит | png lossless (oxipng) | 1.49 MB | 374.5 KB | 75.4% |
 | `journey/journey-campfire.webp` | 90 | 0.9901 | 0.9729 | бит-в-бит | png lossless (oxipng) | 1.42 MB | 388.8 KB | 73.3% |
+| `journey/journey-flag-banner.webp` | 97 | 0.9905 | 0.9830 | бит-в-бит | png lossless (oxipng) | 105.4 KB | 26.9 KB | 74.4% |
+| `journey/journey-flag-checkpoint.webp` | 94 | 0.9889 | 0.9767 | бит-в-бит | png lossless (oxipng) | 102.7 KB | 22.2 KB | 78.4% |
+| `journey/journey-flag-complete.webp` | 94 | 0.9928 | 0.9779 | бит-в-бит | png lossless (oxipng) | 132.8 KB | 35.7 KB | 73.1% |
+| `journey/journey-flag-large.webp` | 97 | 0.9914 | 0.9740 | бит-в-бит | png lossless (oxipng) | 924.7 KB | 196.2 KB | 78.8% |
+| `journey/journey-flag-locked.webp` | 94 | 0.9916 | 0.9820 | бит-в-бит | png lossless (oxipng) | 114.1 KB | 25.1 KB | 78% |
+| `journey/journey-flag-normal.webp` | 97 | 0.9908 | 0.9828 | бит-в-бит | png lossless (oxipng) | 103.9 KB | 25.4 KB | 75.6% |
+| `journey/journey-flag-small.webp` | 94 | 0.9908 | 0.9787 | бит-в-бит | png lossless (oxipng) | 71.2 KB | 15.3 KB | 78.5% |
+| `journey/journey-flag-string.webp` | 90 | 0.9881 | 0.9698 | бит-в-бит | png lossless (oxipng) | 169.6 KB | 37.7 KB | 77.7% |
 | `journey/journey-flag.webp` | 94 | 0.9883 | 0.9650 | бит-в-бит | png lossless (oxipng) | 873.3 KB | 281.0 KB | 67.8% |
 | `journey/journey-forest.webp` | 90 | 0.9919 | 0.9815 | бит-в-бит | png lossless (oxipng) | 1.66 MB | 431.1 KB | 74.6% |
 | `journey/journey-mountains.webp` | 85 | 0.9893 | 0.9759 | бит-в-бит | png lossless (oxipng) | 1.68 MB | 379.0 KB | 78% |
@@ -326,7 +350,7 @@ TOTAL REDUCTION             88.8%
 | `mascots/milo-walking.webp` | 94 | 0.9917 | 0.9806 | бит-в-бит | png lossless (oxipng) | 299.0 KB | 63.4 KB | 78.8% |
 | `mascots/milo-wrong.webp` | 90 | 0.9900 | 0.9780 | бит-в-бит | png lossless (oxipng) | 593.4 KB | 129.1 KB | 78.2% |
 
-## Изменение разрешения (46 из 53)
+## Изменение разрешения (46 из 61)
 
 Размеры считаются для телефонов: самый широкий iPhone — 440pt (1320px @3x); ширина контента с отступами 20pt — 400pt (1200px @3x). «Чёткий до» — максимальный размер отображения без апскейла на экране @3x.
 
@@ -361,6 +385,14 @@ TOTAL REDUCTION             88.8%
 | `journey/journey-camp.webp` | 1536×1024 | **1200×800** | scene — content-width illustration: 400pt @3x | 400×266 pt |
 | `journey/journey-campfire-off.webp` | 1536×1024 | **1200×800** | scene — content-width illustration: 400pt @3x | 400×266 pt |
 | `journey/journey-campfire.webp` | 1536×1024 | **1200×800** | scene — content-width illustration: 400pt @3x | 400×266 pt |
+| `journey/journey-flag-banner.webp` | 233×320 | 233×320 (без изменений) | scene — content-width illustration: 400pt @3x | 77×106 pt |
+| `journey/journey-flag-checkpoint.webp` | 250×306 | 250×306 (без изменений) | scene — content-width illustration: 400pt @3x | 83×102 pt |
+| `journey/journey-flag-complete.webp` | 290×306 | 290×306 (без изменений) | scene — content-width illustration: 400pt @3x | 96×102 pt |
+| `journey/journey-flag-large.webp` | 735×945 | 735×945 (без изменений) | scene — content-width illustration: 400pt @3x | 245×315 pt |
+| `journey/journey-flag-locked.webp` | 257×323 | 257×323 (без изменений) | scene — content-width illustration: 400pt @3x | 85×107 pt |
+| `journey/journey-flag-normal.webp` | 252×311 | 252×311 (без изменений) | scene — content-width illustration: 400pt @3x | 84×103 pt |
+| `journey/journey-flag-small.webp` | 206×268 | 206×268 (без изменений) | scene — content-width illustration: 400pt @3x | 68×89 pt |
+| `journey/journey-flag-string.webp` | 586×207 | 586×207 (без изменений) | scene — content-width illustration: 400pt @3x | 195×69 pt |
 | `journey/journey-flag.webp` | 1536×1024 | **1200×800** | scene — content-width illustration: 400pt @3x | 400×266 pt |
 | `journey/journey-forest.webp` | 1536×1024 | **1200×800** | scene — content-width illustration: 400pt @3x | 400×266 pt |
 | `journey/journey-mountains.webp` | 1536×1024 | **1200×800** | scene — content-width illustration: 400pt @3x | 400×266 pt |
@@ -429,17 +461,17 @@ SVGO preset-default (multipass): удалены комментарии, `<title>
 
 | Проверка | OK | Ошибок |
 | --- | ---: | ---: |
-| Каждый output-файл существует | 74 | 0 |
-| Manifest соответствует файлам (размер, SHA-256, нет лишних) | 74 | 0 |
-| Каждое изображение декодируется, формат верный | 53 | 0 |
-| Размеры не нулевые и совпадают с manifest | 58 | 0 |
-| Alpha сохранена там, где была (бит-в-бит) | 47 | 0 |
-| Качество не ниже гейта (SSIM против оригинала / рендера) | 58 | 0 |
+| Каждый output-файл существует | 82 | 0 |
+| Manifest соответствует файлам (размер, SHA-256, нет лишних) | 82 | 0 |
+| Каждое изображение декодируется, формат верный | 61 | 0 |
+| Размеры не нулевые и совпадают с manifest | 66 | 0 |
+| Alpha сохранена там, где была (бит-в-бит) | 55 | 0 |
+| Качество не ниже гейта (SSIM против оригинала / рендера) | 66 | 0 |
 | SVG валидны (XML, viewBox, рендер) | 5 | 0 |
 | Аудио читается ffprobe и декодируется без ошибок | 15 | 0 |
 | JSON валиден и идентичен оригиналу | 1 | 0 |
-| Имена в kebab-case, уникальны, расширение = формат | 74 | 0 |
-| Каждый оригинал учтён | 74 | 0 |
+| Имена в kebab-case, уникальны, расширение = формат | 82 | 0 |
+| Каждый оригинал учтён | 82 | 0 |
 
 ## Как перезапустить
 

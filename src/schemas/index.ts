@@ -3,6 +3,7 @@ export * from './chapter';
 export * from './common';
 export * from './friend';
 export * from './grammar';
+export * from './journey';
 export * from './lesson';
 export * from './practice';
 export * from './progress';
