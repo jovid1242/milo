@@ -1,7 +1,7 @@
 import { z } from 'zod';
 
 import { ChapterIdSchema, ChapterSchema } from './chapter';
-import { DayNumberSchema, TimestampSchema } from './common';
+import { DayNumberSchema, IdSchema, ScoreSchema, TimestampSchema } from './common';
 
 /**
  * The 90-day map is a view of the challenge state — it adds no progress of its
@@ -16,6 +16,16 @@ export type JourneyDayState = z.infer<typeof JourneyDayStateSchema>;
 export const JourneyDayKindSchema = z.enum(['regular', 'weeklyExam', 'chapterEnd', 'summit']);
 export type JourneyDayKind = z.infer<typeof JourneyDayKindSchema>;
 
+/** A weekly exam as a milestone (see `examStatus`). */
+export const JourneyExamSchema = z.object({
+  questId: IdSchema,
+  status: z.enum(['locked', 'available', 'inProgress', 'passed', 'notPassed', 'missed']),
+  /** Best submitted score, `null` before any. */
+  bestScore: ScoreSchema.nullable(),
+  submittedAttempts: z.number().int().nonnegative(),
+});
+export type JourneyExam = z.infer<typeof JourneyExamSchema>;
+
 export const JourneyDaySchema = z.object({
   day: DayNumberSchema,
   chapterId: ChapterIdSchema,
@@ -29,6 +39,8 @@ export const JourneyDaySchema = z.object({
   xpEarned: z.number().int().nonnegative().nullable(),
   isPerfect: z.boolean().nullable(),
   completedAt: TimestampSchema.nullable(),
+  /** Exam days only. */
+  exam: JourneyExamSchema.nullable(),
 });
 export type JourneyDay = z.infer<typeof JourneyDaySchema>;
 
@@ -55,6 +67,8 @@ export const JourneySchema = z
     completedDays: z.number().int().nonnegative(),
     /** Every day done: 90 of 90. */
     isComplete: z.boolean(),
+    /** The Final Battle passed — the summit reached, even with days missed on the way. */
+    summitReached: z.boolean(),
     chapters: z.array(JourneyChapterSchema).min(1),
     /** Day 1 first; one entry per challenge day. */
     days: z.array(JourneyDaySchema).min(1),

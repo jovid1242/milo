@@ -21,16 +21,25 @@ export async function loadProgressState(
   repositories: Repositories,
   now: Date = new Date(),
 ): Promise<ProgressState> {
-  const [user, chapters, dailyChallenges, completions, totalXp, unlocks, wordsLearned] =
-    await Promise.all([
-      repositories.user.getUser(),
-      repositories.challenge.getChapters(),
-      repositories.challenge.getDailyChallenges(),
-      repositories.progress.getCompletions(),
-      repositories.progress.getTotalXp(),
-      repositories.achievements.getUnlocks(),
-      repositories.progress.countLearnedWords(),
-    ]);
+  const [
+    user,
+    chapters,
+    dailyChallenges,
+    completions,
+    totalXp,
+    unlocks,
+    wordsLearned,
+    challengeCompletion,
+  ] = await Promise.all([
+    repositories.user.getUser(),
+    repositories.challenge.getChapters(),
+    repositories.challenge.getDailyChallenges(),
+    repositories.progress.getCompletions(),
+    repositories.progress.getTotalXp(),
+    repositories.achievements.getUnlocks(),
+    repositories.progress.countLearnedWords(),
+    repositories.progress.getChallengeCompletion(),
+  ]);
   return buildProgressState({
     user,
     chapters,
@@ -39,6 +48,7 @@ export async function loadProgressState(
     totalXp,
     unlocks,
     wordsLearned,
+    challengeCompletion,
     now,
   });
 }
@@ -190,7 +200,11 @@ export async function completeQuest(
   const correctCount = clamp(Math.round(input.correctCount), 0, totalCount);
   const score = totalCount > 0 ? correctCount / totalCount : 1;
   const isPerfect = totalCount > 0 && correctCount === totalCount;
-  const reward = quest.xpReward + (isPerfect ? CHALLENGE.perfectScoreBonusXp : 0);
+  // A weekly exam pays through its own flow: once, for the first pass (see exams/use-cases).
+  const reward =
+    quest.type === 'weeklyExam'
+      ? 0
+      : quest.xpReward + (isPerfect ? CHALLENGE.perfectScoreBonusXp : 0);
 
   const completion: QuestCompletion = {
     questId: quest.id,

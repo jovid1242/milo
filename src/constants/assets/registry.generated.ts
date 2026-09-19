@@ -336,6 +336,15 @@ export const journey = {
     hasAlpha: true,
     status: 'NEEDS_ALPHA_REVIEW',
   },
+  /** assets/journey/journey-summit-peak.webp · 1020×1024 · NEEDS_ALPHA_REVIEW */
+  summitPeak: {
+    kind: 'image',
+    source: require('../../../assets/journey/journey-summit-peak.webp'),
+    width: 1020,
+    height: 1024,
+    hasAlpha: true,
+    status: 'NEEDS_ALPHA_REVIEW',
+  },
 } as const satisfies Record<string, ImageAsset>;
 
 export const chapters = {

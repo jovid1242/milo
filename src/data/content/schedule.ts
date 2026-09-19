@@ -9,7 +9,7 @@ import { CHAPTERS } from './chapters';
  *
  * - Regular day: vocabulary → grammar → reading → review (four steps to camp).
  * - Every 7th day: vocabulary → review → weekly exam.
- * - Day 90: review → the summit (the final battle).
+ * - Day 90: the Final Battle alone — the summit is one last climb, not another day of quests.
  */
 const BLUEPRINTS: Record<
   QuestType,
@@ -26,10 +26,10 @@ const BLUEPRINTS: Record<
   review: { title: 'Review', summary: 'Quick recap', xpReward: 10, estimatedMinutes: 3 },
   weeklyExam: { title: 'Weekly exam', summary: 'Checkpoint', xpReward: 100, estimatedMinutes: 15 },
   finalBattle: {
-    title: 'Final battle',
+    title: 'Final Battle',
     summary: 'Everything you learned',
     xpReward: 250,
-    estimatedMinutes: 20,
+    estimatedMinutes: 15,
   },
 };
 
@@ -40,7 +40,7 @@ export function questId(day: DayNumber, type: QuestType): string {
 function questTypesFor(kind: DayKind): QuestType[] {
   switch (kind) {
     case 'summit':
-      return ['review', 'finalBattle'];
+      return ['finalBattle'];
     case 'weeklyExam':
       return ['vocabulary', 'review', 'weeklyExam'];
     case 'regular':

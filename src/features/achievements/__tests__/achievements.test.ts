@@ -180,7 +180,7 @@ describe('achievements over real progress', () => {
     expect(perfect.flatMap((o) => o.newAchievements.map((a) => a.id))).toContain('perfectWeek');
   });
 
-  it('keeps Team Streak unavailable', async () => {
+  it('keeps Team Streak unavailable without a team', async () => {
     const repositories = await setup(30);
     await seedDays(repositories, range(1, 29));
     await syncAchievements(repositories);

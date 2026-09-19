@@ -1,124 +1,88 @@
 import { useRouter } from 'expo-router';
 import { Settings, Wrench } from 'lucide-react-native';
-import { useState } from 'react';
-import { Pressable, StyleSheet, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
+import Animated, { FadeIn } from 'react-native-reanimated';
 
 import { ErrorState } from '@/components/ErrorState';
-import {
-  AppText,
-  Avatar,
-  Divider,
-  LoadingState,
-  ProgressBar,
-  Screen,
-  StatsRow,
-} from '@/components/ui';
-import { CHALLENGE } from '@/constants/challenge';
-import { useAchievements } from '@/features/achievements/queries';
-import { AchievementBadge } from '@/features/achievements/components/AchievementBadge';
-import { useProgressState } from '@/features/progress/queries';
-import { spacing } from '@/theme';
-import { formatNumber } from '@/utils/number';
+import { AppText, Avatar, Divider, LoadingState, Screen } from '@/components/ui';
+import { durations, spacing } from '@/theme';
 
+import { AchievementsPreview } from './components/AchievementsPreview';
+import { JourneyCard } from './components/JourneyCard';
 import { LinkRow } from './components/LinkRow';
-import { useUser } from './queries';
+import { ProfileStats } from './components/ProfileStats';
+import { TeamCard } from './components/TeamCard';
+import { useProfile } from './hooks/use-profile';
 
-const BADGE_COLUMNS = 3;
+/** Once per app session: returning to the tab does not replay the entrance. */
+const enter = (index: number) => FadeIn.duration(durations.normal).delay(60 + index * 50);
 
+/**
+ * The user's own overview — calm, not a social profile. Everything is a
+ * projection of progress, badges and the team; the details live on their tabs.
+ */
 export function ProfileScreen() {
   const router = useRouter();
-  const user = useUser();
-  const progress = useProgressState();
-  const achievements = useAchievements();
-  const [gridWidth, setGridWidth] = useState(0);
+  const { view, error, retry } = useProfile();
 
-  if (user.isPending || progress.isPending || achievements.isPending) {
+  if (error) {
     return (
-      <Screen>
+      <Screen background="warm">
+        <ErrorState error={error} onRetry={retry} />
+      </Screen>
+    );
+  }
+  if (!view) {
+    return (
+      <Screen background="warm">
         <LoadingState label="Loading your profile" />
       </Screen>
     );
   }
 
-  if (user.isError || progress.isError || achievements.isError) {
-    return (
-      <Screen>
-        <ErrorState
-          error={user.error ?? progress.error ?? achievements.error}
-          onRetry={() => {
-            void user.refetch();
-            void progress.refetch();
-            void achievements.refetch();
-          }}
-        />
-      </Screen>
-    );
-  }
-
-  const state = progress.data;
-  const unlockedCount = achievements.data.filter((item) => item.state === 'unlocked').length;
-  const badgeSize =
-    gridWidth > 0 ? (gridWidth - spacing[4] * (BADGE_COLUMNS - 1)) / BADGE_COLUMNS : 0;
-
   return (
-    <Screen scroll>
+    <Screen scroll background="warm" testID="profile-screen">
       <View style={styles.content}>
-        <View style={styles.header}>
-          <Avatar name={user.data.displayName} size="lg" />
+        <Animated.View entering={enter(0)} style={styles.header}>
+          <Avatar name={view.displayName} uri={view.avatarUrl} size="lg" />
           <View style={styles.headerText}>
-            <AppText variant="title1">{user.data.displayName}</AppText>
-            <AppText variant="caption" color="secondary">
-              {`Level ${state.level.level} · Day ${state.currentDay} of ${CHALLENGE.totalDays}`}
+            <AppText variant="title1" numberOfLines={2} accessibilityRole="header">
+              {view.displayName}
             </AppText>
-          </View>
-        </View>
-
-        <View style={styles.section}>
-          <StatsRow
-            stats={[
-              { label: 'XP', value: formatNumber(state.totalXp) },
-              { label: 'Streak', value: `${state.streak}` },
-              { label: 'Words', value: formatNumber(state.wordsLearned) },
-              { label: 'Badges', value: `${unlockedCount}` },
-            ]}
-          />
-          <ProgressBar
-            progress={state.level.progress}
-            accessibilityLabel={`Progress to level ${state.level.level + 1}`}
-          />
-          <AppText variant="caption" color="tertiary">
-            {`${formatNumber(state.level.xpIntoLevel)} / ${formatNumber(state.level.xpForNextLevel)} XP to level ${state.level.level + 1}`}
-          </AppText>
-        </View>
-
-        <View style={styles.section}>
-          <View style={styles.sectionHeader}>
-            <AppText variant="title3">Achievements</AppText>
-            <Pressable
-              accessibilityRole="link"
-              accessibilityLabel={`${unlockedCount} of ${achievements.data.length} unlocked. See all achievements`}
-              hitSlop={12}
-              onPress={() => router.push('/achievements')}
-              testID="profile-see-all-achievements">
-              <AppText variant="label" color="brand">
-                {`${unlockedCount} of ${achievements.data.length} · See all`}
+            <AppText variant="label" color="secondary">
+              {`Day ${view.currentDay} of ${view.totalDays}`}
+            </AppText>
+            {view.chapterLine ? (
+              <AppText variant="caption" color="wood">
+                {view.chapterLine}
               </AppText>
-            </Pressable>
+            ) : null}
           </View>
-          <View
-            style={styles.grid}
-            onLayout={(event) => setGridWidth(event.nativeEvent.layout.width)}>
-            {badgeSize > 0
-              ? achievements.data.map((status) => (
-                  <AchievementBadge key={status.achievement.id} status={status} size={badgeSize} />
-                ))
-              : null}
-          </View>
-        </View>
+        </Animated.View>
+
+        <Animated.View entering={enter(1)}>
+          <ProfileStats view={view} />
+        </Animated.View>
+
+        <Animated.View entering={enter(2)}>
+          <JourneyCard view={view} onOpen={() => router.navigate('/journey')} />
+        </Animated.View>
+
+        <Animated.View entering={enter(3)}>
+          <AchievementsPreview view={view} onOpen={() => router.push('/achievements')} />
+        </Animated.View>
+
+        <Animated.View entering={enter(4)}>
+          <TeamCard view={view} onOpen={() => router.navigate('/friends')} />
+        </Animated.View>
 
         <View style={styles.links}>
-          <Divider />
-          <LinkRow icon={Settings} label="Settings" onPress={() => router.push('/settings')} />
+          <LinkRow
+            icon={Settings}
+            label="Settings"
+            hint="Sound, haptics, your name and the app"
+            onPress={() => router.push('/settings')}
+          />
           {__DEV__ ? (
             <>
               <Divider />
@@ -137,11 +101,8 @@ export function ProfileScreen() {
 }
 
 const styles = StyleSheet.create({
-  content: { gap: spacing[8], paddingTop: spacing[4] },
+  content: { gap: spacing[5], paddingTop: spacing[4], paddingBottom: spacing[6] },
   header: { flexDirection: 'row', alignItems: 'center', gap: spacing[4] },
-  headerText: { flex: 1, gap: spacing[1] },
-  section: { gap: spacing[3] },
-  sectionHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  grid: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing[4] },
-  links: { gap: spacing[1] },
+  headerText: { flex: 1, gap: 2 },
+  links: { gap: spacing[1], marginTop: spacing[2] },
 });

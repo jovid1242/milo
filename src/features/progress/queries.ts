@@ -22,7 +22,12 @@ export function useProgressState() {
  * SQLite read here.
  */
 export function invalidateProgress(queryClient: QueryClient): void {
-  for (const queryKey of [queryKeys.progress.all, queryKeys.achievements.all, queryKeys.user]) {
+  for (const queryKey of [
+    queryKeys.progress.all,
+    queryKeys.achievements.all,
+    queryKeys.friends.all,
+    queryKeys.user,
+  ]) {
     void queryClient.invalidateQueries({ queryKey, refetchType: 'all' });
   }
 }

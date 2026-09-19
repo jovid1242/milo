@@ -1,6 +1,5 @@
 import type { SQLiteDatabase } from 'expo-sqlite';
 
-import { FRIENDS_SEED } from '@/data/content/friends-seed';
 import { QUEST_CONTENT } from '@/data/content/lessons';
 import { logger } from '@/lib/logger';
 
@@ -69,7 +68,6 @@ export const MIGRATIONS: readonly Migration[] = [
           last_active_at TEXT NOT NULL
         );
       `);
-      await seedFriends(db);
     },
   },
   {
@@ -154,28 +152,99 @@ export const MIGRATIONS: readonly Migration[] = [
       }
     },
   },
+  {
+    version: 6,
+    name: 'team challenge',
+    up: async (db) => {
+      // The old flat `friends` list was a mock without day history; a team needs
+      // each member's finished days to know the team streak. A fresh start has
+      // no team — invites create it.
+      await db.execAsync(`
+        DROP TABLE IF EXISTS friends;
+        CREATE TABLE team (
+          id TEXT PRIMARY KEY NOT NULL,
+          name TEXT NOT NULL,
+          invite_code TEXT NOT NULL,
+          created_at TEXT NOT NULL
+        );
+        CREATE TABLE team_members (
+          id TEXT PRIMARY KEY NOT NULL,
+          display_name TEXT NOT NULL,
+          avatar_url TEXT,
+          joined_day INTEGER NOT NULL,
+          today_day INTEGER,
+          today_quests_done INTEGER,
+          total_xp INTEGER,
+          achievements_unlocked INTEGER,
+          last_activity_at TEXT,
+          position INTEGER NOT NULL
+        );
+        CREATE TABLE team_member_days (
+          member_id TEXT NOT NULL,
+          day INTEGER NOT NULL,
+          PRIMARY KEY (member_id, day)
+        );
+        CREATE TABLE team_activity (
+          id TEXT PRIMARY KEY NOT NULL,
+          member_id TEXT NOT NULL,
+          type TEXT NOT NULL,
+          metadata_json TEXT NOT NULL,
+          created_at TEXT NOT NULL
+        );
+        CREATE INDEX idx_team_activity_created ON team_activity (created_at);
+      `);
+    },
+  },
+  {
+    version: 7,
+    name: 'weekly exams',
+    up: async (db) => {
+      // One open attempt per exam at a time, and the pass reward at most once
+      // per exam — whatever the app code does.
+      await db.execAsync(`
+        CREATE TABLE exam_attempts (
+          id TEXT PRIMARY KEY NOT NULL,
+          exam_id TEXT NOT NULL,
+          quest_id TEXT NOT NULL,
+          number INTEGER NOT NULL,
+          started_at TEXT NOT NULL,
+          updated_at TEXT NOT NULL,
+          current_index INTEGER NOT NULL,
+          answers_json TEXT NOT NULL,
+          submitted_at TEXT,
+          correct_count INTEGER,
+          total_count INTEGER NOT NULL,
+          score REAL,
+          passed INTEGER
+        );
+        CREATE UNIQUE INDEX idx_exam_attempts_open ON exam_attempts (exam_id)
+          WHERE submitted_at IS NULL;
+        CREATE UNIQUE INDEX idx_xp_events_exam_pass_once ON xp_events (ref_id)
+          WHERE reason = 'examPass';
+      `);
+    },
+  },
+  {
+    version: 8,
+    name: 'challenge completion',
+    up: async (db) => {
+      // One row, ever: the table cannot hold a second summit.
+      await db.execAsync(`
+        CREATE TABLE challenge_completion (
+          id INTEGER PRIMARY KEY NOT NULL CHECK (id = 1),
+          completed_at TEXT NOT NULL,
+          final_attempt_id TEXT NOT NULL,
+          correct_count INTEGER NOT NULL,
+          total_count INTEGER NOT NULL,
+          score REAL NOT NULL,
+          is_perfect INTEGER NOT NULL,
+          xp_earned INTEGER NOT NULL,
+          celebrated_at TEXT
+        );
+      `);
+    },
+  },
 ];
-
-/** Mock team data behaves like cached server data until a backend exists. */
-export async function seedFriends(db: SQLiteDatabase): Promise<void> {
-  const now = Date.now();
-  for (const friend of FRIENDS_SEED) {
-    await db.runAsync(
-      `INSERT OR REPLACE INTO friends
-         (id, display_name, current_day, streak, total_xp, completed_today, last_active_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?)`,
-      [
-        friend.id,
-        friend.displayName,
-        friend.currentDay,
-        friend.streak,
-        friend.totalXp,
-        friend.completedToday ? 1 : 0,
-        new Date(now - friend.lastActiveMinutesAgo * 60_000).toISOString(),
-      ],
-    );
-  }
-}
 
 export async function runMigrations(db: SQLiteDatabase): Promise<void> {
   const row = await db.getFirstAsync<{ user_version: number }>('PRAGMA user_version');

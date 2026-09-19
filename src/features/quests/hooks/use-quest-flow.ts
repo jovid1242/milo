@@ -43,7 +43,7 @@ export type QuestFlowConfig<State> = {
 };
 
 /** Repository writes in order: a save can never land after the completion. */
-function createWriteQueue() {
+export function createWriteQueue() {
   let tail: Promise<unknown> = Promise.resolve();
   return {
     run<T>(task: () => Promise<T>): Promise<T> {

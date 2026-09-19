@@ -8,15 +8,19 @@ import { daysToSummitLabel } from '../logic/day-copy';
 
 /** Compact: where the user is and how far they have walked — the map is the focus. */
 export function JourneyHeader({ journey }: { journey: Journey }) {
-  const { currentDay, totalDays, completedDays, isComplete } = journey;
+  const { currentDay, totalDays, completedDays, isComplete, summitReached } = journey;
   return (
     <View style={styles.header}>
       <View style={styles.row}>
         <AppText variant="title1" accessibilityRole="header">
           Journey
         </AppText>
-        <AppText variant="label" color={isComplete ? 'reward' : 'secondary'}>
-          {isComplete ? 'Journey completed' : `Day ${currentDay} of ${totalDays}`}
+        <AppText variant="label" color={summitReached ? 'reward' : 'secondary'}>
+          {isComplete
+            ? 'Journey completed'
+            : summitReached
+              ? 'Summit reached'
+              : `Day ${currentDay} of ${totalDays}`}
         </AppText>
       </View>
       <ProgressBar
@@ -25,8 +29,8 @@ export function JourneyHeader({ journey }: { journey: Journey }) {
         accessibilityLabel={`${completedDays} of ${totalDays} days completed`}
       />
       <AppText variant="caption" color="secondary">
-        {isComplete
-          ? `${totalDays} of ${totalDays} days completed`
+        {summitReached
+          ? `${completedDays} of ${totalDays} days completed · Summit reached`
           : `${completedDays} of ${totalDays} days completed · ${daysToSummitLabel(currentDay, totalDays)}`}
       </AppText>
     </View>

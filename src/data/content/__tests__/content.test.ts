@@ -64,7 +64,7 @@ describe('schedule', () => {
       'review',
       'weeklyExam',
     ]);
-    expect(PLANS.at(-1)?.quests.map((q) => q.type)).toEqual(['review', 'finalBattle']);
+    expect(PLANS.at(-1)?.quests.map((q) => q.type)).toEqual(['finalBattle']);
   });
 
   it('rewards 65 XP for a regular day', () => {

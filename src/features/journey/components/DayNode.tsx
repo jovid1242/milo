@@ -1,4 +1,4 @@
-import { Check, Lock } from 'lucide-react-native';
+import { Check, Lock, PenLine, RotateCcw, type LucideIcon } from 'lucide-react-native';
 import { memo, useEffect } from 'react';
 import { StyleSheet, View } from 'react-native';
 import Animated, {
@@ -33,28 +33,51 @@ export type DayNodeProps = {
   onPress: (day: JourneyDay) => void;
 };
 
-function Badge({ tone, size }: { tone: 'done' | 'locked'; size: number }) {
+type BadgeTone = 'done' | 'locked' | 'passed' | 'retry' | 'progress';
+
+const BADGES: Record<BadgeTone, { Icon: LucideIcon; background: string; scale: number }> = {
+  done: { Icon: Check, background: colors.brand.primary, scale: 0.62 },
+  passed: { Icon: Check, background: colors.reward.goldDeep, scale: 0.62 },
+  locked: { Icon: Lock, background: colors.wood.base, scale: 0.58 },
+  retry: { Icon: RotateCcw, background: colors.wood.dark, scale: 0.58 },
+  progress: { Icon: PenLine, background: colors.brand.primary, scale: 0.58 },
+};
+
+function Badge({ tone, size }: { tone: BadgeTone; size: number }) {
   const badge = Math.max(14, Math.round(size * 0.3));
+  const { Icon, background, scale } = BADGES[tone];
   return (
     <View
       style={[
         styles.badge,
-        { width: badge, height: badge, borderRadius: badge / 2 },
-        tone === 'done' ? styles.badgeDone : styles.badgeLocked,
+        { width: badge, height: badge, borderRadius: badge / 2, backgroundColor: background },
       ]}>
-      {tone === 'done' ? (
-        <Check size={badge * 0.62} color={colors.text.inverse} strokeWidth={3.5} />
-      ) : (
-        <Lock size={badge * 0.58} color={colors.text.inverse} strokeWidth={2.8} />
-      )}
+      <Icon size={badge * scale} color={colors.text.inverse} strokeWidth={3} />
     </View>
   );
+}
+
+/** A weekly exam's own mark: passed, not passed yet, in progress or locked. */
+function examBadge(day: JourneyDay): BadgeTone | null {
+  switch (day.exam?.status) {
+    case 'passed':
+      return 'passed';
+    case 'notPassed':
+      return 'retry';
+    case 'inProgress':
+      return 'progress';
+    case 'locked':
+      return 'locked';
+    default:
+      return null;
+  }
 }
 
 /**
  * One day on the map. State is never colour alone: done days carry a check,
  * locked ones a number in a quiet ring, missed ones a dashed ring, today a
- * bold ring (and Milo beside it). Exams and the summit show their quest icon.
+ * bold ring (and Milo beside it). Exams and the summit show their quest icon;
+ * an exam's badge tells its own state (passed, not passed yet, in progress, locked).
  */
 export const DayNode = memo(function DayNode({
   node,
@@ -100,19 +123,33 @@ export const DayNode = memo(function DayNode({
         : null;
 
   // Icons (exam, summit) always sit on white — the ring and a small badge tell the state.
-  const stateStyle = done
-    ? Icon
-      ? day.kind === 'summit'
-        ? styles.iconDoneGold
-        : styles.iconDone
-      : day.isToday
-        ? styles.doneHighlight
-        : styles.done
-    : day.state === 'available'
-      ? styles.today
-      : day.state === 'missed'
-        ? styles.missed
-        : styles.locked;
+  // A passed exam wears gold like the summit; one not passed yet, a warm wood ring.
+  const examStatus = day.exam?.status;
+  const stateStyle =
+    examStatus === 'passed'
+      ? styles.iconDoneGold
+      : examStatus === 'notPassed'
+        ? styles.iconRetry
+        : done
+          ? Icon
+            ? day.kind === 'summit'
+              ? styles.iconDoneGold
+              : styles.iconDone
+            : day.isToday
+              ? styles.doneHighlight
+              : styles.done
+          : day.state === 'available'
+            ? styles.today
+            : day.state === 'missed'
+              ? styles.missed
+              : styles.locked;
+  const badge = day.exam
+    ? examBadge(day)
+    : Icon && done
+      ? 'done'
+      : day.kind === 'summit' && day.state === 'locked'
+        ? 'locked'
+        : null;
   const circle = [styles.circle, { width: size, height: size, borderRadius: size / 2 }, stateStyle];
 
   let content;
@@ -150,10 +187,7 @@ export const DayNode = memo(function DayNode({
       ) : null}
       <Animated.View style={[circle, popStyle]}>
         {content}
-        {Icon && done ? <Badge tone="done" size={size} /> : null}
-        {day.kind === 'summit' && day.state === 'locked' ? (
-          <Badge tone="locked" size={size} />
-        ) : null}
+        {badge ? <Badge tone={badge} size={size} /> : null}
       </Animated.View>
     </PressableScale>
   );
@@ -198,6 +232,11 @@ const styles = StyleSheet.create({
     borderWidth: 3,
     borderColor: colors.reward.gold,
   },
+  iconRetry: {
+    backgroundColor: colors.surface.base,
+    borderWidth: 3,
+    borderColor: colors.wood.base,
+  },
   ring: {
     position: 'absolute',
     borderWidth: 3,
@@ -212,6 +251,4 @@ const styles = StyleSheet.create({
     borderWidth: 1.5,
     borderColor: colors.surface.base,
   },
-  badgeDone: { backgroundColor: colors.brand.primary },
-  badgeLocked: { backgroundColor: colors.wood.base },
 });

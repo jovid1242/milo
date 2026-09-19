@@ -3,10 +3,12 @@ import type { SQLiteDatabase } from 'expo-sqlite';
 import { getDatabase, writeDatabase } from '@/data/db/database';
 import type { ProgressRepository } from '@/data/repositories/types';
 import {
+  ChallengeCompletionSchema,
   DayCompletionSchema,
   QuestCompletionSchema,
   QuestSessionSchema,
   type AnswerRecord,
+  type ChallengeCompletion,
   type DayCompletion,
   type DayNumber,
   type LearnedWord,
@@ -90,6 +92,50 @@ export async function writeDayCompletion(db: SQLiteDatabase, record: DayCompleti
   return result.changes > 0;
 }
 
+type ChallengeRow = {
+  completed_at: string;
+  final_attempt_id: string;
+  correct_count: number;
+  total_count: number;
+  score: number;
+  is_perfect: number;
+  xp_earned: number;
+  celebrated_at: string | null;
+};
+
+const mapChallenge = (row: ChallengeRow): ChallengeCompletion =>
+  ChallengeCompletionSchema.parse({
+    completedAt: row.completed_at,
+    finalAttemptId: row.final_attempt_id,
+    correctCount: row.correct_count,
+    totalCount: row.total_count,
+    score: row.score,
+    isPerfect: row.is_perfect === 1,
+    xpEarned: row.xp_earned,
+    celebratedAt: row.celebrated_at,
+  });
+
+/** The one summit (shared with the exam repository and dev seeding); `false` if it exists. */
+export async function writeChallengeCompletion(db: SQLiteDatabase, record: ChallengeCompletion) {
+  const result = await db.runAsync(
+    `INSERT OR IGNORE INTO challenge_completion
+       (id, completed_at, final_attempt_id, correct_count, total_count, score, is_perfect,
+        xp_earned, celebrated_at)
+     VALUES (1, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    [
+      record.completedAt,
+      record.finalAttemptId,
+      record.correctCount,
+      record.totalCount,
+      record.score,
+      record.isPerfect ? 1 : 0,
+      record.xpEarned,
+      record.celebratedAt,
+    ],
+  );
+  return result.changes > 0;
+}
+
 const mapCompletion = (row: CompletionRow): QuestCompletion =>
   QuestCompletionSchema.parse({
     questId: row.quest_id,
@@ -153,6 +199,28 @@ export async function writeCompletion(db: SQLiteDatabase, completion: QuestCompl
 }
 
 /** `OR IGNORE`: a second XP event for the same quest is refused by a unique index. */
+/** Replaces a quest's stored answers (shared with the exam repository). */
+export async function writeAnswers(
+  db: SQLiteDatabase,
+  questId: string,
+  answers: readonly AnswerRecord[],
+) {
+  await db.runAsync('DELETE FROM answers WHERE quest_id = ?', [questId]);
+  for (const answer of answers) {
+    await db.runAsync(
+      `INSERT INTO answers (quest_id, question_id, answer_json, is_correct, answered_at)
+       VALUES (?, ?, ?, ?, ?)`,
+      [
+        answer.questId,
+        answer.questionId,
+        JSON.stringify(answer.answer),
+        answer.isCorrect ? 1 : 0,
+        answer.answeredAt,
+      ],
+    );
+  }
+}
+
 export async function writeXpEvent(db: SQLiteDatabase, event: XpEvent) {
   await db.runAsync(
     'INSERT OR IGNORE INTO xp_events (amount, reason, ref_id, created_at) VALUES (?, ?, ?, ?)',
@@ -205,20 +273,7 @@ export class SqliteProgressRepository implements ProgressRepository {
         if (existing) return;
 
         await writeCompletion(txn, completion);
-        await txn.runAsync('DELETE FROM answers WHERE quest_id = ?', [completion.questId]);
-        for (const answer of answers) {
-          await txn.runAsync(
-            `INSERT INTO answers (quest_id, question_id, answer_json, is_correct, answered_at)
-           VALUES (?, ?, ?, ?, ?)`,
-            [
-              answer.questId,
-              answer.questionId,
-              JSON.stringify(answer.answer),
-              answer.isCorrect ? 1 : 0,
-              answer.answeredAt,
-            ],
-          );
-        }
+        await writeAnswers(txn, completion.questId, answers);
         if (xp) await writeXpEvent(txn, xp);
         recorded = true;
       }),
@@ -291,6 +346,22 @@ export class SqliteProgressRepository implements ProgressRepository {
     return result.changes > 0;
   }
 
+  async getChallengeCompletion(): Promise<ChallengeCompletion | null> {
+    const db = await getDatabase();
+    const row = await db.getFirstAsync<ChallengeRow>('SELECT * FROM challenge_completion LIMIT 1');
+    return row ? mapChallenge(row) : null;
+  }
+
+  async markChallengeCelebrated(at: Timestamp): Promise<boolean> {
+    const result = await writeDatabase((db) =>
+      db.runAsync(
+        'UPDATE challenge_completion SET celebrated_at = ? WHERE celebrated_at IS NULL',
+        [at],
+      ),
+    );
+    return result.changes > 0;
+  }
+
   async recordLearnedWords(words: readonly LearnedWord[]): Promise<void> {
     if (words.length === 0) return;
     await writeDatabase((db) =>
@@ -316,6 +387,12 @@ export class SqliteProgressRepository implements ProgressRepository {
     const params = [...questIds];
     await writeDatabase((db) =>
       db.withExclusiveTransactionAsync(async (txn) => {
+        // Without its Final Battle, the challenge is not finished any more.
+        await txn.runAsync(
+          `DELETE FROM challenge_completion WHERE EXISTS
+           (SELECT 1 FROM quest_completions WHERE quest_type = 'finalBattle' AND quest_id IN (${list}))`,
+          params,
+        );
         // A day without all its quests is not finished any more.
         await txn.runAsync(
           `DELETE FROM day_completions WHERE day IN
@@ -325,6 +402,13 @@ export class SqliteProgressRepository implements ProgressRepository {
         await txn.runAsync(`DELETE FROM quest_completions WHERE quest_id IN (${list})`, params);
         await txn.runAsync(`DELETE FROM answers WHERE quest_id IN (${list})`, params);
         await txn.runAsync(`DELETE FROM learned_words WHERE quest_id IN (${list})`, params);
+        // The pass reward belongs to the exam: reset with its attempts.
+        await txn.runAsync(
+          `DELETE FROM xp_events WHERE reason = 'examPass' AND ref_id IN
+             (SELECT exam_id FROM exam_attempts WHERE quest_id IN (${list}))`,
+          params,
+        );
+        await txn.runAsync(`DELETE FROM exam_attempts WHERE quest_id IN (${list})`, params);
         await txn.runAsync(`DELETE FROM quest_sessions WHERE quest_id IN (${list})`, params);
         await txn.runAsync(
           `DELETE FROM xp_events WHERE reason = 'quest' AND ref_id IN (${list})`,
@@ -338,7 +422,7 @@ export class SqliteProgressRepository implements ProgressRepository {
     await writeDatabase((db) =>
       db.withExclusiveTransactionAsync(async (txn) => {
         await txn.execAsync(
-          'DELETE FROM quest_completions; DELETE FROM answers; DELETE FROM quest_sessions; DELETE FROM xp_events; DELETE FROM day_completions; DELETE FROM learned_words;',
+          'DELETE FROM quest_completions; DELETE FROM answers; DELETE FROM quest_sessions; DELETE FROM xp_events; DELETE FROM day_completions; DELETE FROM learned_words; DELETE FROM exam_attempts; DELETE FROM challenge_completion;',
         );
       }),
     );

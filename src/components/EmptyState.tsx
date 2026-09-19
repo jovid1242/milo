@@ -29,7 +29,13 @@ export function EmptyState({ variant, title, description, action }: EmptyStatePr
         ) : null}
       </View>
       {action ? (
-        <Button label={action.label} onPress={action.onPress} size="md" variant="secondary" />
+        <Button
+          label={action.label}
+          onPress={action.onPress}
+          size="md"
+          variant="secondary"
+          style={styles.action}
+        />
       ) : null}
     </View>
   );
@@ -44,4 +50,5 @@ const styles = StyleSheet.create({
     paddingVertical: spacing[10],
   },
   text: { gap: spacing[2], alignItems: 'center', maxWidth: 320 },
+  action: { alignSelf: 'center' },
 });

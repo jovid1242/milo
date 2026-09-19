@@ -14,6 +14,7 @@ export type HapticPattern =
   | 'press'
   | 'selection'
   | 'answerSelect'
+  | 'submit'
   | 'correct'
   | 'wrong'
   | 'questComplete'
@@ -30,6 +31,8 @@ const PATTERNS: Record<HapticPattern, readonly HapticStep[]> = {
   press: [{ kind: 'impact', style: Light }],
   selection: [{ kind: 'selection' }],
   answerSelect: [{ kind: 'impact', style: Soft }],
+  // Handing something in (the weekly exam): firmer than a tap, still no verdict.
+  submit: [{ kind: 'impact', style: Medium }],
   correct: [{ kind: 'notification', type: Success }],
   // Two soft taps: noticeable, never scolding.
   wrong: [

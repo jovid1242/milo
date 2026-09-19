@@ -2,6 +2,7 @@ import { useLocalSearchParams } from 'expo-router';
 
 import { LoadingState, Screen } from '@/components/ui';
 import { useQuest } from '@/features/challenge/queries';
+import { ExamScreen } from '@/features/exams/ExamScreen';
 import { GrammarQuestScreen } from '@/features/grammar/GrammarQuestScreen';
 import { ReadingQuestScreen } from '@/features/reading/ReadingQuestScreen';
 import { ReviewQuestScreen } from '@/features/review/ReviewQuestScreen';
@@ -16,6 +17,8 @@ const GAMEPLAY: Partial<Record<QuestType, (props: { questId: string }) => React.
   grammar: GrammarQuestScreen,
   reading: ReadingQuestScreen,
   review: ReviewQuestScreen,
+  weeklyExam: ExamScreen,
+  finalBattle: ExamScreen,
 };
 
 /**

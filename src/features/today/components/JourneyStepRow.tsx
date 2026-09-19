@@ -6,7 +6,7 @@ import Animated, {
   LinearTransition,
 } from 'react-native-reanimated';
 
-import { AppText, Badge, Button } from '@/components/ui';
+import { AppText, Badge, Button, PressableScale } from '@/components/ui';
 import type { QuestType } from '@/schemas';
 import { colors, durations, radius, shadows, spacing } from '@/theme';
 
@@ -32,7 +32,7 @@ const START_LABELS: Record<QuestType, string> = {
   reading: 'Start reading',
   review: 'Start review',
   weeklyExam: 'Start the exam',
-  finalBattle: 'Begin the last climb',
+  finalBattle: 'Climb to the summit',
 };
 
 /**
@@ -69,7 +69,7 @@ export function JourneyStepRow({
           {isCurrent ? (
             <CurrentQuestCard step={step} index={index} total={total} onOpen={onOpen} />
           ) : step.status === 'completed' ? (
-            <DoneStep step={step} />
+            <DoneStep step={step} onOpen={onOpen} />
           ) : (
             <UpcomingStep step={step} />
           )}
@@ -92,7 +92,9 @@ function CurrentQuestCard({
 }) {
   const { quest } = step;
   const inProgress = step.status === 'inProgress';
-  const label = inProgress ? 'Continue' : START_LABELS[quest.type];
+  // The Final Battle stays open until it is passed: after a try, another one.
+  const notYet = step.examResult === 'notPassed' && !inProgress;
+  const label = inProgress ? 'Continue' : notYet ? 'Try again' : START_LABELS[quest.type];
 
   return (
     <View style={styles.card}>
@@ -102,7 +104,9 @@ function CurrentQuestCard({
             ? step.progress > 0
               ? `In progress · ${Math.round(step.progress * 100)}%`
               : 'In progress'
-            : `Step ${index + 1} of ${total}`}
+            : notYet
+              ? 'Not passed yet · the summit waits'
+              : `Step ${index + 1} of ${total}`}
         </AppText>
         <View style={styles.titleRow}>
           <AppText variant="title2" style={styles.title}>
@@ -128,8 +132,9 @@ function CurrentQuestCard({
   );
 }
 
-function DoneStep({ step }: { step: JourneyStep }) {
-  const { quest } = step;
+function DoneStep({ step, onOpen }: { step: JourneyStep; onOpen: (step: JourneyStep) => void }) {
+  const { quest, examResult } = step;
+  if (examResult) return <DoneExamStep step={step} onOpen={onOpen} />;
   return (
     <View
       accessible
@@ -142,6 +147,42 @@ function DoneStep({ step }: { step: JourneyStep }) {
         {`+${step.xpEarned} XP`}
       </AppText>
     </View>
+  );
+}
+
+/**
+ * A handed-in exam says how it went — never "+0 XP" — and stays one tap away:
+ * its result, the review, another try.
+ */
+function DoneExamStep({
+  step,
+  onOpen,
+}: {
+  step: JourneyStep;
+  onOpen: (step: JourneyStep) => void;
+}) {
+  const { quest } = step;
+  const passed = step.examResult === 'passed';
+  const status = passed
+    ? step.xpEarned > 0
+      ? `Passed · +${step.xpEarned} XP`
+      : 'Passed'
+    : 'Not passed yet';
+  return (
+    <PressableScale
+      accessibilityRole="button"
+      accessibilityLabel={`${quest.title}. ${passed ? `Passed${step.xpEarned > 0 ? `, ${step.xpEarned} XP earned` : ''}` : 'Handed in, not passed yet'}.`}
+      accessibilityHint={passed ? 'Opens your result' : 'Opens your result and another try'}
+      onPress={() => onOpen(step)}
+      style={[styles.line, { minHeight: DONE_NODE_SIZE }]}
+      testID="quest-done-weeklyExam">
+      <AppText variant="bodyMedium" color="secondary" numberOfLines={1} style={styles.lineTitle}>
+        {quest.title}
+      </AppText>
+      <AppText variant="label" color={passed ? 'brand' : 'secondary'}>
+        {status}
+      </AppText>
+    </PressableScale>
   );
 }
 

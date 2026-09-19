@@ -1,7 +1,8 @@
 import { LocalChallengeRepository } from './local/local-challenge-repository';
 import { LocalDevRepository } from './local/local-dev-repository';
+import { LocalFriendsRepository } from './local/local-friends-repository';
 import { SqliteAchievementRepository } from './local/sqlite-achievement-repository';
-import { SqliteFriendsRepository } from './local/sqlite-friends-repository';
+import { SqliteExamRepository } from './local/sqlite-exam-repository';
 import { SqliteProgressRepository } from './local/sqlite-progress-repository';
 import { SqliteUserRepository } from './local/sqlite-user-repository';
 import type { Repositories } from './types';
@@ -17,7 +18,8 @@ export function createLocalRepositories(): Repositories {
     user: new SqliteUserRepository(),
     progress: new SqliteProgressRepository(),
     achievements: new SqliteAchievementRepository(),
-    friends: new SqliteFriendsRepository(),
+    exams: new SqliteExamRepository(),
+    friends: new LocalFriendsRepository(),
     dev: new LocalDevRepository(),
   };
 }

@@ -119,7 +119,7 @@ export const ACHIEVEMENTS = [
   {
     id: 'teamStreak',
     title: 'Team Streak',
-    description: 'Keep a streak going together with your friends.',
+    description: 'Seven days in a row when everyone in your team finishes the day.',
     tagline: 'Learning is better together.',
     category: 'together',
     badge: 'teamStreak',

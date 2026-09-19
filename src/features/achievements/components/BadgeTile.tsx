@@ -46,16 +46,18 @@ export const BadgeTile = memo(function BadgeTile({
           variant="caption"
           align="center"
           color={unlocked ? 'brand' : status.state === 'notAvailable' ? 'wood' : 'tertiary'}
-          numberOfLines={1}>
+          numberOfLines={2}>
           {line}
         </AppText>
         {status.state === 'locked' && progress ? (
-          <ProgressBar
-            progress={progress.current / progress.target}
-            height={4}
-            style={styles.progress}
-            accessibilityLabel={`${achievement.title} progress`}
-          />
+          // The bar fills its parent's width: the inset lives on a wrapper.
+          <View style={styles.progress}>
+            <ProgressBar
+              progress={progress.current / progress.target}
+              height={4}
+              accessibilityLabel={`${achievement.title} progress`}
+            />
+          </View>
         ) : null}
       </View>
     </PressableScale>
@@ -65,5 +67,5 @@ export const BadgeTile = memo(function BadgeTile({
 const styles = StyleSheet.create({
   tile: { alignItems: 'center', gap: spacing[2], paddingBottom: spacing[2] },
   text: { alignSelf: 'stretch', alignItems: 'center', gap: 2, paddingHorizontal: spacing[1] },
-  progress: { alignSelf: 'stretch', marginTop: spacing[1], marginHorizontal: spacing[4] },
+  progress: { alignSelf: 'stretch', marginTop: spacing[1], paddingHorizontal: spacing[4] },
 });

@@ -1,5 +1,7 @@
 import { findCompletedDays } from '@/features/progress/logic/day-completion';
 import { computeStreak } from '@/features/progress/logic/streak';
+
+import { longestRun } from './run';
 import type {
   Achievement,
   AchievementId,
@@ -11,6 +13,7 @@ import type {
   DayCompletion,
   DayNumber,
   QuestCompletion,
+  QuestType,
 } from '@/schemas';
 
 /**
@@ -31,21 +34,22 @@ export type AchievementFacts = {
   /** Perfect days in a row up to today (or yesterday). */
   currentPerfectRun: number;
   longestPerfectRun: number;
-  /** `null` while Friends do not exist: nothing can be known about a team yet. */
-  teamStreak: number | null;
+  /**
+   * Days in a row the whole team finished: now, and the longest run. `null`
+   * without a team — there is nobody to share a streak with.
+   */
+  teamStreak: { current: number; longest: number } | null;
 };
 
-/** The longest run of consecutive days in a set. */
-export function longestRun(days: ReadonlySet<DayNumber>): number {
-  let longest = 0;
-  for (const day of days) {
-    if (days.has(day - 1)) continue; // not the start of a run
-    let length = 1;
-    while (days.has(day + length)) length++;
-    longest = Math.max(longest, length);
-  }
-  return longest;
-}
+export { longestRun } from './run';
+
+/** The quests of an ordinary day — the only ones Perfect Quiz looks at. */
+const DAILY_QUEST_TYPES: ReadonlySet<QuestType> = new Set([
+  'vocabulary',
+  'grammar',
+  'reading',
+  'review',
+]);
 
 /**
  * Completed days where every quest was answered without a mistake. The day
@@ -79,6 +83,7 @@ export function buildAchievementFacts(input: {
   dayCompletions: readonly DayCompletion[];
   uniqueWords: number;
   currentDay: DayNumber;
+  teamStreak?: AchievementFacts['teamStreak'];
 }): AchievementFacts {
   const completed = findCompletedDays(input.plans, input.completions);
   const perfect = findPerfectDays(input.plans, input.completions, input.dayCompletions);
@@ -87,14 +92,17 @@ export function buildAchievementFacts(input: {
     currentStreak: computeStreak(completed, input.currentDay),
     longestStreak: longestRun(completed),
     uniqueWords: input.uniqueWords,
-    // A scored quest: at least one scored question, all of them right.
+    // A daily quest with at least one scored question, all of them right. Weekly
+    // exams and the final battle are checkpoints, not quizzes: they never count.
     hasPerfectQuest: input.completions.some(
       (completion) =>
-        completion.totalCount > 0 && completion.correctCount === completion.totalCount,
+        DAILY_QUEST_TYPES.has(completion.questType) &&
+        completion.totalCount > 0 &&
+        completion.correctCount === completion.totalCount,
     ),
     currentPerfectRun: computeStreak(perfect, input.currentDay),
     longestPerfectRun: longestRun(perfect),
-    teamStreak: null,
+    teamStreak: input.teamStreak ?? null,
   };
 }
 
@@ -142,12 +150,13 @@ export function checkRule(rule: AchievementRule, facts: AchievementFacts): RuleC
         progress: toward(facts.currentPerfectRun, rule.count),
       };
     case 'teamStreak':
+      // Like the personal streaks: the longest run unlocks, the running one is progress.
       return facts.teamStreak === null
         ? { available: false, met: false, progress: null }
         : {
             available: true,
-            met: facts.teamStreak >= rule.count,
-            progress: toward(facts.teamStreak, rule.count),
+            met: facts.teamStreak.longest >= rule.count,
+            progress: toward(facts.teamStreak.current, rule.count),
           };
   }
 }

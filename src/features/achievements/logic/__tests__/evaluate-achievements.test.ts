@@ -186,12 +186,24 @@ describe('rules', () => {
     expect(week(daysDone(range(1, 8), [1, 2, 3, 5, 6, 7, 8]), 8)).toBe(false);
   });
 
-  it('keeps Team Streak unavailable while Friends do not exist', () => {
+  it('keeps Team Streak unavailable without a team', () => {
     expect(checkRule(byId('teamStreak').rule, facts({ longestStreak: 90 }))).toEqual({
       available: false,
       met: false,
       progress: null,
     });
+  });
+
+  it('unlocks Team Streak at 7 team days in a row, with the running streak as progress', () => {
+    const rule = byId('teamStreak').rule;
+    expect(checkRule(rule, facts({ teamStreak: { current: 6, longest: 6 } }))).toEqual({
+      available: true,
+      met: false,
+      progress: { current: 6, target: 7 },
+    });
+    expect(checkRule(rule, facts({ teamStreak: { current: 7, longest: 7 } })).met).toBe(true);
+    // A broken team streak later does not undo the longest one.
+    expect(checkRule(rule, facts({ teamStreak: { current: 0, longest: 9 } })).met).toBe(true);
   });
 });
 

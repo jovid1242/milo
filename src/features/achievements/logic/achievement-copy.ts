@@ -43,7 +43,7 @@ export function statusLine(status: AchievementStatus, locale?: string): string {
         ? `Unlocked · ${new Date(status.unlockedAt).toLocaleDateString(locale, { day: 'numeric', month: 'short' })}`
         : 'Unlocked';
     case 'notAvailable':
-      return 'Coming with Friends';
+      return 'Needs a team';
     case 'locked':
       return progressLabel(status) ?? 'Locked';
   }

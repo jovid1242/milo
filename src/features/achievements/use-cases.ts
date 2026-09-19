@@ -1,5 +1,7 @@
 import type { Repositories } from '@/data/repositories/types';
 import { getChallengeDay } from '@/features/challenge/logic/calendar';
+import { loadTeamStreakFacts } from '@/features/friends/use-cases';
+import { findCompletedDays } from '@/features/progress/logic/day-completion';
 import type { Achievement, AchievementId, AchievementStatus } from '@/schemas';
 
 import {
@@ -21,12 +23,18 @@ export async function loadAchievementFacts(
     repositories.progress.getDayCompletions(),
     repositories.progress.countLearnedWords(),
   ]);
+  const currentDay = getChallengeDay(user.challengeStartDate, now);
+  const teamStreak = await loadTeamStreakFacts(repositories, {
+    completedDays: findCompletedDays(plans, completions),
+    currentDay,
+  });
   return buildAchievementFacts({
     plans,
     completions,
     dayCompletions,
     uniqueWords,
-    currentDay: getChallengeDay(user.challengeStartDate, now),
+    currentDay,
+    teamStreak,
   });
 }
 

@@ -147,6 +147,43 @@ export function DevToolsScreen() {
           )}
         </Section>
 
+        <Section title="Weekly exam · Day 84">
+          {(Object.keys(dev.EXAM_SCENARIOS) as dev.ExamScenario[]).map((scenario) =>
+            chip(dev.EXAM_SCENARIOS[scenario].label, async () => {
+              const { questId, open } = await dev.applyExamScenario(context, scenario);
+              if (open === 'journey') {
+                router.dismissTo('/journey');
+              } else {
+                router.replace({
+                  pathname: '/quest/[questId]',
+                  params: open === 'exam' ? { questId } : { questId, devStage: open },
+                });
+              }
+            }),
+          )}
+          {chip('Submit ×2', async () => {
+            const report = await dev.submitExamTwice(context);
+            Alert.alert('Submit exam twice', report);
+          })}
+        </Section>
+
+        <Section title="Final Battle · Day 90">
+          {(Object.keys(dev.FINAL_SCENARIOS) as dev.FinalScenario[]).map((scenario) =>
+            chip(dev.FINAL_SCENARIOS[scenario].label, async () => {
+              const { questId, open } = await dev.applyFinalScenario(context, scenario);
+              if (open === 'journey') router.dismissTo('/journey');
+              else if (open === 'home') router.dismissTo('/');
+              else if (open === 'summit') router.replace('/summit');
+              else {
+                router.replace({
+                  pathname: '/quest/[questId]',
+                  params: open === 'question' ? { questId, devStage: 'question' } : { questId },
+                });
+              }
+            }),
+          )}
+        </Section>
+
         <Section title="Day complete · Day 89">
           {(Object.keys(dev.DAY_SCENARIOS) as dev.DayScenario[]).map((scenario) =>
             chip(dev.DAY_SCENARIOS[scenario].label, async () => {
@@ -206,9 +243,21 @@ export function DevToolsScreen() {
           {chip('Reset achievements', () => dev.resetAchievements(context))}
         </Section>
 
-        <Section title="Friends & network">
-          {chip('Clear friends', () => dev.clearFriends(context))}
-          {chip('Restore friends', () => dev.restoreFriends(context))}
+        <Section title="Team · Day 89">
+          {(Object.keys(dev.TEAM_SCENARIOS) as dev.TeamScenario[]).map((scenario) =>
+            chip(dev.TEAM_SCENARIOS[scenario].label, async () => {
+              await dev.applyTeamScenario(context, scenario);
+              router.dismissTo('/friends');
+            }),
+          )}
+          {chip('Friend joins', async () => {
+            await dev.simulateFriendJoined(context);
+            router.dismissTo('/friends');
+          })}
+          {chip('Finish my day', async () => {
+            await dev.finishMyDay(context);
+            router.dismissTo('/friends');
+          })}
         </Section>
         <View style={styles.toggleRow}>
           <AppText variant="bodyMedium">Simulate offline</AppText>
@@ -268,7 +317,7 @@ export function DevToolsScreen() {
             onPress={() =>
               Alert.alert(
                 'Reset all local data?',
-                'Deletes the database: profile, progress, achievements and friends.',
+                'Deletes the database: profile, progress, achievements and team.',
                 [
                   { text: 'Cancel', style: 'cancel' },
                   {

@@ -68,8 +68,18 @@ export default function RootLayout() {
                       gestureEnabled: false,
                     }}
                   />
+                  {/* The summit: the whole challenge's finale, over the Final Battle's result. */}
+                  <Stack.Screen
+                    name="summit"
+                    options={{
+                      presentation: 'fullScreenModal',
+                      animation: 'fade',
+                      gestureEnabled: false,
+                    }}
+                  />
                   <Stack.Screen name="settings" />
                   <Stack.Screen name="achievements" />
+                  <Stack.Screen name="member/[memberId]" />
                   <Stack.Screen name="dev-tools" options={{ presentation: 'modal' }} />
                 </Stack>
                 {/* Achievement unlocks are celebrated here, on calm screens only. */}

@@ -1,4 +1,4 @@
-import { Check, Lock } from 'lucide-react-native';
+import { Check, Lock, RotateCcw, type LucideIcon } from 'lucide-react-native';
 import { useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 
@@ -7,7 +7,14 @@ import { getWeekForDay } from '@/features/challenge/logic/calendar';
 import type { Chapter, JourneyDay } from '@/schemas';
 import { spacing } from '@/theme';
 
-import { chapterLine, completedOn, dayStatus, type DayStatus } from '../logic/day-copy';
+import {
+  chapterLine,
+  completedOn,
+  dayStatus,
+  examCopy,
+  type DayStatus,
+  type ExamCopy,
+} from '../logic/day-copy';
 
 export type DayDetailsSheetProps = {
   /** `null` closes the sheet. */
@@ -15,9 +22,13 @@ export type DayDetailsSheetProps = {
   today: JourneyDay;
   chapters: readonly Chapter[];
   onClose: () => void;
-  /** Today's quests live on Home: the map never starts gameplay itself. */
+  /** Today's quests live on Home: the map never starts a daily quest itself. */
   onContinueToday: () => void;
   onOpenTodaySummary: () => void;
+  /** Exams are milestones of the map: they open from here too. */
+  onOpenExam: (questId: string) => void;
+  /** The finale, seen again once the summit is reached (nothing is paid twice). */
+  onOpenSummit: () => void;
 };
 
 const BADGE_TONES: Record<DayStatus['tone'], 'brand' | 'reward' | 'neutral'> = {
@@ -25,6 +36,20 @@ const BADGE_TONES: Record<DayStatus['tone'], 'brand' | 'reward' | 'neutral'> = {
   today: 'reward',
   missed: 'neutral',
   locked: 'neutral',
+};
+
+const EXAM_TONES: Record<ExamCopy['tone'], 'brand' | 'reward' | 'neutral' | 'wood'> = {
+  passed: 'reward',
+  open: 'brand',
+  retry: 'wood',
+  locked: 'neutral',
+  missed: 'neutral',
+};
+
+const EXAM_ICONS: Partial<Record<ExamCopy['tone'], LucideIcon>> = {
+  passed: Check,
+  retry: RotateCcw,
+  locked: Lock,
 };
 
 function kindLine(day: JourneyDay): string | null {
@@ -48,6 +73,8 @@ export function DayDetailsSheet({
   onClose,
   onContinueToday,
   onOpenTodaySummary,
+  onOpenExam,
+  onOpenSummit,
 }: DayDetailsSheetProps) {
   // Keeps showing the last day while the sheet slides away.
   const [shown, setShown] = useState(day);
@@ -55,6 +82,9 @@ export function DayDetailsSheet({
 
   const chapter = shown ? chapters.find((item) => item.id === shown.chapterId) : undefined;
   const status = shown ? dayStatus(shown, today) : null;
+  const exam = shown?.exam ? examCopy(shown.exam, shown) : null;
+  const examAction =
+    exam?.action && shown?.exam ? { ...exam.action, id: shown.exam.questId } : null;
   const facts: Stat[] = [];
   if (shown && shown.completedQuestCount > 0) {
     facts.push({ label: 'quests', value: `${shown.completedQuestCount}/${shown.questCount}` });
@@ -92,6 +122,15 @@ export function DayDetailsSheet({
             ) : null}
           </View>
 
+          {exam ? (
+            <View style={styles.exam} testID="journey-exam-status">
+              <Badge label={exam.label} tone={EXAM_TONES[exam.tone]} icon={EXAM_ICONS[exam.tone]} />
+              <AppText variant="body" color="secondary">
+                {exam.detail}
+              </AppText>
+            </View>
+          ) : null}
+
           {facts.length > 0 ? <StatsRow stats={facts} /> : null}
           {shown.completedAt ? (
             <AppText variant="caption" color="tertiary">
@@ -100,7 +139,18 @@ export function DayDetailsSheet({
           ) : null}
 
           <View style={styles.actions}>
-            {shown.isToday && shown.state === 'available' ? (
+            {examAction ? (
+              <Button
+                label={examAction.label}
+                variant={examAction.primary ? 'primary' : 'secondary'}
+                onPress={() =>
+                  examAction.target === 'summit' ? onOpenSummit() : onOpenExam(examAction.id)
+                }
+                fullWidth
+                testID="journey-open-exam"
+              />
+            ) : null}
+            {shown.isToday && shown.state === 'available' && !examAction ? (
               <Button label="Continue today's journey" onPress={onContinueToday} fullWidth />
             ) : null}
             {shown.isToday && shown.state === 'completed' ? (
@@ -123,5 +173,6 @@ const styles = StyleSheet.create({
   body: { gap: spacing[5] },
   titles: { gap: spacing[1] },
   status: { gap: spacing[2] },
+  exam: { gap: spacing[2] },
   actions: { gap: spacing[2] },
 });

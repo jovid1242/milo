@@ -1,4 +1,5 @@
 import { findChapterForDay } from '@/features/challenge/logic/calendar';
+import { examStatus } from '@/features/exams/logic/exam';
 import { findCompletedDays } from '@/features/progress/logic/day-completion';
 import type {
   Chapter,
@@ -10,7 +11,9 @@ import type {
   JourneyDay,
   JourneyDayKind,
   JourneyDayState,
+  JourneyExam,
   QuestCompletion,
+  ExamAttempt,
 } from '@/schemas';
 
 export type JourneyInput = {
@@ -19,7 +22,43 @@ export type JourneyInput = {
   completions: readonly QuestCompletion[];
   dayCompletions: readonly DayCompletion[];
   currentDay: DayNumber;
+  /** Every exam attempt — weekly exams and the Final Battle (their states come from them). */
+  examAttempts?: readonly ExamAttempt[];
+  /** Pass line per exam quest, where the exam is written. */
+  examPassingScores?: ReadonlyMap<string, number>;
 };
+
+const DEFAULT_PASSING_SCORE = 0.7;
+
+function examOf(
+  plan: DailyChallenge,
+  input: JourneyInput,
+  byQuest: ReadonlyMap<string, QuestCompletion>,
+): JourneyExam | null {
+  const quest = plan.quests.find(
+    (item) => item.type === 'weeklyExam' || item.type === 'finalBattle',
+  );
+  if (!quest) return null;
+  const attempts = (input.examAttempts ?? []).filter((attempt) => attempt.questId === quest.id);
+  const submitted = attempts.filter((attempt) => attempt.submittedAt !== null);
+  const completion = byQuest.get(quest.id) ?? null;
+  const scores = submitted.map((attempt) => attempt.score ?? 0);
+  return {
+    questId: quest.id,
+    status: examStatus({
+      examDay: plan.day,
+      currentDay: input.currentDay,
+      warmUpDone: plan.quests
+        .slice(0, plan.quests.indexOf(quest))
+        .every((item) => byQuest.has(item.id)),
+      passingScore: input.examPassingScores?.get(quest.id) ?? DEFAULT_PASSING_SCORE,
+      attempts,
+      completion,
+    }),
+    bestScore: scores.length > 0 ? Math.max(...scores) : (completion?.score ?? null),
+    submittedAttempts: submitted.length,
+  };
+}
 
 function kindOf(plan: DailyChallenge, chapter: Chapter): JourneyDayKind {
   if (plan.kind === 'summit') return 'summit';
@@ -53,13 +92,8 @@ function chapterOf(chapter: Chapter, days: readonly JourneyDay[], currentDay: Da
  * which one is today, what lies ahead. Facts come from storage only — a day
  * without completions has no XP, no date and no perfect status.
  */
-export function buildJourney({
-  plans,
-  chapters,
-  completions,
-  dayCompletions,
-  currentDay,
-}: JourneyInput): Journey {
+export function buildJourney(input: JourneyInput): Journey {
+  const { plans, chapters, completions, dayCompletions, currentDay } = input;
   const completedDays = findCompletedDays(plans, completions);
   const records = new Map(dayCompletions.map((record) => [record.day, record]));
   const byQuest = new Map(completions.map((completion) => [completion.questId, completion]));
@@ -95,6 +129,7 @@ export function buildJourney({
             done.every((completion) => completion.correctCount === completion.totalCount))
           : null,
         completedAt: completed ? (record?.completedAt ?? lastDone) : null,
+        exam: examOf(plan, input, byQuest),
       };
     });
 
@@ -104,6 +139,8 @@ export function buildJourney({
     totalDays: days.length,
     completedDays: completedCount,
     isComplete: completedCount === days.length,
+    // The last day is the Final Battle: finishing it is reaching the summit.
+    summitReached: days.at(-1)?.state === 'completed',
     chapters: chapters.map((chapter) => chapterOf(chapter, days, currentDay)),
     days,
   };

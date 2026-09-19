@@ -8,6 +8,7 @@ import { spacing } from '@/theme';
 import { clamp } from '@/utils/number';
 
 import { CelebrationOverlay } from './components/CelebrationOverlay';
+import { ChallengeComplete } from './components/ChallengeComplete';
 import { MiloGreeting } from './components/MiloGreeting';
 import { TodayHeader } from './components/TodayHeader';
 import { TodayJourneySection } from './components/TodayJourneySection';
@@ -36,6 +37,8 @@ export function TodayScreen() {
     );
   }
 
+  // The summit reached: the challenge is over — there is no Day 91 to show.
+  if (journey.data.challengeCompletion) return <ChallengeComplete journey={journey.data} />;
   return <TodayContent journey={journey.data} />;
 }
 

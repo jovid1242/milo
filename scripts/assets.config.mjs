@@ -224,6 +224,11 @@ export default {
         erase: [{ left: 1065, top: 951, width: 115, height: 8 }],
       },
     },
+    // The summit still ahead (Day 90's intro and the climb): the scene without
+    // its "Day 90 · You did it!" sign, which belongs to the victory.
+    'journey/journey-summit.png': {
+      'journey/journey-summit-peak.png': { left: 420, top: 0, width: 1020, height: 1024 },
+    },
   },
 
   // Findings from manual visual/aural review. Automatic checks add their own

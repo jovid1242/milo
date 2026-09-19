@@ -2,6 +2,7 @@ import { CHALLENGE } from '@/constants/challenge';
 import { trailCheckpoints } from '@/features/challenge/logic/calendar';
 import type { Tomorrow } from '@/features/challenge/logic/tomorrow';
 import type {
+  ChallengeCompletion,
   Chapter,
   DailyChallenge,
   DayCompletion,
@@ -26,6 +27,12 @@ export type JourneyStep = {
   progress: number;
   /** XP actually received; 0 until the quest is completed. */
   xpEarned: number;
+  /**
+   * An exam handed in: passed, or not yet (it can be taken again). A weekly
+   * exam is done either way; the Final Battle stays open until it is passed.
+   * `null` for every other step.
+   */
+  examResult: 'passed' | 'notPassed' | null;
 };
 
 /** Everything the Home screen shows, derived from persisted progress. */
@@ -56,6 +63,8 @@ export type TodayJourney = {
   daysToSummit: number;
   /** `null` on the last day. */
   tomorrow: Tomorrow | null;
+  /** The summit, once reached: there is no Day 91 — Home shows the finished journey. */
+  challengeCompletion: ChallengeCompletion | null;
 };
 
 export type TodayJourneyInput = {
@@ -67,6 +76,8 @@ export type TodayJourneyInput = {
   sessions: readonly QuestSession[];
   dayCompletion?: DayCompletion | null;
   tomorrow?: Tomorrow | null;
+  /** Today's exam once handed in: passed or not yet (see exams/use-cases). */
+  exam?: { questId: string; passed: boolean } | null;
 };
 
 export function buildTodayJourney({
@@ -77,6 +88,7 @@ export function buildTodayJourney({
   sessions,
   dayCompletion = null,
   tomorrow = null,
+  exam = null,
 }: TodayJourneyInput): TodayJourney {
   const completionById = new Map(completions.map((c) => [c.questId, c]));
   const sessionById = new Map(sessions.map((s) => [s.questId, s]));
@@ -84,15 +96,28 @@ export function buildTodayJourney({
 
   const steps = plan.quests.map((quest, index): JourneyStep => {
     const completion = completionById.get(quest.id);
+    const examResult =
+      exam?.questId === quest.id
+        ? exam.passed
+          ? ('passed' as const)
+          : ('notPassed' as const)
+        : null;
     if (completion) {
-      return { quest, status: 'completed', progress: 1, xpEarned: completion.xpEarned };
+      return {
+        quest,
+        status: 'completed',
+        progress: 1,
+        xpEarned: completion.xpEarned,
+        examResult,
+      };
     }
-    if (index !== currentIndex) return { quest, status: 'locked', progress: 0, xpEarned: 0 };
+    const open = { progress: 0, xpEarned: 0, examResult };
+    if (index !== currentIndex) return { quest, status: 'locked', ...open };
 
     const session = sessionById.get(quest.id);
     return session
-      ? { quest, status: 'inProgress', progress: session.progress, xpEarned: 0 }
-      : { quest, status: 'available', progress: 0, xpEarned: 0 };
+      ? { quest, status: 'inProgress', ...open, progress: session.progress }
+      : { quest, status: 'available', ...open };
   });
 
   const chapter = chapters.find((c) => plan.day >= c.startDay && plan.day <= c.endDay);
@@ -125,5 +150,6 @@ export function buildTodayJourney({
     completedDays: progress.completedDays.length,
     daysToSummit: CHALLENGE.totalDays - plan.day,
     tomorrow,
+    challengeCompletion: progress.challengeCompletion,
   };
 }

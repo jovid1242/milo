@@ -1,105 +1,179 @@
-import { Fragment } from 'react';
+import { useRouter } from 'expo-router';
+import { UserPlus, WifiOff } from 'lucide-react-native';
+import { useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 
-import { AssetImage } from '@/components/AssetImage';
 import { EmptyState } from '@/components/EmptyState';
 import { ErrorState } from '@/components/ErrorState';
-import { AppText, Divider, LoadingState, Screen } from '@/components/ui';
-import { effects } from '@/constants/assets';
-import { useProgressState } from '@/features/progress/queries';
-import { spacing } from '@/theme';
+import { AppText, Button, IconButton, LoadingState, Screen } from '@/components/ui';
+import { useOnline } from '@/hooks/use-online';
+import { triggerHaptic } from '@/services/haptics/haptics';
+import { colors, radius, spacing } from '@/theme';
 
-import { FriendRow } from './components/FriendRow';
-import { computeTeamStreak } from './logic/team-streak';
-import { useFriends } from './queries';
+import { InviteSheet } from './components/InviteSheet';
+import { MemberCard } from './components/MemberCard';
+import { TeamActivityList } from './components/TeamActivityList';
+import { TeamSummary } from './components/TeamSummary';
+import { useTeamMoments } from './hooks/use-team-moments';
+import type { MemberView } from './logic/team';
+import { useTeam, useTeamActivity } from './queries';
 
+/**
+ * Friends: a small team taking the same challenge. One question — how is
+ * today going for us? — then who is where, and a few recent moments.
+ */
 export function FriendsScreen() {
-  const friends = useFriends();
-  const progress = useProgressState();
+  const router = useRouter();
+  const team = useTeam();
+  const activity = useTeamActivity();
+  const [inviting, setInviting] = useState(false);
+  const online = useOnline();
+  const view = team.data ?? null;
+  const moments = useTeamMoments(view);
 
-  // `networkMode: 'online'` pauses this query while offline — that is the
-  // offline state the friends list will really have once it talks to a server.
-  if (friends.isPaused && !friends.data) {
+  if (team.isPending) {
     return (
-      <Screen>
-        <EmptyState
-          variant="noInternet"
-          title="You're offline"
-          description="Your friends' progress will sync as soon as you're back online."
-        />
-      </Screen>
-    );
-  }
-
-  if (friends.isPending || progress.isPending) {
-    return (
-      <Screen>
+      <Screen background="warm">
         <LoadingState label="Loading your team" />
       </Screen>
     );
   }
-
-  if (friends.isError || progress.isError) {
+  if (team.isError) {
     return (
-      <Screen>
-        <ErrorState
-          error={friends.error ?? progress.error}
-          onRetry={() => void friends.refetch()}
-        />
+      <Screen background="warm">
+        <ErrorState error={team.error} onRetry={() => void team.refetch()} />
       </Screen>
     );
   }
 
-  if (friends.data.length === 0) {
+  const invite = () => setInviting(true);
+  const sheet = <InviteSheet visible={inviting} onClose={() => setInviting(false)} />;
+
+  if (!view) {
     return (
-      <Screen>
+      <Screen background="warm" testID="friends-empty">
         <EmptyState
           variant="noFriendsYet"
-          title="No friends yet"
-          description="The challenge is better together. Invite your friends to climb with you."
+          title="Your journey is better together."
+          description="Invite friends to join your 90-day challenge."
+          action={{ label: 'Invite friend', onPress: invite }}
         />
+        {sheet}
       </Screen>
     );
   }
 
-  const teamStreak = computeTeamStreak(progress.data.streak, friends.data);
+  const openMember = (member: MemberView) => {
+    triggerHaptic('selection');
+    router.push({ pathname: '/member/[memberId]', params: { memberId: member.id } });
+  };
+  const alone = view.members.length === 1;
 
   return (
-    <Screen scroll>
+    <Screen scroll background="warm" testID="friends-screen">
       <View style={styles.content}>
-        <View style={styles.header}>
-          <AppText variant="overline" color="wood">
-            Team
-          </AppText>
-          <AppText variant="title1">Friends</AppText>
-          <View style={styles.teamStreak}>
-            <AssetImage asset={effects.streakFire} width={18} />
-            <AppText variant="label" color={teamStreak > 0 ? 'primary' : 'tertiary'}>
-              {teamStreak > 0 ? `Team streak · ${teamStreak} days` : 'No team streak yet'}
+        {online ? null : (
+          <View style={styles.offline} accessibilityRole="alert">
+            <WifiOff size={16} color={colors.text.secondary} />
+            <AppText variant="caption" color="secondary" style={styles.offlineText}>
+              {"You're offline. Friends' progress will update when you're back online."}
             </AppText>
           </View>
+        )}
+        <View style={styles.header}>
+          <View style={styles.headerText}>
+            <AppText variant="overline" color="wood">
+              Our team
+            </AppText>
+            <AppText variant="title1" accessibilityRole="header">
+              Friends
+            </AppText>
+          </View>
+          <IconButton
+            icon={UserPlus}
+            variant="soft"
+            accessibilityLabel="Invite friend"
+            onPress={invite}
+            testID="friends-invite"
+          />
         </View>
 
-        <View>
-          {friends.data.map((friend, index) => (
-            <Fragment key={friend.id}>
-              {index > 0 ? <Divider inset={60} /> : null}
-              <FriendRow friend={friend} />
-            </Fragment>
+        {alone ? (
+          // A team of one: no "team day" to report yet — just the way to fill it.
+          <View style={styles.alone} testID="team-alone">
+            <AppText variant="overline" color="wood">
+              {`Code ${view.team.inviteCode}`}
+            </AppText>
+            <AppText variant="title2">Your team is ready.</AppText>
+            <AppText variant="body" color="secondary">
+              Share your code so friends can climb with you. Your team streak starts on the first
+              day you all finish.
+            </AppText>
+            <Button
+              label="Invite friend"
+              icon={UserPlus}
+              onPress={invite}
+              style={styles.aloneCta}
+            />
+          </View>
+        ) : (
+          <TeamSummary view={view} celebrateKey={moments.completeKey} />
+        )}
+
+        <View style={styles.members}>
+          {view.members.map((member) => (
+            <MemberCard
+              key={member.id}
+              member={member}
+              view={view}
+              justJoined={moments.joinedIds.includes(member.id)}
+              onPress={openMember}
+            />
           ))}
         </View>
+
+        {activity.data && !alone ? (
+          <TeamActivityList activity={activity.data} members={view.members} />
+        ) : null}
+
+        {!alone ? (
+          <Button
+            label="Invite friend"
+            icon={UserPlus}
+            variant="ghost"
+            onPress={invite}
+            style={styles.inviteMore}
+          />
+        ) : null}
       </View>
+      {sheet}
     </Screen>
   );
 }
 
 const styles = StyleSheet.create({
-  content: { gap: spacing[6], paddingTop: spacing[4] },
-  header: { gap: spacing[1] },
-  teamStreak: {
+  content: { gap: spacing[6], paddingTop: spacing[4], paddingBottom: spacing[6] },
+  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  headerText: { gap: spacing[1] },
+  alone: {
+    gap: spacing[2],
+    padding: spacing[5],
+    borderRadius: radius.xl,
+    backgroundColor: colors.surface.base,
+    borderWidth: 1,
+    borderColor: colors.border.warm,
+  },
+  aloneCta: { marginTop: spacing[2] },
+  members: { gap: spacing[3] },
+  inviteMore: { alignSelf: 'center' },
+  offline: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: spacing[2],
-    marginTop: spacing[1],
+    paddingHorizontal: spacing[3],
+    paddingVertical: spacing[2],
+    borderRadius: radius.md,
+    backgroundColor: colors.surface.warm,
   },
+  offlineText: { flex: 1 },
 });

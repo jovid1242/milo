@@ -1,6 +1,7 @@
 import type { QueryClient } from '@tanstack/react-query';
 
 import { CHALLENGE } from '@/constants/challenge';
+import { FINAL_CHALLENGE } from '@/data/content/exams/final-challenge';
 import { queryKeys } from '@/data/query-keys';
 import type { Repositories } from '@/data/repositories/types';
 import { getStartDateForDay } from '@/features/challenge/logic/calendar';
@@ -12,10 +13,18 @@ import {
   syncAchievements,
 } from '@/features/achievements/use-cases';
 import {
+  loadExamRun,
+  saveExamAttempt,
+  startExamAttempt,
+  submitExam,
+} from '@/features/exams/use-cases';
+import { withExamAnswer, withPosition } from '@/features/exams/logic/exam';
+import { claimSummit } from '@/features/summit/use-cases';
+import {
+  claimDayCelebration,
   completeDay,
   completeQuest,
   loadProgressState,
-  type QuestOutcome,
 } from '@/features/progress/use-cases';
 import {
   INITIAL_GRAMMAR,
@@ -44,6 +53,7 @@ import {
   type VocabularyAction,
 } from '@/features/vocabulary/logic/vocabulary-session';
 import type {
+  ChallengeCompletion,
   ChoiceAnswer,
   DayCompletion,
   LearnedWord,
@@ -51,6 +61,11 @@ import type {
   QuestCompletion,
   QuestContent,
   QuestType,
+  Team,
+  TeamActivity,
+  TeamMember,
+  Exam,
+  ExamAttempt,
   XpEvent,
 } from '@/schemas';
 import { clamp } from '@/utils/number';
@@ -124,7 +139,11 @@ async function seedCompletedQuests(
     if (done.has(quest.id)) continue;
     words.push(...(await seededWords(ctx, quest, timestamp)));
     const correctCount = perfect ? 5 : 4;
-    const xpEarned = quest.xpReward + (perfect ? CHALLENGE.perfectScoreBonusXp : 0);
+    // An exam pays its pass reward only — no perfect bonus, like the real exam.
+    const xpEarned =
+      quest.type === 'weeklyExam'
+        ? quest.xpReward
+        : quest.xpReward + (perfect ? CHALLENGE.perfectScoreBonusXp : 0);
     completions.push({
       questId: quest.id,
       day: quest.day,
@@ -136,8 +155,34 @@ async function seedCompletedQuests(
       source: 'dev',
       completedAt: timestamp,
     });
-    xpEvents.push({ amount: xpEarned, reason: 'quest', refId: quest.id, createdAt: timestamp });
+    // A passed exam pays its reward once per exam — like the real exam flow.
+    const examId =
+      quest.type === 'finalBattle'
+        ? FINAL_CHALLENGE.id
+        : quest.type === 'weeklyExam'
+          ? `exam-week-${Math.ceil(quest.day / CHALLENGE.weeklyExamInterval)}`
+          : null;
+    xpEvents.push(
+      examId
+        ? { amount: xpEarned, reason: 'examPass', refId: examId, createdAt: timestamp }
+        : { amount: xpEarned, reason: 'quest', refId: quest.id, createdAt: timestamp },
+    );
   }
+
+  // A seeded Final Battle is a reached summit: the challenge record comes with it.
+  const final = completions.find((completion) => completion.questType === 'finalBattle');
+  const challenge: ChallengeCompletion | null = final
+    ? {
+        completedAt: timestamp,
+        finalAttemptId: `${FINAL_CHALLENGE.id}-seeded`,
+        correctCount: final.correctCount,
+        totalCount: final.totalCount,
+        score: final.score,
+        isPerfect: final.correctCount === final.totalCount,
+        xpEarned: final.xpEarned,
+        celebratedAt: celebrated ? timestamp : null,
+      }
+    : null;
 
   const [plans, recorded] = await Promise.all([
     ctx.repositories.challenge.getDailyChallenges(),
@@ -159,7 +204,7 @@ async function seedCompletedQuests(
     )
     .filter((record): record is DayCompletion => record !== null);
 
-  await devRepository(ctx).seedHistory(completions, xpEvents, days, words);
+  await devRepository(ctx).seedHistory(completions, xpEvents, days, words, challenge);
 }
 
 export async function setCurrentDay(ctx: DevContext, day: number): Promise<void> {
@@ -173,37 +218,81 @@ export async function shiftCurrentDay(ctx: DevContext, delta: number): Promise<v
   await setCurrentDay(ctx, state.currentDay + delta);
 }
 
+/** Finishes today's next quest; `false` when the day has none left. */
 export async function completeNextQuest(
   ctx: DevContext,
   { perfect = false }: { perfect?: boolean } = {},
-): Promise<QuestOutcome | null> {
+): Promise<boolean> {
   const state = await loadProgressState(ctx.repositories);
   const plan = await ctx.repositories.challenge.getDailyChallenge(state.currentDay);
   const done = new Set(state.todayCompletedQuestIds);
   const next = plan.quests.find((quest) => !done.has(quest.id));
-  if (!next) return null;
+  if (!next) return false;
 
-  const outcome = await completeQuest(ctx.repositories, {
-    questId: next.id,
-    correctCount: perfect ? 5 : 4,
-    totalCount: 5,
-    source: 'dev',
-  });
+  if (next.type === 'weeklyExam') {
+    await handInExam(ctx, next, perfect);
+  } else {
+    await completeQuest(ctx.repositories, {
+      questId: next.id,
+      correctCount: perfect ? 5 : 4,
+      totalCount: 5,
+      source: 'dev',
+    });
+  }
   invalidateAll(ctx);
-  return outcome;
+  return true;
 }
 
 export async function completeToday(
   ctx: DevContext,
   { perfect = false }: { perfect?: boolean } = {},
-): Promise<QuestOutcome | null> {
-  let last: QuestOutcome | null = null;
+): Promise<void> {
   for (let index = 0; index < 10; index++) {
-    const outcome = await completeNextQuest(ctx, { perfect });
-    if (!outcome) break;
-    last = outcome;
+    if (!(await completeNextQuest(ctx, { perfect }))) break;
   }
-  return last;
+}
+
+/**
+ * A weekly exam handed in like a real one: an attempt, its answers, the
+ * submission (reward, completion, day). Weeks whose exam is not written yet
+ * are recorded as passed, the way seeded history is.
+ */
+async function handInExam(ctx: DevContext, quest: Quest, perfect: boolean): Promise<void> {
+  const exam = await ctx.repositories.challenge.getQuestContent(quest.id);
+  if (exam?.type !== 'weeklyExam') {
+    await seedCompletedQuests(ctx, [quest], { perfect, celebrated: false });
+    return;
+  }
+  const attempt = answerExam(exam, await startExamAttempt(ctx.repositories, quest.id), {
+    wrong: perfect ? [] : [1, 8, 13],
+  });
+  await saveExamAttempt(ctx.repositories, attempt);
+  await submitExam(ctx.repositories, attempt.id);
+}
+
+/**
+ * Answers an open attempt in order: the first `upTo` questions, `wrong` ones
+ * with another option, `skip` ones left open; then stands on question `at`.
+ */
+function answerExam(
+  exam: Exam,
+  attempt: ExamAttempt,
+  {
+    upTo = exam.questions.length,
+    wrong = [],
+    skip = [],
+    at = 0,
+  }: { upTo?: number; wrong?: readonly number[]; skip?: readonly number[]; at?: number } = {},
+): ExamAttempt {
+  const now = new Date().toISOString();
+  const answered = exam.questions.slice(0, upTo).reduce((current, question, index) => {
+    if (skip.includes(index)) return current;
+    const option = wrong.includes(index)
+      ? question.options.find((item) => item.id !== question.correctOptionId)?.id
+      : question.correctOptionId;
+    return option ? withExamAnswer(current, question, option, now) : current;
+  }, attempt);
+  return withPosition(answered, at, exam, now);
 }
 
 export async function resetToday(ctx: DevContext): Promise<void> {
@@ -271,20 +360,20 @@ export async function resetAchievements(ctx: DevContext): Promise<void> {
 }
 
 /** Jumps to the next weekly exam day and passes it. */
-export async function simulateWeeklyExam(ctx: DevContext): Promise<QuestOutcome | null> {
+export async function simulateWeeklyExam(ctx: DevContext): Promise<void> {
   const state = await loadProgressState(ctx.repositories);
   const interval = CHALLENGE.weeklyExamInterval;
   // Last exam day of the challenge (day 90 is the summit, not an exam).
   const lastExamDay = Math.floor((CHALLENGE.totalDays - 1) / interval) * interval;
   const examDay = Math.min(Math.ceil(state.currentDay / interval) * interval, lastExamDay);
   await setCurrentDay(ctx, examDay);
-  return completeToday(ctx, { perfect: true });
+  await completeToday(ctx, { perfect: true });
 }
 
 /** Jumps to Day 90 and finishes the summit. */
-export async function simulateSummit(ctx: DevContext): Promise<QuestOutcome | null> {
+export async function simulateSummit(ctx: DevContext): Promise<void> {
   await setCurrentDay(ctx, CHALLENGE.totalDays);
-  return completeToday(ctx, { perfect: true });
+  await completeToday(ctx, { perfect: true });
 }
 
 /**
@@ -854,6 +943,251 @@ export async function finishDayTwice(ctx: DevContext): Promise<string> {
   ].join('\n');
 }
 
+const EXAM_DAY = 84;
+
+type ExamOpen = 'journey' | 'exam' | 'question' | 'review';
+
+/** Day 84's weekly exam in every state — reached through the real exam use cases. */
+export const EXAM_SCENARIOS = {
+  locked: { label: 'Locked · warm-up open', open: 'journey' },
+  available: { label: 'Available', open: 'journey' },
+  intro: { label: 'Intro', open: 'exam' },
+  question1: { label: 'Question 1/15', open: 'question' },
+  question8: { label: 'Question 8/15', open: 'question' },
+  unanswered: { label: 'Last question · 2 unanswered', open: 'question' },
+  resume: { label: 'Resume at 8/15', open: 'exam' },
+  result60: { label: 'Result 9/15 · 60%', open: 'exam' },
+  result67: { label: 'Result 10/15 · 67%', open: 'exam' },
+  result73: { label: 'Result 11/15 · 73%', open: 'exam' },
+  result80: { label: 'Result 12/15 · 80%', open: 'exam' },
+  result100: { label: 'Perfect 15/15', open: 'exam' },
+  review: { label: 'Mistake review', open: 'review' },
+  retake: { label: 'Retake · attempt 2', open: 'question' },
+  passed: { label: 'Already passed', open: 'exam' },
+} as const satisfies Record<string, { label: string; open: ExamOpen }>;
+
+export type ExamScenario = keyof typeof EXAM_SCENARIOS;
+
+/** Which questions a result scenario misses — spread over the three sections. */
+const EXAM_MISSES = {
+  result60: [1, 3, 6, 8, 11, 13],
+  result67: [1, 6, 8, 11, 13],
+  result73: [1, 6, 11, 13],
+  result80: [1, 8, 13],
+  result100: [],
+} as const;
+
+/** Day 84 (83 days walked); `warmUp` also finishes the day's quests before the exam. */
+async function prepareExamDay(ctx: DevContext, { warmUp }: { warmUp: boolean }) {
+  await rebuildProgress(ctx, { label: 'Day 84', day: EXAM_DAY, todayDone: warmUp ? 2 : 0 });
+  const plan = await ctx.repositories.challenge.getDailyChallenge(EXAM_DAY);
+  const quest = plan.quests.find((item) => item.type === 'weeklyExam');
+  const exam = quest ? await ctx.repositories.challenge.getQuestContent(quest.id) : null;
+  if (!quest || exam?.type !== 'weeklyExam') throw new Error('Day 84 has no weekly exam');
+  return { quest, exam };
+}
+
+/** Hands an attempt in; its day was lived before, so its celebration is not replayed. */
+async function submitSettled(ctx: DevContext, attempt: ExamAttempt) {
+  await saveExamAttempt(ctx.repositories, attempt);
+  await submitExam(ctx.repositories, attempt.id);
+  await claimDayCelebration(ctx.repositories, EXAM_DAY);
+  await settleAchievements(ctx);
+}
+
+/** Leaves the Day 84 exam in the chosen state; returns the quest to open and where. */
+export async function applyExamScenario(
+  ctx: DevContext,
+  scenario: ExamScenario,
+): Promise<{ questId: string; open: ExamOpen }> {
+  const { quest, exam } = await prepareExamDay(ctx, { warmUp: scenario !== 'locked' });
+  const start = () => startExamAttempt(ctx.repositories, quest.id);
+
+  switch (scenario) {
+    case 'locked':
+    case 'available':
+    case 'intro':
+      break;
+    case 'question1':
+      await start();
+      break;
+    case 'question8':
+    case 'resume':
+      await saveExamAttempt(
+        ctx.repositories,
+        answerExam(exam, await start(), { upTo: 7, wrong: [2], at: 7 }),
+      );
+      break;
+    case 'unanswered':
+      await saveExamAttempt(
+        ctx.repositories,
+        answerExam(exam, await start(), { skip: [4, 10], at: exam.questions.length - 1 }),
+      );
+      break;
+    case 'result60':
+    case 'result67':
+    case 'result73':
+    case 'result80':
+    case 'result100':
+      await submitSettled(ctx, answerExam(exam, await start(), { wrong: EXAM_MISSES[scenario] }));
+      break;
+    case 'review':
+    case 'retake':
+      await submitSettled(ctx, answerExam(exam, await start(), { wrong: EXAM_MISSES.result60 }));
+      if (scenario === 'retake') await start();
+      break;
+    case 'passed':
+      await submitSettled(ctx, answerExam(exam, await start(), { wrong: EXAM_MISSES.result80 }));
+      break;
+  }
+  invalidateAll(ctx);
+  return { questId: quest.id, open: EXAM_SCENARIOS[scenario].open };
+}
+
+/**
+ * The exam's idempotency, end to end: hands the same attempt in twice at once
+ * (a double tap), then once more (a reload). The reward must be paid once, the
+ * day recorded once, the streak stepped up by one.
+ */
+export async function submitExamTwice(ctx: DevContext): Promise<string> {
+  const { quest, exam } = await prepareExamDay(ctx, { warmUp: true });
+  const before = await loadProgressState(ctx.repositories);
+  const attempt = answerExam(exam, await startExamAttempt(ctx.repositories, quest.id), {
+    wrong: EXAM_MISSES.result80,
+  });
+  await saveExamAttempt(ctx.repositories, attempt);
+  const submissions = await Promise.all([
+    submitExam(ctx.repositories, attempt.id),
+    submitExam(ctx.repositories, attempt.id),
+  ]);
+  submissions.push(await submitExam(ctx.repositories, attempt.id));
+  const after = await loadProgressState(ctx.repositories);
+  const run = await loadExamRun(ctx.repositories, quest.id);
+  const records = (await ctx.repositories.progress.getDayCompletions()).filter(
+    (record) => record.day === EXAM_DAY,
+  );
+  invalidateAll(ctx);
+
+  return [
+    `Submissions: ${submissions.filter((item) => item.isFirstSubmission).length} of 3 were first`,
+    `Pass reward paid: ${submissions.filter((item) => item.rewardGranted).length}×`,
+    `XP: ${before.totalXp} → ${after.totalXp} (+${after.totalXp - before.totalXp})`,
+    `Attempts: ${run.attempts.length} · ${run.status}`,
+    `Day ${EXAM_DAY} records: ${records.length}`,
+    `Streak: ${before.streak} → ${after.streak}`,
+  ].join('\n');
+}
+
+type FinalOpen = 'journey' | 'exam' | 'question' | 'summit' | 'home';
+
+/**
+ * Day 90's Final Battle in every state, through the real exam use cases. The
+ * "ready" states stand on the last question, fully answered — tap Finish to
+ * go through the real submission, the resolve and the Summit Victory.
+ */
+export const FINAL_SCENARIOS = {
+  locked: { label: 'Day 90 locked', open: 'journey' },
+  available: { label: 'Day 90 available', open: 'journey' },
+  intro: { label: 'Summit intro', open: 'exam' },
+  question1: { label: 'Question 1/20', open: 'question' },
+  question20: { label: 'Question 20/20', open: 'question' },
+  resume: { label: 'Resume at 13/20', open: 'exam' },
+  unanswered: { label: 'Last question · 2 unanswered', open: 'question' },
+  result60: { label: 'Result 12/20 · 60%', open: 'exam' },
+  failed: { label: 'Failed result 13/20', open: 'exam' },
+  ready70: { label: '14/20 · 70% → submit', open: 'question' },
+  ready85: { label: '17/20 · 85% → submit', open: 'question' },
+  ready100: { label: '20/20 → submit', open: 'question' },
+  passed: { label: 'Passed (reopened)', open: 'exam' },
+  perfect: { label: 'Perfect · victory', open: 'summit' },
+  completion: { label: 'Final completion · victory', open: 'summit' },
+  reopened: { label: '90/90 reopened', open: 'home' },
+} as const satisfies Record<string, { label: string; open: FinalOpen }>;
+
+export type FinalScenario = keyof typeof FINAL_SCENARIOS;
+
+/** Which questions a Final Battle scenario misses — across all three sections. */
+const FINAL_MISSES = {
+  eight: [1, 4, 7, 9, 12, 14, 16, 18],
+  seven: [1, 4, 7, 9, 12, 16, 18],
+  six: [1, 4, 9, 12, 16, 18],
+  three: [4, 12, 18],
+} as const;
+
+/** Leaves Day 90 in the chosen state; returns the quest to open and where. */
+export async function applyFinalScenario(
+  ctx: DevContext,
+  scenario: FinalScenario,
+): Promise<{ questId: string; open: FinalOpen }> {
+  const plan = await ctx.repositories.challenge.getDailyChallenge(CHALLENGE.totalDays);
+  const quest = plan.quests.find((item) => item.type === 'finalBattle');
+  const exam = quest ? await ctx.repositories.challenge.getQuestContent(quest.id) : null;
+  if (!quest || exam?.type !== 'finalBattle') throw new Error('Day 90 has no Final Battle');
+  const done = { questId: quest.id, open: FINAL_SCENARIOS[scenario].open };
+
+  if (scenario === 'locked') {
+    // Day 89 under way: the summit is still tomorrow.
+    await rebuildProgress(ctx, { label: 'Day 89', day: 89, todayDone: 2 });
+    return done;
+  }
+  await rebuildProgress(ctx, { label: 'Day 90', day: CHALLENGE.totalDays, todayDone: 0 });
+  const start = () => startExamAttempt(ctx.repositories, quest.id);
+  const last = exam.questions.length - 1;
+  const save = async (attempt: ExamAttempt) => saveExamAttempt(ctx.repositories, attempt);
+  const submit = async (wrong: readonly number[], { claim }: { claim: boolean }) => {
+    const attempt = answerExam(exam, await start(), { wrong });
+    await save(attempt);
+    await submitExam(ctx.repositories, attempt.id);
+    // Unclaimed, the victory plays next — with the badges it unlocked, as in the real flow.
+    if (claim) await claimSummit(ctx.repositories);
+  };
+
+  switch (scenario) {
+    case 'available':
+    case 'intro':
+      break;
+    case 'question1':
+      await start();
+      break;
+    case 'question20':
+      await save(answerExam(exam, await start(), { upTo: last, at: last }));
+      break;
+    case 'resume':
+      await save(answerExam(exam, await start(), { upTo: 12, wrong: [3], at: 12 }));
+      break;
+    case 'unanswered':
+      await save(answerExam(exam, await start(), { skip: [6, 15], at: last }));
+      break;
+    case 'result60':
+      await submit(FINAL_MISSES.eight, { claim: false });
+      break;
+    case 'failed':
+      await submit(FINAL_MISSES.seven, { claim: false });
+      break;
+    case 'ready70':
+      await save(answerExam(exam, await start(), { wrong: FINAL_MISSES.six, at: last }));
+      break;
+    case 'ready85':
+      await save(answerExam(exam, await start(), { wrong: FINAL_MISSES.three, at: last }));
+      break;
+    case 'ready100':
+      await save(answerExam(exam, await start(), { at: last }));
+      break;
+    case 'passed':
+    case 'reopened':
+      await submit(FINAL_MISSES.three, { claim: true });
+      break;
+    case 'perfect':
+      await submit([], { claim: false });
+      break;
+    case 'completion':
+      await submit(FINAL_MISSES.three, { claim: false });
+      break;
+  }
+  invalidateAll(ctx);
+  return done;
+}
+
 /**
  * Badge states, reached through real progress: the history before is seeded
  * (its badges settled silently), the step that matters is played through the
@@ -1009,12 +1343,298 @@ export async function resetAllLocalData(ctx: DevContext): Promise<void> {
   await ctx.queryClient.invalidateQueries();
 }
 
-export async function clearFriends(ctx: DevContext): Promise<void> {
-  await devRepository(ctx).clearFriends();
+/** Two neutral demo teammates: a local stand-in for what a server would send. */
+const DEMO_FRIENDS = [
+  { id: 'friend-alex', displayName: 'Alex', xpPerDay: 72, badges: 7 },
+  { id: 'friend-mia', displayName: 'Mia', xpPerDay: 68, badges: 6 },
+] as const;
+
+const TEAM_DAY = 89;
+
+type TeamScenarioSpec = {
+  label: string;
+  /** `false`: no team at all. */
+  team: boolean;
+  /** How many demo friends are in it (0 = only you). */
+  friends: 0 | 1 | 2;
+  /** Your quests done today (4 = your day is finished). */
+  youToday: number;
+  /** Each friend's quests today. */
+  friendsToday: readonly number[];
+  /** Days in a row, before today, that everyone finished. */
+  teamStreak: number;
+  /** Mia shares only what the team challenge needs. */
+  missingStats?: boolean;
+  /** Play your last quest through the real use case (badges, Day Complete). */
+  finishYourDay?: boolean;
+};
+
+export const TEAM_SCENARIOS = {
+  noTeam: {
+    label: 'No team',
+    team: false,
+    friends: 0,
+    youToday: 2,
+    friendsToday: [],
+    teamStreak: 0,
+  },
+  oneMember: {
+    label: '1 member',
+    team: true,
+    friends: 0,
+    youToday: 2,
+    friendsToday: [],
+    teamStreak: 0,
+  },
+  twoMembers: {
+    label: '2 members',
+    team: true,
+    friends: 1,
+    youToday: 2,
+    friendsToday: [4],
+    teamStreak: 12,
+  },
+  threeMembers: {
+    label: '3 members',
+    team: true,
+    friends: 2,
+    youToday: 2,
+    friendsToday: [4, 1],
+    teamStreak: 12,
+  },
+  today0: {
+    label: '0/3 today',
+    team: true,
+    friends: 2,
+    youToday: 0,
+    friendsToday: [0, 0],
+    teamStreak: 12,
+  },
+  today1: {
+    label: '1/3 today',
+    team: true,
+    friends: 2,
+    youToday: 3,
+    friendsToday: [4, 1],
+    teamStreak: 12,
+  },
+  today2: {
+    label: '2/3 today',
+    team: true,
+    friends: 2,
+    youToday: 3,
+    friendsToday: [4, 4],
+    teamStreak: 12,
+  },
+  today3: {
+    label: '3/3 today',
+    team: true,
+    friends: 2,
+    youToday: 4,
+    friendsToday: [4, 4],
+    teamStreak: 12,
+  },
+  streak0: {
+    label: 'Team streak 0',
+    team: true,
+    friends: 2,
+    youToday: 1,
+    friendsToday: [2, 0],
+    teamStreak: 0,
+  },
+  streak6: {
+    label: 'Team streak 6',
+    team: true,
+    friends: 2,
+    youToday: 3,
+    friendsToday: [4, 4],
+    teamStreak: 6,
+  },
+  streak7: {
+    label: 'Team streak 7',
+    team: true,
+    friends: 2,
+    youToday: 1,
+    friendsToday: [1, 2],
+    teamStreak: 7,
+  },
+  streakUnlock: {
+    label: 'Team Streak unlock',
+    team: true,
+    friends: 2,
+    youToday: 3,
+    friendsToday: [4, 4],
+    teamStreak: 6,
+    finishYourDay: true,
+  },
+  missingStats: {
+    label: 'Missing stats',
+    team: true,
+    friends: 2,
+    youToday: 2,
+    friendsToday: [3, 0],
+    teamStreak: 12,
+    missingStats: true,
+  },
+} as const satisfies Record<string, TeamScenarioSpec>;
+
+export type TeamScenario = keyof typeof TEAM_SCENARIOS;
+
+const minutesAgo = (minutes: number) => new Date(Date.now() - minutes * 60_000).toISOString();
+
+function demoTeam(): Team {
+  return {
+    id: 'team-demo',
+    name: 'Our team',
+    inviteCode: 'MILO-7K2P',
+    createdAt: minutesAgo(60 * 24 * 30),
+  };
+}
+
+/**
+ * A demo friend on Day 89. They share their whole history (every day before
+ * today), and joined the team `teamStreak` days ago — so the team streak is
+ * exactly that long, and no older run can unlock the Team Streak badge early.
+ */
+function demoFriend(
+  index: number,
+  spec: Pick<TeamScenarioSpec, 'teamStreak' | 'missingStats'>,
+  todayQuests: number,
+  questCount: number,
+): TeamMember {
+  const friend = DEMO_FRIENDS[index] ?? DEMO_FRIENDS[0];
+  const completedDays = Array.from({ length: TEAM_DAY - 1 }, (_, day) => day + 1);
+  if (todayQuests >= questCount) completedDays.push(TEAM_DAY);
+  const shares = !(spec.missingStats && index === 1);
+  return {
+    id: friend.id,
+    displayName: friend.displayName,
+    avatarUrl: null,
+    joinedDay: TEAM_DAY - spec.teamStreak,
+    completedDays,
+    today: shares ? { day: TEAM_DAY, questsDone: Math.min(todayQuests, questCount) } : null,
+    totalXp: shares ? completedDays.length * friend.xpPerDay : null,
+    achievementsUnlocked: shares ? friend.badges : null,
+    lastActivityAt: shares ? minutesAgo(25 + index * 70) : null,
+  };
+}
+
+function demoActivity(friends: readonly TeamMember[]): TeamActivity[] {
+  const [alex, mia] = friends;
+  const events: TeamActivity[] = [];
+  if (alex) {
+    events.push(
+      {
+        id: 'act-alex-day',
+        memberId: alex.id,
+        type: 'dayCompleted',
+        metadata: { day: TEAM_DAY - 1 },
+        createdAt: minutesAgo(60 * 20),
+      },
+      {
+        id: 'act-alex-badge',
+        memberId: alex.id,
+        type: 'achievementUnlocked',
+        metadata: { achievementId: 'perfectQuiz' },
+        createdAt: minutesAgo(60 * 26),
+      },
+    );
+  }
+  if (mia) {
+    events.push({
+      id: 'act-mia-streak',
+      memberId: mia.id,
+      type: 'streakMilestone',
+      metadata: { days: 50 },
+      createdAt: minutesAgo(60 * 3),
+    });
+  }
+  return events;
+}
+
+/** The team on Day 89, rebuilt from scratch through the same repositories the app uses. */
+export async function applyTeamScenario(ctx: DevContext, scenario: TeamScenario): Promise<void> {
+  const spec: TeamScenarioSpec = TEAM_SCENARIOS[scenario];
+  await freshStart(ctx, TEAM_DAY);
+  await seedDaysBefore(ctx, TEAM_DAY);
+  const plan = await ctx.repositories.challenge.getDailyChallenge(TEAM_DAY);
+  const questCount = plan.quests.length;
+  await seedCompletedQuests(ctx, plan.quests.slice(0, Math.min(spec.youToday, questCount)), {
+    perfect: false,
+  });
+
+  if (!spec.team) {
+    await devRepository(ctx).replaceTeam(null, [], []);
+  } else {
+    const friends = Array.from({ length: spec.friends }, (_, index) =>
+      demoFriend(index, spec, spec.friendsToday[index] ?? 0, questCount),
+    );
+    await devRepository(ctx).replaceTeam(demoTeam(), friends, demoActivity(friends));
+  }
+  await settleAchievements(ctx);
+
+  if (spec.finishYourDay) {
+    const done = new Set((await ctx.repositories.progress.getCompletions()).map((c) => c.questId));
+    for (const quest of plan.quests.filter((item) => !done.has(item.id))) {
+      await completeQuest(ctx.repositories, {
+        questId: quest.id,
+        correctCount: 5,
+        totalCount: 6,
+        source: 'dev',
+      });
+    }
+  }
   invalidateAll(ctx);
 }
 
-export async function restoreFriends(ctx: DevContext): Promise<void> {
-  await devRepository(ctx).restoreFriends();
+/** A friend joins (the demo of what a server would push): Mia, or Alex if the team is empty. */
+export async function simulateFriendJoined(ctx: DevContext): Promise<string> {
+  const team = await ctx.repositories.friends.getMyTeam();
+  if (!team) throw new Error('Create a team first (e.g. "1 member").');
+  const members = await ctx.repositories.friends.getTeamMembers();
+  const next = DEMO_FRIENDS.findIndex((friend) => !members.some((m) => m.id === friend.id));
+  if (next < 0) throw new Error('Both demo friends are already in the team.');
+  const state = await loadProgressState(ctx.repositories);
+  const plan = await ctx.repositories.challenge.getDailyChallenge(state.currentDay);
+  const friend = DEMO_FRIENDS[next] ?? DEMO_FRIENDS[0];
+  const member: TeamMember = {
+    id: friend.id,
+    displayName: friend.displayName,
+    avatarUrl: null,
+    // Joined today: the days before are not theirs to finish.
+    joinedDay: state.currentDay,
+    completedDays: [],
+    today: { day: state.currentDay, questsDone: Math.min(1, plan.quests.length) },
+    totalXp: 20,
+    achievementsUnlocked: 0,
+    lastActivityAt: new Date().toISOString(),
+  };
+  await devRepository(ctx).addTeamMember(member, [
+    {
+      id: `act-join-${friend.id}-${Date.now()}`,
+      memberId: friend.id,
+      type: 'memberJoined',
+      metadata: {},
+      createdAt: new Date().toISOString(),
+    },
+  ]);
+  await settleAchievements(ctx);
+  invalidateAll(ctx);
+  return friend.displayName;
+}
+
+/** Finishes your remaining quests today through the real completion use case. */
+export async function finishMyDay(ctx: DevContext): Promise<void> {
+  const state = await loadProgressState(ctx.repositories);
+  const plan = await ctx.repositories.challenge.getDailyChallenge(state.currentDay);
+  const done = new Set(state.todayCompletedQuestIds);
+  for (const quest of plan.quests.filter((item) => !done.has(item.id))) {
+    await completeQuest(ctx.repositories, {
+      questId: quest.id,
+      correctCount: 5,
+      totalCount: 6,
+      source: 'dev',
+    });
+  }
   invalidateAll(ctx);
 }

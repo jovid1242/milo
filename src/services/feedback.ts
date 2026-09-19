@@ -24,6 +24,7 @@ export type FeedbackEvent =
   | 'levelUp'
   | 'achievementUnlock'
   | 'weeklyExamStart'
+  | 'examSubmit'
   | 'weeklyExamPass'
   | 'finalBattle'
   | 'summitVictory'
@@ -45,7 +46,10 @@ const FEEDBACK: Record<FeedbackEvent, { sound?: SoundName; haptic?: HapticPatter
   levelUp: { sound: 'levelUp', haptic: 'achievementUnlock' },
   achievementUnlock: { sound: 'achievementUnlock', haptic: 'achievementUnlock' },
   weeklyExamStart: { sound: 'weeklyExamStart', haptic: 'press' },
-  weeklyExamPass: { sound: 'weeklyExamPass', haptic: 'dayComplete' },
+  // Felt, not heard: the result that follows has the sound (or, if not passed yet, silence).
+  examSubmit: { haptic: 'submit' },
+  // A pass is a success; a perfect exam plays `perfect` instead, a step stronger.
+  weeklyExamPass: { sound: 'weeklyExamPass', haptic: 'questComplete' },
   finalBattle: { sound: 'finalBattle', haptic: 'press' },
   summitVictory: { sound: 'summitVictory', haptic: 'finalVictory' },
   friendJoined: { sound: 'friendJoined', haptic: 'selection' },

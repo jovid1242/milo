@@ -96,7 +96,8 @@ describe('buildJourney', () => {
     expect(kinds('weeklyExam')).toEqual([7, 14, 21, 28, 35, 42, 49, 56, 63, 70, 77, 84]);
     expect(kinds('chapterEnd')).toEqual([10, 30, 60, 89]);
     expect(kinds('summit')).toEqual([90]);
-    expect(dayOf(journey, 90).questCount).toBe(2);
+    // The summit is one quest: the Final Battle.
+    expect(dayOf(journey, 90).questCount).toBe(1);
   });
 
   it('keeps Day 90 locked on Day 89, and opens it on Day 90', () => {

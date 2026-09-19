@@ -159,16 +159,66 @@ summit (top). It adds no progress of its own:
 - The map opens on today (or where the user left it this session), follows a new day, and a
   node opens the day's details; today's CTA leads to Home — the map never starts gameplay.
 
+## Achievements
+
+`src/features/achievements`: the 12 badges (`data/content/achievements.ts`), each with one rule
+(`schemas/achievement.ts`) — First Day (1 completed day), 3/7/14/30/50-day streaks (days in a row),
+90 Days (all 90), 100/500 words (unique word ids in `learned_words`, migration v5), Perfect Quiz
+(a scored quest without a mistake), Perfect Week (7 perfect days in a row), Team Streak.
+
+- `buildAchievementFacts` derives what the rules need from stored progress; `evaluateAchievements`
+  turns facts + unlocks into `locked` (with real progress) / `unlocked` / `notAvailable`.
+- `syncAchievements` runs after every quest completion (after the day is recorded): the
+  repository unlocks atomically, XP is paid once, the result is the "newly unlocked" event.
+  A persisted unlock never locks again.
+- Celebrations: unlocks are stored with `celebrated_at = null`; `AchievementCelebrationHost`
+  shows them only on the tabs (never over a quest, a result or Day Complete), one card for
+  everything unlocked together ("+4 more achievements"), and claims them as it shows them.
+- `/achievements` (from Profile → "See all"): the collection by category, badge details in a sheet.
+
+## Friends (team challenge)
+
+`src/features/friends`: a small team (2–5 people) taking the same challenge — not a social network.
+
+- Models (`schemas/team.ts`): `Team` (name, invite code), `TeamMember` (what a teammate shares:
+  their finished days always; today's quests, XP, badges, last activity may be `null`),
+  `TeamActivity` (structured events — the UI writes the words), `TeamInvite`, `JoinTeamResult`.
+- `FriendsRepository` is the future API contract: `getMyTeam`, `getTeamMembers`,
+  `getMemberDetails`, `getTeamActivity`, `createInvite`, `joinTeam`. `LocalFriendsRepository`
+  (SQLite, migration v6) serves it today; the user's own data stays local and is merged in by
+  `loadTeamView`. An `ApiFriendsRepository` can replace it without UI changes.
+- Team streak (`logic/team.ts`): a day counts when the team had at least two members that day
+  and every one of them finished it; the streak is those days in a row. It feeds the Team Streak
+  badge (7 in a row) through the achievement engine.
+- Invite is a local demo: the code is real and stable, copy/share work, but `joinable: false` —
+  joining from another phone needs a server, and the sheet says so. Member statuses ("Done",
+  "Almost there"…) are derived, never stored; missing stats are hidden, never shown as 0.
+
+## Profile & Settings
+
+- Profile (`features/profile`) is a projection: `useProfile` selects from the queries other screens
+  already use (progress, achievements, team, user) through the pure `buildProfileView` — streak,
+  total XP, days, unique words, the journey, the latest unlocked badges, the team in one line.
+- Settings show only settings that work: sound effects and haptics (`stores/settings-store.ts`,
+  persisted, every field validated on load by `parseSettings` — a corrupted value falls back to
+  its default), the system Reduce Motion state (the app follows it; no duplicate toggle), the
+  display name, the challenge start date, About with the version from `app.json`. The developer
+  group (dev tools, reset with confirmation) exists only in `__DEV__` builds.
+- `SoundManager.play` and `triggerHaptic` read the preferences centrally — no screen checks them.
+
 ## Development tools
 
 Profile → Developer tools (visible only in `__DEV__`): ready-made Home states (Day 12 at 0–4 of 4,
 streak 0 / 12, Day 1 / 30 / 60 / 89 / 90, a quest in progress), the Journey map on every chapter
 boundary (Day 1 / 5 / 10 / 11 / 30 / 31 / 60 / 61 / 89, Day 89 completed, Day 90 available, 90/90,
-missed days), every state of the Day 89 Vocabulary, Grammar, Reading and Review quests (intro, questions, right/wrong answers, results,
+missed days), achievement states (0/12, First Day / 3-day / 7-day unlocks, 30-day progress,
+99/100 and 499/500 words, 100/500 word unlocks, Perfect Quiz, Perfect Week, multiple unlocks, reload,
+Team Streak), every state of the Day 89 Vocabulary, Grammar, Reading and Review quests (intro, questions, right/wrong answers, results,
 resume, completed), Day 89 around its end (Home 3/4 and 4/4, Day Complete first time / reopened,
 perfect and non-perfect day, "Finish day ×2" — two completions racing on the real database, with a
-report), change the current day, complete or reset quests, set the streak, add XP, toggle
-achievements, simulate a weekly exam or Day 90, empty or restore friends, simulate offline, play
+report), change the current day, complete or reset quests, set the streak, add XP, simulate a weekly exam or Day 90, team states on Day 89 (no team, 1–3 members, 0–3 of 3 done
+today, team streak 0 / 6 / 7, Team Streak unlock, missing stats, a friend joining, finishing your
+day), simulate offline, play
 every feedback event and haptic pattern, reset local data.
 
 ## Conventions

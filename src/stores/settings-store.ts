@@ -3,7 +3,7 @@ import { create } from 'zustand';
 import { createJSONStorage, persist } from 'zustand/middleware';
 
 import { STORAGE } from '@/constants/challenge';
-import { DEFAULT_SETTINGS, SettingsSchema, type Settings } from '@/schemas';
+import { DEFAULT_SETTINGS, parseSettings, type Settings } from '@/schemas';
 
 type SettingsStore = Settings & {
   hasHydrated: boolean;
@@ -30,11 +30,10 @@ export const useSettingsStore = create<SettingsStore>()(
       version: 1,
       storage: createJSONStorage(() => AsyncStorage),
       partialize: ({ soundEnabled, hapticsEnabled }) => ({ soundEnabled, hapticsEnabled }),
-      // Persisted values are untrusted input: validate, fall back to defaults.
-      merge: (persisted, current) => {
-        const parsed = SettingsSchema.partial().safeParse(persisted);
-        return { ...current, ...(parsed.success ? parsed.data : {}) };
-      },
+      // An older stored version keeps whatever of it is still valid.
+      migrate: (persisted) => parseSettings(persisted),
+      // Persisted values are untrusted input: every field is validated, bad ones default.
+      merge: (persisted, current) => ({ ...current, ...parseSettings(persisted) }),
       onRehydrateStorage: () => () => {
         useSettingsStore.setState({ hasHydrated: true });
       },

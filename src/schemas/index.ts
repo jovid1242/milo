@@ -1,7 +1,7 @@
 export * from './achievement';
 export * from './chapter';
 export * from './common';
-export * from './friend';
+export * from './exam';
 export * from './grammar';
 export * from './journey';
 export * from './lesson';
@@ -12,5 +12,6 @@ export * from './quiz';
 export * from './reading';
 export * from './review';
 export * from './settings';
+export * from './team';
 export * from './user';
 export * from './vocabulary';

@@ -1,5 +1,5 @@
-import { useRouter } from 'expo-router';
-import { useState } from 'react';
+import { useFocusEffect, useRouter } from 'expo-router';
+import { useCallback, useState } from 'react';
 
 import { ErrorState } from '@/components/ErrorState';
 import { LoadingState, Screen } from '@/components/ui';
@@ -15,6 +15,9 @@ export function JourneyScreen() {
   const router = useRouter();
   const query = useJourney();
   const [selectedDay, setSelectedDay] = useState<number | null>(null);
+  // Leaving the map (a quest, a summary, another tab) closes the day sheet: coming
+  // back shows the map, and the same day can be opened again right away.
+  useFocusEffect(useCallback(() => () => setSelectedDay(null), []));
 
   if (query.isPending) {
     return (
@@ -59,6 +62,14 @@ export function JourneyScreen() {
         onOpenTodaySummary={() => {
           setSelectedDay(null);
           router.push({ pathname: '/day-complete/[day]', params: { day: String(today.day) } });
+        }}
+        onOpenExam={(questId) => {
+          setSelectedDay(null);
+          router.push({ pathname: '/quest/[questId]', params: { questId } });
+        }}
+        onOpenSummit={() => {
+          setSelectedDay(null);
+          router.push({ pathname: '/summit', params: { replay: '1' } });
         }}
       />
     </Screen>

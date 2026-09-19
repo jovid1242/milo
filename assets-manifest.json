@@ -175,18 +175,18 @@
     }
   },
   "totals": {
-    "files": 82,
-    "originalBytes": 112148181,
-    "optimizedBytes": 12610254,
-    "savedBytes": 99537927,
-    "reductionPercent": 88.8,
+    "files": 83,
+    "originalBytes": 115329303,
+    "optimizedBytes": 13030126,
+    "savedBytes": 102299177,
+    "reductionPercent": 88.7,
     "byKind": {
       "image": {
-        "files": 61,
-        "originalBytes": 111415233,
-        "optimizedBytes": 12294202,
-        "savedBytes": 99121031,
-        "reductionPercent": 89
+        "files": 62,
+        "originalBytes": 114596355,
+        "optimizedBytes": 12714074,
+        "savedBytes": 101882281,
+        "reductionPercent": 88.9
       },
       "svg": {
         "files": 5,
@@ -215,27 +215,27 @@
     "passed": true,
     "checks": {
       "outputFilesExist": {
-        "passed": 82,
+        "passed": 83,
         "failed": 0
       },
       "manifestMatchesFiles": {
-        "passed": 82,
+        "passed": 83,
         "failed": 0
       },
       "imagesDecode": {
-        "passed": 61,
+        "passed": 62,
         "failed": 0
       },
       "dimensionsValid": {
-        "passed": 66,
+        "passed": 67,
         "failed": 0
       },
       "alphaPreserved": {
-        "passed": 55,
+        "passed": 56,
         "failed": 0
       },
       "qualityGate": {
-        "passed": 66,
+        "passed": 67,
         "failed": 0
       },
       "svgValid": {
@@ -251,11 +251,11 @@
         "failed": 0
       },
       "filenames": {
-        "passed": 82,
+        "passed": 83,
         "failed": 0
       },
       "sourcesAccountedFor": {
-        "passed": 82,
+        "passed": 83,
         "failed": 0
       }
     },
@@ -4343,6 +4343,125 @@
       },
       "pipeline": {
         "settingsHash": "0daf50b64b048c78"
+      }
+    },
+    "journey-summit-peak": {
+      "file": "assets/journey/journey-summit-peak.webp",
+      "format": "webp",
+      "width": 1020,
+      "height": 1024,
+      "size": 419872,
+      "hasAlpha": true,
+      "status": "NEEDS_ALPHA_REVIEW",
+      "flags": [
+        "NEEDS_ALPHA_REVIEW"
+      ],
+      "notes": [
+        {
+          "flag": "NEEDS_ALPHA_REVIEW",
+          "text": "Полная сцена, а не вырезка: нет ни одного полностью прозрачного пикселя, края растушёваны полупрозрачностью (средняя alpha по краю 145.9/255). Alpha сохранена бит-в-бит."
+        }
+      ],
+      "kind": "image",
+      "transparency": "feathered",
+      "sha256": "9040c4405fb4aa15ebc0ded0611404be4bd80936e1f14e8c9a635db87ab5bbb4",
+      "reductionPercent": 86.8,
+      "renamed": false,
+      "original": {
+        "file": "assets-original/journey/journey-summit-peak.png",
+        "format": "png",
+        "width": 1020,
+        "height": 1024,
+        "size": 3181122,
+        "sha256": "40207b3ec69b124c80b761436fab2ae7a0145951d579708feb3fdb773fdbebae"
+      },
+      "image": {
+        "profile": "scene",
+        "profileReason": "content-width illustration: 400pt @3x",
+        "resized": false,
+        "maxCrispSizePt": {
+          "width": 340,
+          "height": 341
+        },
+        "encoding": {
+          "codec": "webp",
+          "quality": 90,
+          "alphaQuality": 100,
+          "effort": 6,
+          "smartSubsample": true
+        },
+        "quality": {
+          "ssim": 0.99045,
+          "ssimP1": 0.97609,
+          "ssimChroma": 0.98485,
+          "psnr": 43.78,
+          "alphaMaxError": 0,
+          "alphaMeanError": 0
+        },
+        "decision": "webp q90 is 77% smaller than png lossless (oxipng)",
+        "candidates": [
+          {
+            "label": "webp q90",
+            "bytes": 419872,
+            "pass": true,
+            "ssim": 0.99045,
+            "ssimP1": 0.97609,
+            "ssimChroma": 0.98485,
+            "alphaMaxError": 0
+          },
+          {
+            "label": "webp q85",
+            "bytes": 370504,
+            "pass": false,
+            "ssim": 0.98606,
+            "ssimP1": 0.96807,
+            "ssimChroma": 0.97917,
+            "alphaMaxError": 0
+          },
+          {
+            "label": "png8 (pngquant + oxipng)",
+            "bytes": 420986,
+            "pass": false,
+            "ssim": 0.9316,
+            "ssimP1": 0.67606,
+            "ssimChroma": 0.90846,
+            "alphaMaxError": 67
+          },
+          {
+            "label": "png lossless (oxipng)",
+            "bytes": 1830464,
+            "pass": true,
+            "ssim": 1,
+            "ssimP1": 1,
+            "ssimChroma": 1,
+            "alphaMaxError": 0
+          }
+        ],
+        "source": {
+          "background": null,
+          "alpha": {
+            "transparentPct": 0,
+            "opaquePct": 0,
+            "softPct": 19.4,
+            "minAlpha": 10,
+            "ringMeanAlpha": 145.9,
+            "ringOpaquePct": 0
+          },
+          "contentBox": {
+            "x": 0,
+            "y": 0,
+            "width": 1020,
+            "height": 1024
+          },
+          "metadata": {
+            "icc": false,
+            "exif": false,
+            "xmp": false
+          }
+        }
+      },
+      "pipeline": {
+        "settingsHash": "107322c5a5e2c038"
       }
     },
     "journey-summit": {

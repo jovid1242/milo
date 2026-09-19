@@ -71,6 +71,25 @@ export const DayCompletionSchema = z.object({
 export type DayCompletion = z.infer<typeof DayCompletionSchema>;
 
 /**
+ * The summit: the challenge finished. Written once — by the Final Battle's
+ * first pass, in the same transaction as Day 90 — and its celebration plays
+ * once, ever.
+ */
+export const ChallengeCompletionSchema = z.object({
+  completedAt: TimestampSchema,
+  /** The attempt that passed the Final Battle. */
+  finalAttemptId: IdSchema,
+  correctCount: z.number().int().nonnegative(),
+  totalCount: z.number().int().positive(),
+  score: ScoreSchema,
+  isPerfect: z.boolean(),
+  /** The Final Battle's reward, paid with it. */
+  xpEarned: z.number().int().nonnegative(),
+  celebratedAt: TimestampSchema.nullable(),
+});
+export type ChallengeCompletion = z.infer<typeof ChallengeCompletionSchema>;
+
+/**
  * A vocabulary word the user has learned. One row per word and quest: the
  * same word met again in another lesson is still one word (counted distinct).
  */
@@ -81,7 +100,8 @@ export const LearnedWordSchema = z.object({
 });
 export type LearnedWord = z.infer<typeof LearnedWordSchema>;
 
-export const XpEventReasonSchema = z.enum(['quest', 'achievement', 'dev']);
+/** `examPass`: an exam's reward (a weekly exam, the Final Battle), paid once — on its first pass. */
+export const XpEventReasonSchema = z.enum(['quest', 'achievement', 'examPass', 'dev']);
 export type XpEventReason = z.infer<typeof XpEventReasonSchema>;
 
 export const XpEventSchema = z.object({
@@ -113,15 +133,7 @@ export const ProgressStateSchema = z.object({
   isTodayComplete: z.boolean(),
   hasPerfectQuiz: z.boolean(),
   unlockedAchievementIds: z.array(AchievementIdSchema),
+  /** Set once the summit is reached: there is no Day 91. */
+  challengeCompletion: ChallengeCompletionSchema.nullable(),
 });
 export type ProgressState = z.infer<typeof ProgressStateSchema>;
-
-/** Weekly exam outcome, derived from the exam quest completion. */
-export const ExamResultSchema = z.object({
-  week: z.number().int().min(1),
-  day: DayNumberSchema,
-  score: ScoreSchema,
-  passed: z.boolean(),
-  takenAt: TimestampSchema,
-});
-export type ExamResult = z.infer<typeof ExamResultSchema>;

@@ -1,6 +1,7 @@
 import { findChapterForDay, getChallengeDay } from '@/features/challenge/logic/calendar';
 import type {
   AchievementUnlock,
+  ChallengeCompletion,
   Chapter,
   DailyChallenge,
   DayNumber,
@@ -22,6 +23,8 @@ export type ProgressInputs = {
   unlocks: readonly AchievementUnlock[];
   /** Different words learned (stored by word id). */
   wordsLearned: number;
+  /** The summit, once reached. */
+  challengeCompletion?: ChallengeCompletion | null;
   now: Date;
 };
 
@@ -50,5 +53,6 @@ export function buildProgressState(input: ProgressInputs): ProgressState {
     isTodayComplete: today !== undefined && todayCompletedQuestIds.length === today.quests.length,
     hasPerfectQuiz: completions.some((c) => c.totalCount > 0 && c.score === 1),
     unlockedAchievementIds: unlocks.map((u) => u.achievementId),
+    challengeCompletion: input.challengeCompletion ?? null,
   };
 }

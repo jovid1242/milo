@@ -43,7 +43,7 @@ export function AchievementDetailSheet({
           <View style={styles.state}>
             {shown.state === 'unlocked' ? (
               <>
-                <Badge label="Unlocked" tone="brand" icon={Check} />
+                <Badge label="Unlocked" tone="brand" icon={Check} style={styles.chip} />
                 {shown.unlockedAt ? (
                   <AppText variant="caption" color="secondary">
                     {unlockedOn(shown.unlockedAt)}
@@ -52,23 +52,25 @@ export function AchievementDetailSheet({
               </>
             ) : shown.state === 'notAvailable' ? (
               <>
-                <Badge label="Coming with Friends" tone="wood" icon={Users} />
+                <Badge label="Needs a team" tone="wood" icon={Users} style={styles.chip} />
                 <AppText variant="caption" color="secondary" align="center">
-                  Team streaks start once you can learn with friends.
+                  Invite friends to your challenge: a team streak grows on the days everyone
+                  finishes.
                 </AppText>
               </>
             ) : (
               <>
-                <Badge label="Locked" tone="neutral" icon={Lock} />
+                <Badge label="Locked" tone="neutral" icon={Lock} style={styles.chip} />
                 {shown.progress ? (
                   <View style={styles.progress}>
                     <AppText variant="label">{progressLabel(shown)}</AppText>
-                    <ProgressBar
-                      progress={shown.progress.current / shown.progress.target}
-                      height={6}
-                      style={styles.bar}
-                      accessibilityLabel={`${shown.achievement.title} progress`}
-                    />
+                    <View style={styles.bar}>
+                      <ProgressBar
+                        progress={shown.progress.current / shown.progress.target}
+                        height={6}
+                        accessibilityLabel={`${shown.achievement.title} progress`}
+                      />
+                    </View>
                     {remainingLabel(shown) ? (
                       <AppText variant="caption" color="secondary">
                         {remainingLabel(shown)}
@@ -99,6 +101,7 @@ const styles = StyleSheet.create({
   art: { alignItems: 'center' },
   titles: { gap: spacing[1] },
   state: { alignItems: 'center', gap: spacing[2] },
+  chip: { alignSelf: 'center' },
   progress: { alignSelf: 'stretch', alignItems: 'center', gap: spacing[1] },
-  bar: { alignSelf: 'stretch', marginHorizontal: spacing[8] },
+  bar: { alignSelf: 'stretch', paddingHorizontal: spacing[8] },
 });

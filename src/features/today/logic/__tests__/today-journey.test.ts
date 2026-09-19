@@ -100,6 +100,22 @@ describe('buildTodayJourney', () => {
     const summit = journeyFor({ day: 90 });
     expect(summit.dayKind).toBe('summit');
     expect(summit.daysToSummit).toBe(0);
-    expect(summit.steps.map((step) => step.quest.type)).toEqual(['review', 'finalBattle']);
+    expect(summit.steps.map((step) => step.quest.type)).toEqual(['finalBattle']);
+  });
+
+  it('says how a handed-in weekly exam went instead of its XP', () => {
+    const exam = (examPassed: boolean) =>
+      journeyFor({
+        day: 84,
+        pastDays: range(1, 83),
+        doneToday: ['vocabulary', 'review', 'weeklyExam'],
+        examPassed,
+      }).steps.at(-1);
+
+    expect(exam(false)).toMatchObject({ status: 'completed', examResult: 'notPassed' });
+    expect(exam(true)).toMatchObject({ status: 'completed', examResult: 'passed' });
+    // Other steps never carry an exam result.
+    const journey = journeyFor({ day: 84, doneToday: ['vocabulary'] });
+    expect(journey.steps.map((step) => step.examResult)).toEqual([null, null, null]);
   });
 });

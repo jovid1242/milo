@@ -38,6 +38,8 @@ export type JourneyFixture = {
   totalXp?: number;
   /** Today's quests were answered without a mistake. */
   perfect?: boolean;
+  /** An exam day: whether today's handed-in exam is passed. */
+  examPassed?: boolean | null;
 };
 
 /** A TodayJourney built through the real progress pipeline. */
@@ -48,6 +50,7 @@ export function journeyFor({
   started = [],
   totalXp = 0,
   perfect = false,
+  examPassed = null,
 }: JourneyFixture): TodayJourney {
   const plan = PLANS.find((item) => item.day === day);
   if (!plan) throw new Error(`no plan for day ${day}`);
@@ -84,7 +87,11 @@ export function journeyFor({
     now: NOW,
   });
 
+  const exam = plan.quests.find(
+    (quest) => quest.type === 'weeklyExam' || quest.type === 'finalBattle',
+  );
   return buildTodayJourney({
+    exam: exam && examPassed !== null ? { questId: exam.id, passed: examPassed } : null,
     plan,
     chapters: CHAPTERS,
     progress,

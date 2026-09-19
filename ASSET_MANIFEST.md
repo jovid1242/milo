@@ -7,31 +7,31 @@
 
 | Тип | Файлов | Оригиналы | Production | Сэкономлено | Уменьшение |
 | --- | ---: | ---: | ---: | ---: | ---: |
-| Растровые изображения | 61 | 106.25 MB | 11.72 MB | 94.53 MB | 89% |
+| Растровые изображения | 62 | 109.29 MB | 12.13 MB | 97.16 MB | 88.9% |
 | SVG | 5 | 9.7 KB | 7.0 KB | 2.7 KB | 28% |
 | Звуки | 15 | 688.5 KB | 284.1 KB | 404.4 KB | 58.7% |
 | Прочее (JSON) | 1 | 17.5 KB | 17.5 KB | 0 B | 0% |
-| **Всего** | **82** | **106.95 MB** | **12.03 MB** | **94.93 MB** | **88.8%** |
+| **Всего** | **83** | **109.99 MB** | **12.43 MB** | **97.56 MB** | **88.7%** |
 
 ```
-TOTAL ORIGINAL SIZE     106.95 MB   (112148181 bytes)
-TOTAL OPTIMIZED SIZE     12.03 MB   (12610254 bytes)
-TOTAL SAVED              94.93 MB   (99537927 bytes)
-TOTAL REDUCTION             88.8%
+TOTAL ORIGINAL SIZE     109.99 MB   (115329303 bytes)
+TOTAL OPTIMIZED SIZE     12.43 MB   (13030126 bytes)
+TOTAL SAVED              97.56 MB   (102299177 bytes)
+TOTAL REDUCTION             88.7%
 ```
 
-**Валидация:** ✅ пройдена — 597 проверок, ошибок: 0, предупреждений: 0 (подробности в разделе «Валидация»).
+**Валидация:** ✅ пройдена — 605 проверок, ошибок: 0, предупреждений: 0 (подробности в разделе «Валидация»).
 
 ## Требует внимания
 
-Ассетов с флагами: **16** из 82, отсутствует: **1**. Один ассет может иметь несколько флагов.
+Ассетов с флагами: **17** из 83, отсутствует: **1**. Один ассет может иметь несколько флагов.
 
 | Status | Ассетов |
 | --- | ---: |
 | `MISSING` | 1 |
 | `VISUAL_REVIEW_REQUIRED` | 13 |
 | `AUDIO_REVIEW_REQUIRED` | 2 |
-| `NEEDS_ALPHA_REVIEW` | 10 |
+| `NEEDS_ALPHA_REVIEW` | 11 |
 | `READY` | 66 |
 
 ### MISSING (1)
@@ -75,8 +75,10 @@ TOTAL REDUCTION             88.8%
   - Клиппинг в исходнике: пик 3.41 dBFS, 2471 сэмплов ≥ 0 dBFS, до 5 сэмплов подряд у 0 dBFS. Не перекодировался — скопирован байт-в-байт.
   - Не похоже на «мягкий тап»: первые ~300 мс — перегруженный всплеск (RMS ≈ −3 dBFS), затем ~700 мс шума на ≈ −25 dBFS; длительность 1.0 с, самый громкий звук набора. Нужна замена.
 
-### NEEDS_ALPHA_REVIEW (10)
+### NEEDS_ALPHA_REVIEW (11)
 
+- `assets/journey/journey-summit-peak.webp`
+  - Полная сцена, а не вырезка: нет ни одного полностью прозрачного пикселя, края растушёваны полупрозрачностью (средняя alpha по краю 145.9/255). Alpha сохранена бит-в-бит.
 - `assets/journey/journey-summit.webp`
   - Полная сцена, а не вырезка: нет ни одного полностью прозрачного пикселя, края растушёваны полупрозрачностью (средняя alpha по краю 65.8/255). Alpha сохранена бит-в-бит.
 - `assets/mascots/milo-achievement.webp` _(также: VISUAL_REVIEW_REQUIRED)_
@@ -151,6 +153,7 @@ TOTAL REDUCTION             88.8%
 | `journey/journey-mountains.webp` | journey | PNG | WebP | 1536×1024 | 1200×800 | 2.91 MB | 379.0 KB | 87.3% | alpha · вырезка | READY |
 | `journey/journey-path.webp` | journey | PNG | WebP | 1156×1360 | 1156×1360 | 1.41 MB | 356.0 KB | 75.3% | alpha · вырезка | READY |
 | `journey/journey-river.webp` | journey | PNG | WebP | 1536×1024 | 1200×800 | 2.70 MB | 326.6 KB | 88.2% | alpha · вырезка | READY |
+| `journey/journey-summit-peak.webp` | journey | PNG | WebP | 1020×1024 | 1020×1024 | 3.03 MB | 410.0 KB | 86.8% | alpha · растушёванная сцена | NEEDS_ALPHA_REVIEW |
 | `journey/journey-summit.webp` | journey | PNG | WebP | 1536×1024 | 1200×800 | 2.68 MB | 415.9 KB | 84.9% | alpha · растушёванная сцена | NEEDS_ALPHA_REVIEW |
 | `mascots/milo-achievement.webp` | mascots | PNG | WebP | 1672×941 | 1200×675 | 2.45 MB | 275.4 KB | 89% | alpha · растушёванная сцена | VISUAL_REVIEW_REQUIRED + NEEDS_ALPHA_REVIEW |
 | `mascots/milo-champion.webp` | mascots | PNG | WebP | 1672×941 | 1200×675 | 2.47 MB | 292.7 KB | 88.4% | alpha · растушёванная сцена | VISUAL_REVIEW_REQUIRED + NEEDS_ALPHA_REVIEW |
@@ -255,6 +258,7 @@ TOTAL REDUCTION             88.8%
 | `assets-original/journey/journey-mountains.png` | `assets/journey/journey-mountains.webp` |
 | `assets-original/journey/journey-path.png` | `assets/journey/journey-path.webp` |
 | `assets-original/journey/journey-river.png` | `assets/journey/journey-river.webp` |
+| `assets-original/journey/journey-summit-peak.png` | `assets/journey/journey-summit-peak.webp` |
 | `assets-original/journey/journey-summit.png` | `assets/journey/journey-summit.webp` |
 | `assets-original/mascot/milo-achievement.png` | `assets/mascots/milo-achievement.webp` |
 | `assets-original/mascot/milo-champion.png` | `assets/mascots/milo-champion.webp` |
@@ -282,7 +286,7 @@ TOTAL REDUCTION             88.8%
 
 </details>
 
-## Конвертация PNG → WebP (61)
+## Конвертация PNG → WebP (62)
 
 Для каждого файла выбрано минимальное качество WebP, прошедшее гейт; PNG-альтернатива — лучший PNG, прошедший тот же гейт (palette PNG, если проходит, иначе lossless). Alpha кодируется без потерь.
 
@@ -330,6 +334,7 @@ TOTAL REDUCTION             88.8%
 | `journey/journey-mountains.webp` | 85 | 0.9893 | 0.9759 | бит-в-бит | png lossless (oxipng) | 1.68 MB | 379.0 KB | 78% |
 | `journey/journey-path.webp` | 90 | 0.9890 | 0.9734 | бит-в-бит | png lossless (oxipng) | 1.35 MB | 356.0 KB | 74.3% |
 | `journey/journey-river.webp` | 85 | 0.9884 | 0.9725 | бит-в-бит | png lossless (oxipng) | 1.45 MB | 326.6 KB | 78% |
+| `journey/journey-summit-peak.webp` | 90 | 0.9905 | 0.9761 | бит-в-бит | png lossless (oxipng) | 1.75 MB | 410.0 KB | 77.1% |
 | `journey/journey-summit.webp` | 90 | 0.9910 | 0.9774 | бит-в-бит | png lossless (oxipng) | 1.75 MB | 415.9 KB | 76.8% |
 | `mascots/milo-achievement.webp` | 90 | 0.9912 | 0.9696 | бит-в-бит | png lossless (oxipng) | 1.31 MB | 275.4 KB | 79.4% |
 | `mascots/milo-champion.webp` | 90 | 0.9917 | 0.9702 | бит-в-бит | png lossless (oxipng) | 1.33 MB | 292.7 KB | 78.4% |
@@ -350,7 +355,7 @@ TOTAL REDUCTION             88.8%
 | `mascots/milo-walking.webp` | 94 | 0.9917 | 0.9806 | бит-в-бит | png lossless (oxipng) | 299.0 KB | 63.4 KB | 78.8% |
 | `mascots/milo-wrong.webp` | 90 | 0.9900 | 0.9780 | бит-в-бит | png lossless (oxipng) | 593.4 KB | 129.1 KB | 78.2% |
 
-## Изменение разрешения (46 из 61)
+## Изменение разрешения (46 из 62)
 
 Размеры считаются для телефонов: самый широкий iPhone — 440pt (1320px @3x); ширина контента с отступами 20pt — 400pt (1200px @3x). «Чёткий до» — максимальный размер отображения без апскейла на экране @3x.
 
@@ -398,6 +403,7 @@ TOTAL REDUCTION             88.8%
 | `journey/journey-mountains.webp` | 1536×1024 | **1200×800** | scene — content-width illustration: 400pt @3x | 400×266 pt |
 | `journey/journey-path.webp` | 1156×1360 | 1156×1360 (без изменений) | scene — content-width illustration: 400pt @3x | 385×453 pt |
 | `journey/journey-river.webp` | 1536×1024 | **1200×800** | scene — content-width illustration: 400pt @3x | 400×266 pt |
+| `journey/journey-summit-peak.webp` | 1020×1024 | 1020×1024 (без изменений) | scene — content-width illustration: 400pt @3x | 340×341 pt |
 | `journey/journey-summit.webp` | 1536×1024 | **1200×800** | scene — content-width illustration: 400pt @3x | 400×266 pt |
 | `mascots/milo-achievement.webp` | 1672×941 | **1200×675** | scene — content-width illustration: 400pt @3x | 400×225 pt |
 | `mascots/milo-champion.webp` | 1672×941 | **1200×675** | scene — content-width illustration: 400pt @3x | 400×225 pt |
@@ -461,17 +467,17 @@ SVGO preset-default (multipass): удалены комментарии, `<title>
 
 | Проверка | OK | Ошибок |
 | --- | ---: | ---: |
-| Каждый output-файл существует | 82 | 0 |
-| Manifest соответствует файлам (размер, SHA-256, нет лишних) | 82 | 0 |
-| Каждое изображение декодируется, формат верный | 61 | 0 |
-| Размеры не нулевые и совпадают с manifest | 66 | 0 |
-| Alpha сохранена там, где была (бит-в-бит) | 55 | 0 |
-| Качество не ниже гейта (SSIM против оригинала / рендера) | 66 | 0 |
+| Каждый output-файл существует | 83 | 0 |
+| Manifest соответствует файлам (размер, SHA-256, нет лишних) | 83 | 0 |
+| Каждое изображение декодируется, формат верный | 62 | 0 |
+| Размеры не нулевые и совпадают с manifest | 67 | 0 |
+| Alpha сохранена там, где была (бит-в-бит) | 56 | 0 |
+| Качество не ниже гейта (SSIM против оригинала / рендера) | 67 | 0 |
 | SVG валидны (XML, viewBox, рендер) | 5 | 0 |
 | Аудио читается ffprobe и декодируется без ошибок | 15 | 0 |
 | JSON валиден и идентичен оригиналу | 1 | 0 |
-| Имена в kebab-case, уникальны, расширение = формат | 82 | 0 |
-| Каждый оригинал учтён | 82 | 0 |
+| Имена в kebab-case, уникальны, расширение = формат | 83 | 0 |
+| Каждый оригинал учтён | 83 | 0 |
 
 ## Как перезапустить
 
