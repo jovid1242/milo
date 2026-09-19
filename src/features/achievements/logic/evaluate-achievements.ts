@@ -89,7 +89,8 @@ export function buildAchievementFacts(input: {
     uniqueWords: input.uniqueWords,
     // A scored quest: at least one scored question, all of them right.
     hasPerfectQuest: input.completions.some(
-      (completion) => completion.totalCount > 0 && completion.correctCount === completion.totalCount,
+      (completion) =>
+        completion.totalCount > 0 && completion.correctCount === completion.totalCount,
     ),
     currentPerfectRun: computeStreak(perfect, input.currentDay),
     longestPerfectRun: longestRun(perfect),

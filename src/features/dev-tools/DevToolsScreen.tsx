@@ -7,7 +7,6 @@ import { Alert, StyleSheet, Switch, View } from 'react-native';
 import { AppText, Button, Divider, IconButton, Screen } from '@/components/ui';
 import { missingAssets } from '@/constants/assets';
 import { useRepositories } from '@/data/repository-provider';
-import { useAchievements } from '@/features/achievements/queries';
 import { useProgressState } from '@/features/progress/queries';
 import { logger } from '@/lib/logger';
 import { FEEDBACK_EVENTS, playFeedback } from '@/services/feedback';
@@ -37,7 +36,6 @@ export function DevToolsScreen() {
   const repositories = useRepositories();
   const queryClient = useQueryClient();
   const progress = useProgressState();
-  const achievements = useAchievements();
   const simulateOffline = useDevStore((state) => state.simulateOffline);
   const setSimulateOffline = useDevStore((state) => state.setSimulateOffline);
   const [busy, setBusy] = useState(false);
@@ -195,10 +193,15 @@ export function DevToolsScreen() {
         </Section>
 
         <Section title="Achievements">
-          {(achievements.data ?? []).map((item) =>
-            chip(`${item.unlockedAt ? '✓ ' : ''}${item.achievement.title}`, () =>
-              dev.setAchievementUnlocked(context, item.achievement.id, item.unlockedAt === null),
-            ),
+          {(Object.keys(dev.ACHIEVEMENT_SCENARIOS) as dev.AchievementScenario[]).map((scenario) =>
+            chip(dev.ACHIEVEMENT_SCENARIOS[scenario].label, async () => {
+              await dev.applyAchievementScenario(context, scenario);
+              if (dev.ACHIEVEMENT_SCENARIOS[scenario].open === 'achievements') {
+                router.replace('/achievements');
+              } else {
+                router.dismissTo('/');
+              }
+            }),
           )}
           {chip('Reset achievements', () => dev.resetAchievements(context))}
         </Section>

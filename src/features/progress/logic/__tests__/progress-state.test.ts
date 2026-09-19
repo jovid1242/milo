@@ -43,6 +43,7 @@ const build = (
     completions: completionsFor(PLANS, completedDays),
     totalXp: 0,
     unlocks: [],
+    wordsLearned: 0,
     now: NOW,
     ...extra,
   });
@@ -64,9 +65,9 @@ describe('buildProgressState', () => {
   });
 
   it('computes streak, words learned and today progress', () => {
-    const state = build(4, [1, 2, 3]);
+    const state = build(4, [1, 2, 3], { wordsLearned: 18 });
     expect(state.streak).toBe(3);
-    // 6 words per vocabulary quest on days 1–3
+    // Unique words come from storage (learned word ids), not from quest counts.
     expect(state.wordsLearned).toBe(18);
     expect(state.isTodayComplete).toBe(false);
     expect(state.todayCompletedQuestIds).toEqual([]);

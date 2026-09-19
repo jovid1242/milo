@@ -7,10 +7,14 @@ import { getStartDateForDay } from '@/features/challenge/logic/calendar';
 import { buildDayCompletion, findCompletedDays } from '@/features/progress/logic/day-completion';
 import { invalidateProgress } from '@/features/progress/queries';
 import {
+  loadPendingCelebrations,
+  markCelebrated,
+  syncAchievements,
+} from '@/features/achievements/use-cases';
+import {
   completeDay,
   completeQuest,
   loadProgressState,
-  syncAchievements,
   type QuestOutcome,
 } from '@/features/progress/use-cases';
 import {
@@ -40,9 +44,9 @@ import {
   type VocabularyAction,
 } from '@/features/vocabulary/logic/vocabulary-session';
 import type {
-  AchievementId,
   ChoiceAnswer,
   DayCompletion,
+  LearnedWord,
   Quest,
   QuestCompletion,
   QuestContent,
@@ -73,7 +77,34 @@ function devRepository(ctx: DevContext) {
 }
 
 /**
- * Writes finished quests (and their XP) in one transaction — for bulk
+ * Unlocks what the seeded history has earned — silently: simulated history
+ * never replays celebrations. Only a real action afterwards gets one.
+ */
+async function settleAchievements(ctx: DevContext): Promise<void> {
+  await syncAchievements(ctx.repositories);
+  const pending = await loadPendingCelebrations(ctx.repositories);
+  await markCelebrated(
+    ctx.repositories,
+    pending.map((achievement) => achievement.id),
+  );
+}
+
+/** Words a seeded vocabulary quest taught: its real words, or stand-ins for unwritten days. */
+async function seededWords(ctx: DevContext, quest: Quest, at: string): Promise<LearnedWord[]> {
+  if (quest.type !== 'vocabulary') return [];
+  const content = await ctx.repositories.challenge.getQuestContent(quest.id);
+  const ids =
+    content?.type === 'vocabulary'
+      ? content.items.map((item) => item.id)
+      : Array.from(
+          { length: quest.wordCount ?? CHALLENGE.wordsPerVocabularyQuest },
+          (_, n) => `${quest.id}-word-${n + 1}`,
+        );
+  return ids.map((wordId) => ({ wordId, questId: quest.id, learnedAt: at }));
+}
+
+/**
+ * Writes finished quests (and their XP, words) in one transaction — for bulk
  * simulation. Days they finish get their record too, already celebrated unless
  * `celebrated: false`: simulated history never replays a celebration.
  */
@@ -87,9 +118,11 @@ async function seedCompletedQuests(
   const timestamp = new Date().toISOString();
   const completions: QuestCompletion[] = [];
   const xpEvents: XpEvent[] = [];
+  const words: LearnedWord[] = [];
 
   for (const quest of quests) {
     if (done.has(quest.id)) continue;
+    words.push(...(await seededWords(ctx, quest, timestamp)));
     const correctCount = perfect ? 5 : 4;
     const xpEarned = quest.xpReward + (perfect ? CHALLENGE.perfectScoreBonusXp : 0);
     completions.push({
@@ -126,7 +159,7 @@ async function seedCompletedQuests(
     )
     .filter((record): record is DayCompletion => record !== null);
 
-  await devRepository(ctx).seedHistory(completions, xpEvents, days);
+  await devRepository(ctx).seedHistory(completions, xpEvents, days, words);
 }
 
 export async function setCurrentDay(ctx: DevContext, day: number): Promise<void> {
@@ -215,7 +248,7 @@ export async function setStreak(ctx: DevContext, streak: number): Promise<void> 
     .flatMap((plan) => plan.quests);
   await seedCompletedQuests(ctx, streakQuests, { perfect: false });
 
-  await syncAchievements(ctx.repositories, await loadProgressState(ctx.repositories));
+  await settleAchievements(ctx);
   invalidateAll(ctx);
 }
 
@@ -226,17 +259,6 @@ export async function addXp(ctx: DevContext, amount: number): Promise<void> {
     refId: null,
     createdAt: new Date().toISOString(),
   });
-  await syncAchievements(ctx.repositories, await loadProgressState(ctx.repositories));
-  invalidateAll(ctx);
-}
-
-export async function setAchievementUnlocked(
-  ctx: DevContext,
-  id: AchievementId,
-  unlocked: boolean,
-): Promise<void> {
-  if (unlocked) await ctx.repositories.achievements.unlock([id], new Date().toISOString());
-  else await ctx.repositories.achievements.lock([id]);
   invalidateAll(ctx);
 }
 
@@ -353,7 +375,7 @@ async function rebuildProgress(ctx: DevContext, spec: HomeScenarioSpec): Promise
     });
   }
 
-  await syncAchievements(ctx.repositories, await loadProgressState(ctx.repositories));
+  await settleAchievements(ctx);
   invalidateAll(ctx);
 }
 
@@ -792,7 +814,7 @@ export async function applyDayScenario(ctx: DevContext, scenario: DayScenario): 
       celebrated: scenario === 'fourOfFour' || scenario === 'reopen',
     });
   }
-  await syncAchievements(ctx.repositories, await loadProgressState(ctx.repositories));
+  await settleAchievements(ctx);
   invalidateAll(ctx);
   return plan.day;
 }
@@ -830,6 +852,150 @@ export async function finishDayTwice(ctx: DevContext): Promise<string> {
     `Day 89 records: ${records.length} · XP ${records[0]?.xpEarned ?? '–'}`,
     `Streak: ${before.streak} → ${after.streak}`,
   ].join('\n');
+}
+
+/**
+ * Badge states, reached through real progress: the history before is seeded
+ * (its badges settled silently), the step that matters is played through the
+ * real completion use case — so its unlock, XP and celebration are the real ones.
+ */
+export const ACHIEVEMENT_SCENARIOS = {
+  none: { label: '0/12', open: 'achievements' },
+  firstDay: { label: 'First Day unlock', open: 'home' },
+  days3: { label: '3-day unlock', open: 'home' },
+  days7: { label: '7-day unlock', open: 'home' },
+  streak30: { label: '30-day progress', open: 'achievements' },
+  words99: { label: '99/100 words', open: 'achievements' },
+  words100: { label: '100 words unlock', open: 'home' },
+  words499: { label: '499/500 words', open: 'achievements' },
+  words500: { label: '500 words unlock', open: 'home' },
+  perfectQuiz: { label: 'Perfect Quiz', open: 'home' },
+  perfectWeek: { label: 'Perfect Week', open: 'home' },
+  multiple: { label: 'Multiple unlocks', open: 'home' },
+  reload: { label: 'Unlocked · reload', open: 'achievements' },
+  teamStreak: { label: 'Team Streak unavailable', open: 'achievements' },
+} as const satisfies Record<string, { label: string; open: 'home' | 'achievements' }>;
+
+export type AchievementScenario = keyof typeof ACHIEVEMENT_SCENARIOS;
+
+async function freshStart(ctx: DevContext, day: number): Promise<void> {
+  await ctx.repositories.progress.resetProgress();
+  await ctx.repositories.achievements.resetUnlocks();
+  await ctx.repositories.user.updateChallengeStartDate(getStartDateForDay(day, new Date()));
+}
+
+/** Days before `day` completed; from `perfectFrom` on, without a mistake. */
+async function seedDaysBefore(ctx: DevContext, day: number, perfectFrom?: number): Promise<void> {
+  const plans = await ctx.repositories.challenge.getDailyChallenges();
+  const before = plans.filter((plan) => plan.day < day);
+  const isPerfect = (planDay: number) => perfectFrom !== undefined && planDay >= perfectFrom;
+  await seedCompletedQuests(
+    ctx,
+    before.filter((plan) => !isPerfect(plan.day)).flatMap((plan) => plan.quests),
+    { perfect: false },
+  );
+  await seedCompletedQuests(
+    ctx,
+    before.filter((plan) => isPerfect(plan.day)).flatMap((plan) => plan.quests),
+    { perfect: true },
+  );
+}
+
+/** Stand-in words (a dev shortcut for "learned in earlier lessons"). */
+async function seedWords(ctx: DevContext, count: number): Promise<void> {
+  const learnedAt = new Date().toISOString();
+  await ctx.repositories.progress.recordLearnedWords(
+    Array.from({ length: count }, (_, index) => ({
+      wordId: `dev-word-${index + 1}`,
+      questId: 'dev-seed',
+      learnedAt,
+    })),
+  );
+}
+
+/** Finishes quests through the real use case: XP, words, the day and badges, as in the app. */
+async function playQuests(
+  ctx: DevContext,
+  day: number,
+  { perfect, only }: { perfect: boolean; only?: QuestType },
+): Promise<void> {
+  const plan = await ctx.repositories.challenge.getDailyChallenge(day);
+  for (const quest of plan.quests) {
+    if (only && quest.type !== only) continue;
+    await completeQuest(ctx.repositories, {
+      questId: quest.id,
+      correctCount: perfect ? 6 : 5,
+      totalCount: 6,
+      source: 'dev',
+    });
+  }
+}
+
+export async function applyAchievementScenario(
+  ctx: DevContext,
+  scenario: AchievementScenario,
+): Promise<void> {
+  switch (scenario) {
+    case 'none':
+      await freshStart(ctx, 1);
+      break;
+    case 'firstDay':
+      await freshStart(ctx, 1);
+      await playQuests(ctx, 1, { perfect: false });
+      break;
+    case 'days3':
+    case 'days7': {
+      const day = scenario === 'days3' ? 3 : 7;
+      await freshStart(ctx, day);
+      await seedDaysBefore(ctx, day);
+      await settleAchievements(ctx);
+      await playQuests(ctx, day, { perfect: false });
+      break;
+    }
+    case 'streak30':
+      await freshStart(ctx, 19);
+      await seedDaysBefore(ctx, 19);
+      await settleAchievements(ctx);
+      break;
+    case 'words99':
+    case 'words499':
+      await freshStart(ctx, 1);
+      await seedWords(ctx, scenario === 'words99' ? 99 : 499);
+      await settleAchievements(ctx);
+      break;
+    case 'words100':
+    case 'words500':
+      // The last 6 words come from a real lesson: Day 1's vocabulary quest.
+      await freshStart(ctx, 1);
+      await seedWords(ctx, scenario === 'words100' ? 94 : 494);
+      await settleAchievements(ctx);
+      await playQuests(ctx, 1, { perfect: false, only: 'vocabulary' });
+      break;
+    case 'perfectQuiz':
+      await freshStart(ctx, 1);
+      await playQuests(ctx, 1, { perfect: true, only: 'vocabulary' });
+      break;
+    case 'perfectWeek':
+      // Days 14–19 perfect, then a perfect Day 20: seven in a row.
+      await freshStart(ctx, 20);
+      await seedDaysBefore(ctx, 20, 14);
+      await settleAchievements(ctx);
+      await playQuests(ctx, 20, { perfect: true });
+      break;
+    case 'multiple':
+      // Nothing settled: one perfect Day 7 unlocks a whole row of badges at once.
+      await freshStart(ctx, 7);
+      await seedDaysBefore(ctx, 7, 1);
+      await playQuests(ctx, 7, { perfect: true });
+      break;
+    case 'reload':
+    case 'teamStreak':
+      await freshStart(ctx, 30);
+      await seedDaysBefore(ctx, 30);
+      await settleAchievements(ctx);
+      break;
+  }
+  invalidateAll(ctx);
 }
 
 export async function resetProgress(ctx: DevContext): Promise<void> {

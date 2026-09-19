@@ -152,7 +152,8 @@ class MemoryProgressRepository implements ProgressRepository {
       this.store.sessions.delete(id);
     }
     this.store.answers = this.store.answers.filter((answer) => !ids.has(answer.questId));
-    for (const [key, word] of this.store.words) if (ids.has(word.questId)) this.store.words.delete(key);
+    for (const [key, word] of this.store.words)
+      if (ids.has(word.questId)) this.store.words.delete(key);
     this.store.xpEvents = this.store.xpEvents.filter(
       (event) => !(event.reason === 'quest' && event.refId !== null && ids.has(event.refId)),
     );

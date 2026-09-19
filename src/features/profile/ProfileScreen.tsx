@@ -1,7 +1,7 @@
 import { useRouter } from 'expo-router';
 import { Settings, Wrench } from 'lucide-react-native';
 import { useState } from 'react';
-import { StyleSheet, View } from 'react-native';
+import { Pressable, StyleSheet, View } from 'react-native';
 
 import { ErrorState } from '@/components/ErrorState';
 import {
@@ -56,7 +56,7 @@ export function ProfileScreen() {
   }
 
   const state = progress.data;
-  const unlockedCount = achievements.data.filter((item) => item.unlockedAt !== null).length;
+  const unlockedCount = achievements.data.filter((item) => item.state === 'unlocked').length;
   const badgeSize =
     gridWidth > 0 ? (gridWidth - spacing[4] * (BADGE_COLUMNS - 1)) / BADGE_COLUMNS : 0;
 
@@ -94,9 +94,16 @@ export function ProfileScreen() {
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
             <AppText variant="title3">Achievements</AppText>
-            <AppText variant="label" color="secondary">
-              {`${unlockedCount} of ${achievements.data.length}`}
-            </AppText>
+            <Pressable
+              accessibilityRole="link"
+              accessibilityLabel={`${unlockedCount} of ${achievements.data.length} unlocked. See all achievements`}
+              hitSlop={12}
+              onPress={() => router.push('/achievements')}
+              testID="profile-see-all-achievements">
+              <AppText variant="label" color="brand">
+                {`${unlockedCount} of ${achievements.data.length} · See all`}
+              </AppText>
+            </Pressable>
           </View>
           <View
             style={styles.grid}

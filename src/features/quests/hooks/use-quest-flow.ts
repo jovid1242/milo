@@ -6,7 +6,7 @@ import { useRepositories } from '@/data/repository-provider';
 import { invalidateProgress } from '@/features/progress/queries';
 import type { QuestOutcome } from '@/features/progress/use-cases';
 import { logger } from '@/lib/logger';
-import type { Achievement, ChoiceAnswer, Timestamp } from '@/schemas';
+import type { ChoiceAnswer, Timestamp } from '@/schemas';
 import { playFeedback } from '@/services/feedback';
 
 import { markQuestCelebrated } from '../celebrations';
@@ -24,7 +24,6 @@ export type RunResult = PracticeScore & {
   xpEarned: number | null;
   perfectBonus: number;
   firstCompletion: boolean;
-  newAchievements: Achievement[];
 };
 
 export type QuestFlowConfig<State> = {
@@ -139,7 +138,6 @@ export function useQuestFlow<State, Action>(
       xpEarned: mode === 'replay' ? 0 : (outcome?.xpEarned ?? null),
       perfectBonus: score.isPerfect && firstCompletion ? CHALLENGE.perfectScoreBonusXp : 0,
       firstCompletion,
-      newAchievements: outcome?.newAchievements ?? [],
     };
   }
 

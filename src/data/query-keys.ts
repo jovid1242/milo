@@ -29,6 +29,8 @@ export const queryKeys = {
   achievements: {
     all: ['achievements'] as const,
     list: ['achievements', 'list'] as const,
+    /** Unlocks whose celebration was not shown yet. */
+    pending: ['achievements', 'pending'] as const,
   },
 
   friends: {

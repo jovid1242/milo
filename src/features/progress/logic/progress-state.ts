@@ -34,7 +34,6 @@ export function buildProgressState(input: ProgressInputs): ProgressState {
   const completedDaySet = findCompletedDays(dailyChallenges, completions);
   const completedDays: DayNumber[] = [...completedDaySet].sort((a, b) => a - b);
 
-
   const today = dailyChallenges.find((plan) => plan.day === currentDay);
   const todayCompletedQuestIds =
     today?.quests.filter((quest) => completedQuestIds.has(quest.id)).map((quest) => quest.id) ?? [];

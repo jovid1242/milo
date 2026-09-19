@@ -80,6 +80,7 @@ export function journeyFor({
     completions,
     totalXp,
     unlocks: [],
+    wordsLearned: 0,
     now: NOW,
   });
 

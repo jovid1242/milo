@@ -32,7 +32,7 @@ async function setup(): Promise<Repositories> {
         completedAt: AT,
       })),
     );
-  await repositories.dev?.seedHistory(history, [], []);
+  await repositories.dev?.seedHistory(history, [], [], []);
   return repositories;
 }
 

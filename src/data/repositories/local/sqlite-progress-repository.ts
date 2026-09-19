@@ -293,7 +293,9 @@ export class SqliteProgressRepository implements ProgressRepository {
 
   async recordLearnedWords(words: readonly LearnedWord[]): Promise<void> {
     if (words.length === 0) return;
-    await writeDatabase((db) => db.withExclusiveTransactionAsync((txn) => writeLearnedWords(txn, words)));
+    await writeDatabase((db) =>
+      db.withExclusiveTransactionAsync((txn) => writeLearnedWords(txn, words)),
+    );
   }
 
   async countLearnedWords(): Promise<number> {

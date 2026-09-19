@@ -8,6 +8,7 @@ import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
 import { ErrorState } from '@/components/ErrorState';
+import { AchievementCelebrationHost } from '@/features/achievements/components/AchievementCelebrationHost';
 import { useAppBootstrap } from '@/hooks/use-app-bootstrap';
 import { AppProviders } from '@/providers/app-providers';
 import { colors, layout } from '@/theme';
@@ -45,30 +46,35 @@ export default function RootLayout() {
                 />
               </View>
             ) : (
-              <Stack
-                screenOptions={{
-                  headerShown: false,
-                  contentStyle: { backgroundColor: colors.background.base },
-                }}>
-                <Stack.Screen name="(tabs)" />
-                {/* Gameplay is immersive: full screen, no tab bar, no swipe-away mid-quest. */}
-                <Stack.Screen
-                  name="quest/[questId]"
-                  options={{ presentation: 'fullScreenModal', gestureEnabled: false }}
-                />
-                {/* The end of a day: fades in over the last quest's result and closes
+              <>
+                <Stack
+                  screenOptions={{
+                    headerShown: false,
+                    contentStyle: { backgroundColor: colors.background.base },
+                  }}>
+                  <Stack.Screen name="(tabs)" />
+                  {/* Gameplay is immersive: full screen, no tab bar, no swipe-away mid-quest. */}
+                  <Stack.Screen
+                    name="quest/[questId]"
+                    options={{ presentation: 'fullScreenModal', gestureEnabled: false }}
+                  />
+                  {/* The end of a day: fades in over the last quest's result and closes
                     with its own button, never by accident. */}
-                <Stack.Screen
-                  name="day-complete/[day]"
-                  options={{
-                    presentation: 'fullScreenModal',
-                    animation: 'fade',
-                    gestureEnabled: false,
-                  }}
-                />
-                <Stack.Screen name="settings" />
-                <Stack.Screen name="dev-tools" options={{ presentation: 'modal' }} />
-              </Stack>
+                  <Stack.Screen
+                    name="day-complete/[day]"
+                    options={{
+                      presentation: 'fullScreenModal',
+                      animation: 'fade',
+                      gestureEnabled: false,
+                    }}
+                  />
+                  <Stack.Screen name="settings" />
+                  <Stack.Screen name="achievements" />
+                  <Stack.Screen name="dev-tools" options={{ presentation: 'modal' }} />
+                </Stack>
+                {/* Achievement unlocks are celebrated here, on calm screens only. */}
+                <AchievementCelebrationHost />
+              </>
             )}
           </ThemeProvider>
         </AppProviders>

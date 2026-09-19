@@ -1,12 +1,11 @@
 import type { ReactNode } from 'react';
-import { StyleSheet, View, useWindowDimensions } from 'react-native';
+import { StyleSheet, useWindowDimensions } from 'react-native';
 import Animated, { FadeIn, FadeInUp } from 'react-native-reanimated';
 
-import { AssetImage } from '@/components/AssetImage';
 import { AppText, Button, StatsRow, type Stat } from '@/components/ui';
-import { badges, mascots } from '@/constants/assets';
+import { mascots } from '@/constants/assets';
 import { useCountUp } from '@/hooks/use-count-up';
-import { colors, durations, radius, spacing } from '@/theme';
+import { durations, spacing } from '@/theme';
 import { clamp } from '@/utils/number';
 
 import type { RunResult } from '../hooks/use-quest-flow';
@@ -116,23 +115,6 @@ export function QuestResult({
         ) : null}
       </Animated.View>
 
-      {result.newAchievements.map((achievement) => (
-        <Animated.View
-          key={achievement.id}
-          entering={FadeInUp.duration(durations.normal).delay(360)}
-          style={styles.badge}
-          accessible
-          accessibilityLabel={`Badge unlocked: ${achievement.title}, ${achievement.xpReward} XP`}>
-          <AssetImage asset={badges[achievement.id]} width={44} />
-          <View>
-            <AppText variant="bodyStrong">{`${achievement.title} badge`}</AppText>
-            <AppText variant="caption" color="reward">
-              {`+${achievement.xpReward} XP`}
-            </AppText>
-          </View>
-        </Animated.View>
-      ))}
-
       {children ? (
         <Animated.View entering={FadeIn.duration(durations.normal).delay(420)}>
           {children}
@@ -145,15 +127,4 @@ export function QuestResult({
 const styles = StyleSheet.create({
   titles: { gap: spacing[2] },
   stats: { gap: spacing[2] },
-  badge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    alignSelf: 'center',
-    gap: spacing[3],
-    paddingVertical: spacing[2],
-    paddingLeft: spacing[2],
-    paddingRight: spacing[5],
-    borderRadius: radius.pill,
-    backgroundColor: colors.reward.goldSoft,
-  },
 });
