@@ -354,10 +354,9 @@ export class SqliteProgressRepository implements ProgressRepository {
 
   async markChallengeCelebrated(at: Timestamp): Promise<boolean> {
     const result = await writeDatabase((db) =>
-      db.runAsync(
-        'UPDATE challenge_completion SET celebrated_at = ? WHERE celebrated_at IS NULL',
-        [at],
-      ),
+      db.runAsync('UPDATE challenge_completion SET celebrated_at = ? WHERE celebrated_at IS NULL', [
+        at,
+      ]),
     );
     return result.changes > 0;
   }

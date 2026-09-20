@@ -11,6 +11,8 @@ const user = (currentDay: number): User => ({
   id: 'local-user',
   displayName: 'Explorer',
   challengeStartDate: getStartDateForDay(currentDay, NOW),
+  goal: null,
+  onboardedAt: NOW.toISOString(),
   createdAt: NOW.toISOString(),
 });
 

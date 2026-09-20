@@ -5,6 +5,7 @@ export * from './exam';
 export * from './grammar';
 export * from './journey';
 export * from './lesson';
+export * from './onboarding';
 export * from './practice';
 export * from './progress';
 export * from './quest';

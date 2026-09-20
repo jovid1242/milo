@@ -43,12 +43,23 @@ export function writeDatabase<T>(task: (db: SQLite.SQLiteDatabase) => Promise<T>
   return run;
 }
 
-/** Drops all local data and re-runs migrations (dev tools only). */
+/**
+ * Drops all local data: the device looks freshly installed, down to the profile
+ * being created again on the next read (dev tools only).
+ *
+ * The rows go, not the file. SQLite refuses to delete a database that is still
+ * open anywhere, and a running app always holds a connection — a reset that
+ * depends on closing every one of them fails exactly when it is needed. The
+ * schema is already at the current version, so nothing has to be migrated
+ * again either.
+ */
 export function resetDatabase(): Promise<void> {
   return writeDatabase(async (db) => {
-    await db.closeAsync();
-    await SQLite.deleteDatabaseAsync(STORAGE.databaseName);
-    connection = null;
-    await getDatabase();
+    const tables = await db.getAllAsync<{ name: string }>(
+      "SELECT name FROM sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite_%'",
+    );
+    await db.withExclusiveTransactionAsync(async (txn) => {
+      for (const { name } of tables) await txn.execAsync(`DELETE FROM "${name}"`);
+    });
   });
 }

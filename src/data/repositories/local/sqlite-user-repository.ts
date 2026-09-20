@@ -1,7 +1,7 @@
 import { getDatabase, writeDatabase } from '@/data/db/database';
-import type { UserRepository } from '@/data/repositories/types';
+import type { ChallengeStart, UserRepository } from '@/data/repositories/types';
 import { toLocalDate } from '@/lib/dates';
-import { DisplayNameSchema, UserSchema, type LocalDate, type User } from '@/schemas';
+import { DisplayNameSchema, GoalSchema, UserSchema, type LocalDate, type User } from '@/schemas';
 
 const LOCAL_USER_ID = 'local-user';
 const DEFAULT_DISPLAY_NAME = 'Explorer';
@@ -11,6 +11,8 @@ type UserRow = {
   display_name: string;
   challenge_start_date: string;
   created_at: string;
+  goal: string | null;
+  onboarded_at: string | null;
 };
 
 const mapUser = (row: UserRow): User =>
@@ -19,6 +21,8 @@ const mapUser = (row: UserRow): User =>
     displayName: row.display_name,
     challengeStartDate: row.challenge_start_date,
     createdAt: row.created_at,
+    goal: row.goal,
+    onboardedAt: row.onboarded_at,
   });
 
 export class SqliteUserRepository implements UserRepository {
@@ -49,6 +53,22 @@ export class SqliteUserRepository implements UserRepository {
     await this.getUser();
     await writeDatabase((db) =>
       db.runAsync('UPDATE user_profile SET display_name = ? WHERE id = ?', [name, LOCAL_USER_ID]),
+    );
+    return this.getUser();
+  }
+
+  async completeOnboarding(start: ChallengeStart): Promise<User> {
+    const name = DisplayNameSchema.parse(start.displayName);
+    const goal = GoalSchema.parse(start.goal);
+    await this.getUser();
+    // Only the update that finds the profile still new changes it: once.
+    await writeDatabase((db) =>
+      db.runAsync(
+        `UPDATE user_profile
+           SET display_name = ?, goal = ?, challenge_start_date = ?, onboarded_at = ?
+         WHERE id = ? AND onboarded_at IS NULL`,
+        [name, goal, start.challengeStartDate, start.onboardedAt, LOCAL_USER_ID],
+      ),
     );
     return this.getUser();
   }

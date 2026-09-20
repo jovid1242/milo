@@ -8,6 +8,7 @@ import type {
   DailyChallenge,
   DayCompletion,
   DayNumber,
+  Goal,
   JoinTeamResult,
   LearnedWord,
   LocalDate,
@@ -39,11 +40,25 @@ export interface ChallengeRepository {
   getQuestContent(questId: string): Promise<QuestContent | null>;
 }
 
+/** What onboarding writes when the challenge starts. */
+export type ChallengeStart = {
+  displayName: string;
+  goal: Goal;
+  /** Day 1. */
+  challengeStartDate: LocalDate;
+  onboardedAt: Timestamp;
+};
+
 export interface UserRepository {
-  /** Returns the local profile, creating it on first launch. */
+  /** Returns the local profile, creating it (not onboarded yet) on first launch. */
   getUser(): Promise<User>;
   updateDisplayName(displayName: string): Promise<User>;
   updateChallengeStartDate(date: LocalDate): Promise<User>;
+  /**
+   * Finishes onboarding and starts the challenge — once: a profile already
+   * onboarded is returned unchanged, whatever `start` says.
+   */
+  completeOnboarding(start: ChallengeStart): Promise<User>;
 }
 
 export interface ProgressRepository {
@@ -103,7 +118,10 @@ export interface AchievementRepository {
 
 /** A submission, written in one transaction: never half-settled, whenever the app stops. */
 export type ExamSubmissionWrite = {
-  attempt: Pick<ExamAttempt, 'id' | 'answers' | 'submittedAt' | 'correctCount' | 'score' | 'passed'>;
+  attempt: Pick<
+    ExamAttempt,
+    'id' | 'answers' | 'submittedAt' | 'correctCount' | 'score' | 'passed'
+  >;
   /**
    * The exam quest's completion, when this submission finishes the quest —
    * stored by the first one only. `null` when it does not (a Final Battle
@@ -188,6 +206,8 @@ export interface DevRepository {
   ): Promise<void>;
   /** A friend joining (the demo of what a server would push). */
   addTeamMember(member: TeamMember, activity: readonly TeamActivity[]): Promise<void>;
+  /** Makes the profile new again: onboarding shows, its goal is cleared. */
+  resetOnboarding(): Promise<void>;
   resetAllLocalData(): Promise<void>;
 }
 

@@ -58,7 +58,7 @@ export function ChallengeComplete({ journey }: { journey: TodayJourney }) {
           <AppText variant="overline" color="reward" align="center">
             {`${journey.totalDays} Day Journey Complete`}
           </AppText>
-          <AppText variant="display" align="center" accessibilityRole="header">
+          <AppText variant="title1" align="center" accessibilityRole="header">
             You reached the summit.
           </AppText>
         </Animated.View>

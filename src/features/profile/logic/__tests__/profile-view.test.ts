@@ -12,6 +12,8 @@ const USER: User = {
   id: 'local-user',
   displayName: 'Alex',
   challengeStartDate: '2026-06-22',
+  goal: 'habit',
+  onboardedAt: '2026-06-22T08:00:00.000Z',
   createdAt: '2026-06-22T08:00:00.000Z',
 };
 

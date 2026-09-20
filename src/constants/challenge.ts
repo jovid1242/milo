@@ -12,4 +12,6 @@ export const CHALLENGE = {
 export const STORAGE = {
   databaseName: 'milo.db',
   settingsKey: 'milo.settings',
+  /** Onboarding answers before the profile exists; dropped once it is done. */
+  onboardingKey: 'milo.onboarding',
 } as const;

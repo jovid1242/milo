@@ -75,6 +75,12 @@ export class LocalDevRepository implements DevRepository {
     );
   }
 
+  async resetOnboarding(): Promise<void> {
+    await writeDatabase((db) =>
+      db.runAsync('UPDATE user_profile SET onboarded_at = NULL, goal = NULL'),
+    );
+  }
+
   async resetAllLocalData(): Promise<void> {
     await resetDatabase();
   }

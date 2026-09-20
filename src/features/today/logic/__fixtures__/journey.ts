@@ -76,6 +76,8 @@ export function journeyFor({
       id: 'local-user',
       displayName: 'Explorer',
       challengeStartDate: getStartDateForDay(day, NOW),
+      goal: null,
+      onboardedAt: NOW.toISOString(),
       createdAt: NOW.toISOString(),
     },
     chapters: CHAPTERS,

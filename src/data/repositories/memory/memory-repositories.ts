@@ -4,6 +4,8 @@ import { ACHIEVEMENTS } from '@/data/content/achievements';
 import { generateInviteCode, normalizeInviteCode } from '@/features/friends/logic/invite-code';
 import {
   AchievementSchema,
+  DisplayNameSchema,
+  GoalSchema,
   type AchievementId,
   type AchievementUnlock,
   type AnswerRecord,
@@ -27,6 +29,7 @@ import {
 import { LocalChallengeRepository } from '../local/local-challenge-repository';
 import type {
   AchievementRepository,
+  ChallengeStart,
   DevRepository,
   ExamRepository,
   ExamSubmissionOutcome,
@@ -226,9 +229,7 @@ class MemoryExamRepository implements ExamRepository {
     return attempt;
   }
 
-  async saveAttempt(
-    attempt: Pick<ExamAttempt, 'id' | 'currentIndex' | 'answers' | 'updatedAt'>,
-  ) {
+  async saveAttempt(attempt: Pick<ExamAttempt, 'id' | 'currentIndex' | 'answers' | 'updatedAt'>) {
     const stored = this.store.examAttempts.find((item) => item.id === attempt.id);
     if (!stored || stored.submittedAt !== null) return false;
     this.replace({ ...stored, ...attempt });
@@ -313,6 +314,18 @@ class MemoryUserRepository implements UserRepository {
 
   async updateChallengeStartDate(date: LocalDate) {
     this.store.user = { ...this.store.user, challengeStartDate: date };
+    return this.store.user;
+  }
+
+  async completeOnboarding(start: ChallengeStart) {
+    if (this.store.user.onboardedAt !== null) return this.store.user;
+    this.store.user = {
+      ...this.store.user,
+      displayName: DisplayNameSchema.parse(start.displayName),
+      goal: GoalSchema.parse(start.goal),
+      challengeStartDate: start.challengeStartDate,
+      onboardedAt: start.onboardedAt,
+    };
     return this.store.user;
   }
 }
@@ -432,21 +445,35 @@ class MemoryDevRepository implements DevRepository {
     this.store.activity = [...this.store.activity, ...activity];
   }
 
+  async resetOnboarding() {
+    this.store.user = { ...this.store.user, onboardedAt: null, goal: null };
+  }
+
   async resetAllLocalData() {
     await this.progress.resetProgress();
     this.store.unlocks.clear();
   }
 }
 
-export function createMemoryRepositories(challengeStartDate: LocalDate): Repositories & {
+/**
+ * `onboarded: false` gives a brand-new profile, as on a first launch; by
+ * default the user is already on the way (most domain tests start there).
+ */
+export function createMemoryRepositories(
+  challengeStartDate: LocalDate,
+  { onboarded = true }: { onboarded?: boolean } = {},
+): Repositories & {
   store: MemoryStore;
 } {
+  const createdAt = new Date().toISOString();
   const store: MemoryStore = {
     user: {
       id: 'local-user',
       displayName: 'Explorer',
       challengeStartDate,
-      createdAt: new Date().toISOString(),
+      createdAt,
+      goal: null,
+      onboardedAt: onboarded ? createdAt : null,
     },
     completions: new Map(),
     answers: [],

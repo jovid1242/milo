@@ -47,8 +47,7 @@ export function SummitVictory({ view, celebrate, onSeeJourney }: SummitVictoryPr
   const { width, height } = useWindowDimensions();
   const reduceMotion = useReducedMotion();
   const animate = celebrate && !reduceMotion;
-  const sceneHeight = Math.min(Math.round(width * 0.8), Math.round(height * 0.4));
-  const { completion } = view;
+  const sceneHeight = Math.min(Math.round(width * 0.78), Math.round(height * 0.36));
   const [arrived, setArrived] = useState(!animate);
   const [peakShown, setPeakShown] = useState(animate);
   // Without motion the victory lands at once; the confetti still falls, briefly.
@@ -142,18 +141,21 @@ export function SummitVictory({ view, celebrate, onSeeJourney }: SummitVictoryPr
           {confetti ? (
             <Confetti width={width} height={sceneHeight} reduceMotion={reduceMotion} />
           ) : null}
-          {confetti && completion.isPerfect ? (
-            <Animated.View
-              entering={FadeIn.duration(400)}
-              exiting={FadeOut.duration(900)}
-              style={styles.overlay}
-              pointerEvents="none">
-              <AssetImage asset={effects.sparkles} width={Math.round(width * 1.05)} />
-            </Animated.View>
-          ) : null}
         </View>
 
-        {arrived ? <Numbers view={view} celebrate={celebrate} /> : null}
+        {arrived ? (
+          <Numbers view={view} celebrate={celebrate} />
+        ) : (
+          // The last steps: the result that led here, still in view.
+          <Animated.View entering={FadeIn.duration(durations.normal)} style={styles.climbing}>
+            <AppText variant="overline" color="reward" align="center">
+              Final Battle passed
+            </AppText>
+            <AppText variant="bodyLarge" color="secondary" align="center">
+              The last steps…
+            </AppText>
+          </Animated.View>
+        )}
       </ScrollView>
 
       <View style={styles.footer}>
@@ -226,6 +228,13 @@ function Numbers({ view, celebrate }: { view: SummitView; celebrate: boolean }) 
   );
   const at = (ms: number) => (celebrate ? ms : 0);
   const percent = Math.round(completion.score * 100);
+  // A perfect Final Battle: one spark behind the days, then only the glow stays.
+  const [spark, setSpark] = useState(celebrate && completion.isPerfect);
+  useEffect(() => {
+    if (!spark) return;
+    const timer = setTimeout(() => setSpark(false), 2200);
+    return () => clearTimeout(timer);
+  }, [spark]);
 
   return (
     <View style={styles.numbers}>
@@ -238,7 +247,7 @@ function Numbers({ view, celebrate }: { view: SummitView; celebrate: boolean }) 
         <AppText variant="overline" color="reward" align="center">
           {allDays ? `${totalDays} days complete` : 'Summit reached'}
         </AppText>
-        <AppText variant="display" align="center">
+        <AppText variant="title1" align="center">
           You reached the summit.
         </AppText>
       </Animated.View>
@@ -252,6 +261,15 @@ function Numbers({ view, celebrate }: { view: SummitView; celebrate: boolean }) 
           <View style={styles.rays} pointerEvents="none">
             <AssetImage asset={effects.perfectRays} width={260} />
           </View>
+        ) : null}
+        {spark ? (
+          <Animated.View
+            entering={FadeIn.duration(400).delay(600)}
+            exiting={FadeOut.duration(800)}
+            style={styles.rays}
+            pointerEvents="none">
+            <AssetImage asset={effects.sparkles} width={200} />
+          </Animated.View>
         ) : null}
         <AssetImage asset={journey.flagComplete} width={44} />
         <AppText variant="displayLarge" testID="summit-days">
@@ -291,13 +309,13 @@ function Numbers({ view, celebrate }: { view: SummitView; celebrate: boolean }) 
               style={styles.badge}
               accessible
               accessibilityLabel={`Badge unlocked: ${badge.title}`}>
-              <AssetImage asset={badges[badge.badge]} width={56} />
-              <View style={styles.badgeText}>
-                <AppText variant="overline" color="reward">
-                  Badge unlocked
-                </AppText>
-                <AppText variant="bodyStrong">{badge.title}</AppText>
-              </View>
+              <AssetImage asset={badges[badge.badge]} width={40} />
+              <AppText variant="bodyStrong" style={styles.badgeText}>
+                {badge.title}
+              </AppText>
+              <AppText variant="overline" color="reward">
+                Badge unlocked
+              </AppText>
             </View>
           ))}
         </Animated.View>
@@ -323,7 +341,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  numbers: { gap: spacing[5], paddingHorizontal: layout.screenPaddingX },
+  numbers: { gap: spacing[4], paddingHorizontal: layout.screenPaddingX },
+  climbing: { gap: spacing[2], paddingHorizontal: layout.screenPaddingX },
   titles: { gap: spacing[2] },
   counter: {
     flexDirection: 'row',
@@ -348,13 +367,14 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: spacing[3],
-    padding: spacing[3],
+    paddingVertical: spacing[2],
+    paddingHorizontal: spacing[3],
     borderRadius: radius.lg,
     backgroundColor: colors.surface.base,
     borderWidth: 1,
     borderColor: colors.border.warm,
   },
-  badgeText: { flex: 1, gap: 2 },
+  badgeText: { flex: 1 },
   footer: {
     paddingTop: spacing[2],
     paddingBottom: spacing[3],

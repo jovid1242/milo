@@ -19,6 +19,8 @@ import {
   submitExam,
 } from '@/features/exams/use-cases';
 import { withExamAnswer, withPosition } from '@/features/exams/logic/exam';
+import { stepAt } from '@/features/onboarding/logic/onboarding';
+import { startChallenge } from '@/features/onboarding/use-cases';
 import { claimSummit } from '@/features/summit/use-cases';
 import {
   claimDayCelebration,
@@ -68,6 +70,7 @@ import type {
   ExamAttempt,
   XpEvent,
 } from '@/schemas';
+import { useOnboardingStore } from '@/stores/onboarding-store';
 import { clamp } from '@/utils/number';
 
 /**
@@ -78,6 +81,16 @@ export type DevContext = {
   repositories: Repositories;
   queryClient: QueryClient;
 };
+
+/**
+ * Every query, including the ones on screens react-native-screens has frozen
+ * behind a modal: `refetchType: 'all'` — the default reaches active observers
+ * only, and a frozen screen has none, so it would come back showing the data
+ * that was just wiped.
+ */
+async function refetchEverything({ queryClient }: DevContext): Promise<void> {
+  await queryClient.invalidateQueries({ refetchType: 'all' });
+}
 
 function invalidateAll({ queryClient }: DevContext): void {
   invalidateProgress(queryClient);
@@ -207,9 +220,19 @@ async function seedCompletedQuests(
   await devRepository(ctx).seedHistory(completions, xpEvents, days, words, challenge);
 }
 
+/**
+ * Puts the profile on `day`. Fixtures always act on a user who is past
+ * onboarding: seeding a state must never leave the app showing first launch
+ * over a Day 89 history. Production initial state stays untouched — nothing
+ * here runs outside the developer tools.
+ */
+async function startAtDay(ctx: DevContext, day: number): Promise<void> {
+  await startChallenge(ctx.repositories, { displayName: 'Explorer', goal: 'habit' });
+  await ctx.repositories.user.updateChallengeStartDate(getStartDateForDay(day, new Date()));
+}
+
 export async function setCurrentDay(ctx: DevContext, day: number): Promise<void> {
-  const target = clamp(Math.round(day), 1, CHALLENGE.totalDays);
-  await ctx.repositories.user.updateChallengeStartDate(getStartDateForDay(target, new Date()));
+  await startAtDay(ctx, clamp(Math.round(day), 1, CHALLENGE.totalDays));
   invalidateAll(ctx);
 }
 
@@ -441,7 +464,7 @@ async function rebuildProgress(ctx: DevContext, spec: HomeScenarioSpec): Promise
 
   await ctx.repositories.progress.resetProgress();
   await ctx.repositories.achievements.resetUnlocks();
-  await ctx.repositories.user.updateChallengeStartDate(getStartDateForDay(spec.day, new Date()));
+  await startAtDay(ctx, spec.day);
 
   const plans = await ctx.repositories.challenge.getDailyChallenges();
   const today = plans.find((plan) => plan.day === spec.day);
@@ -1215,7 +1238,7 @@ export type AchievementScenario = keyof typeof ACHIEVEMENT_SCENARIOS;
 async function freshStart(ctx: DevContext, day: number): Promise<void> {
   await ctx.repositories.progress.resetProgress();
   await ctx.repositories.achievements.resetUnlocks();
-  await ctx.repositories.user.updateChallengeStartDate(getStartDateForDay(day, new Date()));
+  await startAtDay(ctx, day);
 }
 
 /** Days before `day` completed; from `perfectFrom` on, without a mistake. */
@@ -1340,7 +1363,39 @@ export async function resetProgress(ctx: DevContext): Promise<void> {
 
 export async function resetAllLocalData(ctx: DevContext): Promise<void> {
   await devRepository(ctx).resetAllLocalData();
-  await ctx.queryClient.invalidateQueries();
+  // A wiped device is a first launch: the draft would otherwise survive it.
+  useOnboardingStore.getState().clear();
+  await refetchEverything(ctx);
+}
+
+/** Onboarding again, with the progress that is already there left alone. */
+export async function resetOnboarding(ctx: DevContext): Promise<void> {
+  await devRepository(ctx).resetOnboarding();
+  useOnboardingStore.getState().clear();
+  await refetchEverything(ctx);
+}
+
+/**
+ * Onboarding reopened at one step, with the answers it needs to get there —
+ * the routing guard does the navigating once the profile looks new again.
+ */
+export async function openOnboardingStep(ctx: DevContext, position: number): Promise<void> {
+  const step = stepAt(position);
+  useOnboardingStore.setState({
+    step,
+    name: step === 'name' ? 'Explorer' : '',
+    goal: step === 'name' ? 'habit' : null,
+  });
+  await devRepository(ctx).resetOnboarding();
+  await refetchEverything(ctx);
+}
+
+/** The first launch a new user gets, taken through in one tap: empty, Day 1. */
+export async function startFreshDayOne(ctx: DevContext): Promise<void> {
+  await devRepository(ctx).resetAllLocalData();
+  useOnboardingStore.getState().clear();
+  await startChallenge(ctx.repositories, { displayName: 'Explorer', goal: 'habit' });
+  await refetchEverything(ctx);
 }
 
 /** Two neutral demo teammates: a local stand-in for what a server would send. */

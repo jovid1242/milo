@@ -84,7 +84,8 @@ function checkExam(exam: ExamFields, ctx: z.RefinementCtx) {
   const issue = (message: string, path: (string | number)[]) =>
     ctx.addIssue({ code: 'custom', message, path });
   exam.coveredDays.forEach((day, index) => {
-    if (day >= exam.day) issue('covered days must come before the exam day', ['coveredDays', index]);
+    if (day >= exam.day)
+      issue('covered days must come before the exam day', ['coveredDays', index]);
   });
   const ids = new Set<string>();
   const passages = new Set(exam.passages.map((passage) => passage.id));

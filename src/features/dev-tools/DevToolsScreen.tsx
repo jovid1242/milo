@@ -17,6 +17,7 @@ import { colors, spacing } from '@/theme';
 import * as dev from './dev-actions';
 
 const DAY_SHORTCUTS = [1, 7, 10, 11, 30, 31, 60, 61, 89, 90];
+const ONBOARDING_STEPS = [1, 2, 3, 4, 5];
 const STREAKS = [0, 3, 7, 14, 30];
 
 function Section({ title, children }: { title: string; children: ReactNode }) {
@@ -55,6 +56,16 @@ export function DevToolsScreen() {
       .finally(() => setBusy(false));
   };
 
+  /**
+   * Closes this sheet first, then works. The onboarding guard rebuilds the
+   * stack under us — dismissing afterwards would try to go back to a screen
+   * that is no longer there.
+   */
+  const closeThen = (action: () => Promise<unknown>) => (): Promise<unknown> => {
+    router.back();
+    return action();
+  };
+
   const chip = (label: string, action: () => Promise<unknown>) => (
     <Button
       key={label}
@@ -89,6 +100,47 @@ export function DevToolsScreen() {
             </AppText>
           </View>
         </View>
+
+        {/* This sheet is reachable from both sides of the onboarding guard, so
+          each of these closes it and lets the guard decide where the user
+          lands: onboarding, or Day 1. */}
+        <Section title="Onboarding · first launch">
+          {chip(
+            'Reset onboarding',
+            closeThen(() => dev.resetOnboarding(context)),
+          )}
+          {ONBOARDING_STEPS.map((position) =>
+            chip(
+              `Step ${position}`,
+              closeThen(() => dev.openOnboardingStep(context, position)),
+            ),
+          )}
+          {chip(
+            'Start fresh Day 1',
+            closeThen(() => dev.startFreshDayOne(context)),
+          )}
+          <Button
+            label="Wipe user + challenge"
+            size="sm"
+            variant="danger"
+            haptic={null}
+            disabled={busy}
+            onPress={() =>
+              Alert.alert(
+                'Wipe user and challenge?',
+                'Deletes the profile and all progress, exactly like a fresh install. Onboarding opens again.',
+                [
+                  { text: 'Cancel', style: 'cancel' },
+                  {
+                    text: 'Wipe',
+                    style: 'destructive',
+                    onPress: run(closeThen(() => dev.resetAllLocalData(context))),
+                  },
+                ],
+              )
+            }
+          />
+        </Section>
 
         <Section title="Home states">
           {(Object.keys(dev.HOME_SCENARIOS) as dev.HomeScenario[]).map((scenario) =>

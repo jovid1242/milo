@@ -244,6 +244,19 @@ export const MIGRATIONS: readonly Migration[] = [
       `);
     },
   },
+  {
+    version: 9,
+    name: 'onboarding',
+    up: async (db) => {
+      // A profile from before onboarding existed is a user already on the way:
+      // they never see onboarding. Only a brand-new profile starts without it.
+      await db.execAsync(`
+        ALTER TABLE user_profile ADD COLUMN goal TEXT;
+        ALTER TABLE user_profile ADD COLUMN onboarded_at TEXT;
+        UPDATE user_profile SET onboarded_at = created_at;
+      `);
+    },
+  },
 ];
 
 export async function runMigrations(db: SQLiteDatabase): Promise<void> {
