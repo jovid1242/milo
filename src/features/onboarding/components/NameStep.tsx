@@ -16,7 +16,11 @@ export type NameStepProps = {
   compact: boolean;
 };
 
-/** Step five: a name to be called by, and the first chapter waiting. */
+/**
+ * Step five: a name to be called by, and the first chapter waiting. The field
+ * does not steal the focus — the last thing onboarding shows is where the
+ * ninety days begin, not a keyboard.
+ */
 export function NameStep({ name, onChange, onSubmit, compact }: NameStepProps) {
   const { width, height } = useWindowDimensions();
   const artHeight = Math.round(Math.min(width * 0.44, height * 0.22));
@@ -32,6 +36,8 @@ export function NameStep({ name, onChange, onSubmit, compact }: NameStepProps) {
           <Image
             source={chapters.beginning.source}
             contentFit="cover"
+            // The chapter's own lettering sits at the top of the illustration.
+            contentPosition="top"
             accessibilityLabel="Chapter 01, The Beginning, days 1 to 10"
             style={StyleSheet.absoluteFill}
           />
@@ -56,7 +62,6 @@ export function NameStep({ name, onChange, onSubmit, compact }: NameStepProps) {
           placeholderTextColor={colors.text.tertiary}
           autoCapitalize="words"
           autoCorrect={false}
-          autoFocus
           maxLength={24}
           returnKeyType="done"
           submitBehavior="blurAndSubmit"

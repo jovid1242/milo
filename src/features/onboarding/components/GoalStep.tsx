@@ -43,7 +43,10 @@ export function GoalStep({ goal, onSelect }: GoalStepProps) {
         </AppText>
       </Animated.View>
 
-      <Animated.View entering={FadeIn.duration(durations.normal).delay(120)} style={styles.options}>
+      <Animated.View
+        entering={FadeIn.duration(durations.normal).delay(120)}
+        style={styles.options}
+        accessibilityRole="radiogroup">
         {GOAL_OPTIONS.map((option) => {
           const selected = goal === option.goal;
           const Icon = ICONS[option.goal];
