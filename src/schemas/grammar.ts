@@ -1,6 +1,6 @@
 import { z } from 'zod';
 
-import { IdSchema } from './common';
+import { CefrLevelSchema, IdSchema } from './common';
 import { ChoiceAnswerSchema, type ChoiceAnswer } from './practice';
 
 /** A part of a sentence to pick out: the verb form, or a word that signals it. */
@@ -119,44 +119,93 @@ export const GrammarExerciseSchema = z.discriminatedUnion('kind', [
 export type GrammarExercise = z.infer<typeof GrammarExerciseSchema>;
 export type GrammarExerciseKind = GrammarExercise['kind'];
 
-/** The authored content of one Grammar quest — what a backend would send. */
-export const GrammarQuestSchema = z
+/** A choice exercise's own consistency: distinct options, the answer among them. */
+export function choiceProblem(item: {
+  options: readonly { id: string; text: string }[];
+  correctOptionId: string;
+}): string | null {
+  const optionIds = item.options.map((option) => option.id);
+  const texts = item.options.map((option) => option.text.trim().toLowerCase());
+  return new Set(optionIds).size !== optionIds.length
+    ? 'option ids repeat'
+    : new Set(texts).size !== texts.length
+      ? 'options repeat'
+      : !optionIds.includes(item.correctOptionId)
+        ? 'correctOptionId is not one of the options'
+        : null;
+}
+
+type GrammarTeaching = {
+  rule: GrammarRule;
+  examples: readonly GrammarExample[];
+  exercises: readonly GrammarExercise[];
+};
+
+/** What makes a rule, its examples and its exercises one consistent lesson. */
+function checkGrammarTeaching(lesson: GrammarTeaching, ctx: z.RefinementCtx) {
+  const pointIds = new Set(lesson.rule.points.map((point) => point.id));
+  if (pointIds.size !== lesson.rule.points.length) {
+    ctx.addIssue({ code: 'custom', message: 'point ids repeat', path: ['rule', 'points'] });
+  }
+  lesson.examples.forEach((example, index) => {
+    if (!pointIds.has(example.pointId)) {
+      ctx.addIssue({
+        code: 'custom',
+        message: 'pointId is not one of the rule points',
+        path: ['examples', index, 'pointId'],
+      });
+    }
+  });
+
+  const exerciseIds = new Set<string>();
+  lesson.exercises.forEach((item, index) => {
+    const problem = exerciseIds.has(item.id) ? 'exercise ids repeat' : choiceProblem(item);
+    exerciseIds.add(item.id);
+    if (problem) ctx.addIssue({ code: 'custom', message: problem, path: ['exercises', index] });
+  });
+}
+
+/**
+ * A grammar lesson of the course: one small concept — the rule, guided
+ * examples and practice. Its rule points carry course-wide ids
+ * (`<lesson id>.<point>`), so a review days later, an exam or the Final
+ * Battle can come back to exactly this concept.
+ */
+export const GrammarLessonSchema = z
   .object({
-    type: z.literal('grammar'),
-    questId: IdSchema,
+    /** `grammar-<topic>`. */
+    id: IdSchema,
+    level: CefrLevelSchema,
     rule: GrammarRuleSchema,
     examples: z.array(GrammarExampleSchema).min(1).max(4),
     exercises: z.array(GrammarExerciseSchema).min(1).max(10),
   })
-  .superRefine((quest, ctx) => {
-    const pointIds = new Set(quest.rule.points.map((point) => point.id));
-    quest.examples.forEach((example, index) => {
-      if (!pointIds.has(example.pointId)) {
+  .superRefine((lesson, ctx) => {
+    checkGrammarTeaching(lesson, ctx);
+    lesson.rule.points.forEach((point, index) => {
+      if (!point.id.startsWith(`${lesson.id}.`)) {
         ctx.addIssue({
           code: 'custom',
-          message: 'pointId is not one of the rule points',
-          path: ['examples', index, 'pointId'],
+          message: `point ids are "${lesson.id}.<point>"`,
+          path: ['rule', 'points', index, 'id'],
         });
       }
     });
-
-    const exerciseIds = new Set<string>();
-    quest.exercises.forEach((item, index) => {
-      const optionIds = item.options.map((option) => option.id);
-      const texts = item.options.map((option) => option.text.trim().toLowerCase());
-      const problem = exerciseIds.has(item.id)
-        ? 'exercise ids repeat'
-        : new Set(optionIds).size !== optionIds.length
-          ? 'option ids repeat'
-          : new Set(texts).size !== texts.length
-            ? 'options repeat'
-            : !optionIds.includes(item.correctOptionId)
-              ? 'correctOptionId is not one of the options'
-              : null;
-      exerciseIds.add(item.id);
-      if (problem) ctx.addIssue({ code: 'custom', message: problem, path: ['exercises', index] });
-    });
   });
+export type GrammarLesson = z.infer<typeof GrammarLessonSchema>;
+
+/** One Grammar quest, ready to play: the lesson it teaches. */
+export const GrammarQuestSchema = z
+  .object({
+    type: z.literal('grammar'),
+    questId: IdSchema,
+    /** The course's lesson this quest teaches. */
+    lessonId: IdSchema,
+    rule: GrammarRuleSchema,
+    examples: z.array(GrammarExampleSchema).min(1).max(4),
+    exercises: z.array(GrammarExerciseSchema).min(1).max(10),
+  })
+  .superRefine(checkGrammarTeaching);
 export type GrammarQuest = z.infer<typeof GrammarQuestSchema>;
 
 /** One locked-in practice answer. */

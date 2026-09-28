@@ -1,4 +1,4 @@
-import type { DailyChallenge, DayKind, DayNumber } from '@/schemas';
+import type { CourseDay, DayKind, DayNumber } from '@/schemas';
 
 /** What the next day brings — for "Tomorrow: Day 90 · Summit". */
 export type Tomorrow = { day: DayNumber; kind: DayKind };
@@ -9,7 +9,7 @@ const KIND_LABELS: Partial<Record<DayKind, string>> = {
 };
 
 /** `null` after the last day of the challenge. */
-export function findTomorrow(plans: readonly DailyChallenge[], day: DayNumber): Tomorrow | null {
+export function findTomorrow(plans: readonly CourseDay[], day: DayNumber): Tomorrow | null {
   const next = plans.find((plan) => plan.day === day + 1);
   return next ? { day: next.day, kind: next.kind } : null;
 }

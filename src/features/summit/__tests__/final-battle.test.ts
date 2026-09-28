@@ -1,5 +1,6 @@
-import { FINAL_CHALLENGE } from '@/data/content/exams/final-challenge';
-import { buildAllDailyChallenges, questId } from '@/data/content/schedule';
+import { FINAL_CHALLENGE } from '@/content/course/final-challenge';
+import { LOCAL_COURSE } from '@/content/course';
+import { questId } from '@/features/course/logic/ids';
 import { createMemoryRepositories } from '@/data/repositories/memory/memory-repositories';
 import { syncAchievements } from '@/features/achievements/use-cases';
 import { getChallengeDay, getStartDateForDay } from '@/features/challenge/logic/calendar';
@@ -24,12 +25,13 @@ const AT = '2026-09-18T10:00:00.000Z';
 /** Today is `day`, with every day before it finished (streak day − 1) and its badges settled. */
 async function setup(day = 90): Promise<Repositories> {
   const repositories = createMemoryRepositories(getStartDateForDay(day, new Date()));
-  const plans = await repositories.challenge.getDailyChallenges();
+  const plans = await repositories.course.getDays();
   const history: QuestCompletion[] = plans
     .filter((plan) => plan.day < day)
     .flatMap((plan) =>
       plan.quests.map((quest) => ({
         questId: quest.id,
+        courseVersion: 1,
         day: plan.day,
         questType: quest.type,
         score: 0.8,
@@ -295,7 +297,7 @@ describe('after the summit', () => {
   });
 
   it('never makes a Day 91', async () => {
-    expect(buildAllDailyChallenges()).toHaveLength(90);
+    expect(LOCAL_COURSE.days).toHaveLength(90);
     const start = getStartDateForDay(90, new Date(2026, 8, 19));
     expect(getChallengeDay(start, new Date(2026, 9, 30))).toBe(90);
 

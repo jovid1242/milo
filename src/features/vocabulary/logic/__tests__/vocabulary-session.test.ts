@@ -1,4 +1,4 @@
-import { DAY_089 } from '@/data/content/lessons/day-089';
+import { questContent } from '@/content/course/__fixtures__/quest-content';
 import { scorePractice } from '@/features/quests/logic/practice';
 import type { VocabularyProgress, VocabularyQuest } from '@/schemas';
 
@@ -12,7 +12,7 @@ import {
   type VocabularyAction,
 } from '../vocabulary-session';
 
-const quest = DAY_089.find((content) => content.type === 'vocabulary') as VocabularyQuest;
+const quest: VocabularyQuest = questContent('d089-vocabulary', 'vocabulary');
 const AT = '2026-09-18T10:00:00.000Z';
 
 const run = (actions: VocabularyAction[], from: VocabularyProgress = INITIAL_PROGRESS) =>

@@ -17,6 +17,7 @@ type AttemptRow = {
   id: string;
   exam_id: string;
   quest_id: string;
+  course_version: number;
   number: number;
   started_at: string;
   updated_at: string;
@@ -34,6 +35,7 @@ const mapAttempt = (row: AttemptRow): ExamAttempt =>
     id: row.id,
     examId: row.exam_id,
     questId: row.quest_id,
+    courseVersion: row.course_version,
     number: row.number,
     startedAt: row.started_at,
     updatedAt: row.updated_at,
@@ -69,13 +71,14 @@ export class SqliteExamRepository implements ExamRepository {
       // The unique "open attempt" index turns a second open into a no-op.
       await db.runAsync(
         `INSERT OR IGNORE INTO exam_attempts
-           (id, exam_id, quest_id, number, started_at, updated_at, current_index, answers_json,
-            submitted_at, correct_count, total_count, score, passed)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, NULL, NULL, ?, NULL, NULL)`,
+           (id, exam_id, quest_id, course_version, number, started_at, updated_at, current_index,
+            answers_json, submitted_at, correct_count, total_count, score, passed)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, NULL, ?, NULL, NULL)`,
         [
           attempt.id,
           attempt.examId,
           attempt.questId,
+          attempt.courseVersion,
           attempt.number,
           attempt.startedAt,
           attempt.updatedAt,

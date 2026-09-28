@@ -4,7 +4,7 @@ import type { Tomorrow } from '@/features/challenge/logic/tomorrow';
 import type {
   ChallengeCompletion,
   Chapter,
-  DailyChallenge,
+  CourseDay,
   DayCompletion,
   DayKind,
   DayNumber,
@@ -68,7 +68,7 @@ export type TodayJourney = {
 };
 
 export type TodayJourneyInput = {
-  plan: DailyChallenge;
+  plan: CourseDay;
   chapters: readonly Chapter[];
   progress: ProgressState;
   /** Completions of any day; only the plan's quests are used. */

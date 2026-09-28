@@ -3,6 +3,7 @@ import { EMPTY_DRAFT, ONBOARDING_STEPS, parseOnboardingDraft } from '@/schemas';
 import {
   GOAL_OPTIONS,
   TOTAL_STEPS,
+  aboutMinutes,
   canContinue,
   continueLabel,
   nameError,
@@ -13,10 +14,10 @@ import {
 } from '../onboarding';
 
 describe('onboarding steps', () => {
-  it('runs from the welcome to the name, and no further', () => {
-    expect(ONBOARDING_STEPS[0]).toBe('welcome');
+  it('runs from the welcome to the moment Day 1 begins, and no further', () => {
+    expect(ONBOARDING_STEPS).toEqual(['welcome', 'journey', 'day', 'goal', 'name', 'ready']);
     expect(previousStep('welcome')).toBeNull();
-    expect(nextStep('name')).toBeNull();
+    expect(nextStep('ready')).toBeNull();
 
     const visited = [ONBOARDING_STEPS[0]];
     let step = nextStep('welcome');
@@ -25,7 +26,7 @@ describe('onboarding steps', () => {
       step = nextStep(step);
     }
     expect(visited).toEqual([...ONBOARDING_STEPS]);
-    expect(stepNumber('name')).toBe(TOTAL_STEPS);
+    expect(stepNumber('ready')).toBe(TOTAL_STEPS);
   });
 
   it('walks back the way it came', () => {
@@ -38,9 +39,9 @@ describe('onboarding steps', () => {
 
   it('clamps a step asked for by number', () => {
     expect(stepAt(1)).toBe('welcome');
-    expect(stepAt(TOTAL_STEPS)).toBe('name');
+    expect(stepAt(TOTAL_STEPS)).toBe('ready');
     expect(stepAt(0)).toBe('welcome');
-    expect(stepAt(99)).toBe('name');
+    expect(stepAt(99)).toBe('ready');
     expect(stepAt(Number.NaN)).toBe('welcome');
   });
 
@@ -58,6 +59,14 @@ describe('onboarding steps', () => {
     expect(canContinue({ ...draft, step: 'name', goal: 'habit', name: 'Jo' })).toBe(true);
   });
 
+  it('starts the challenge only with every answer given', () => {
+    const ready = { ...EMPTY_DRAFT, step: 'ready' as const };
+    expect(canContinue({ ...ready, goal: 'habit', name: 'Jo' })).toBe(true);
+    expect(canContinue({ ...ready, goal: null, name: 'Jo' })).toBe(false);
+    expect(canContinue({ ...ready, goal: 'habit', name: '' })).toBe(false);
+    expect(canContinue({ ...ready, goal: 'habit', name: ' J ' })).toBe(false);
+  });
+
   it('complains about a name only once there is one', () => {
     expect(nameError('')).toBeNull();
     expect(nameError('   ')).toBeNull();
@@ -66,9 +75,19 @@ describe('onboarding steps', () => {
     expect(nameError('<script>')).not.toBeNull();
   });
 
-  it('names the last button after what it does', () => {
-    expect(continueLabel('welcome')).toBe('Continue');
-    expect(continueLabel('name')).toBe('Start Day 1');
+  it('names the buttons after what they do', () => {
+    expect(continueLabel('welcome')).toBe("Let's go");
+    expect(continueLabel('goal')).toBe('Continue');
+    expect(continueLabel('name')).toBe('Continue');
+    expect(continueLabel('ready')).toBe('Start Day 1');
+  });
+
+  it('says a day takes about as long as people would say it', () => {
+    expect(aboutMinutes(19)).toBe(20); // a regular day: 5 + 6 + 5 + 3
+    expect(aboutMinutes(22)).toBe(20);
+    expect(aboutMinutes(23)).toBe(25);
+    expect(aboutMinutes(3)).toBe(5);
+    expect(aboutMinutes(0)).toBe(5);
   });
 
   it('offers one goal per stored value, all distinct', () => {
@@ -82,6 +101,7 @@ describe('the stored draft', () => {
   it('keeps what a half-finished onboarding collected', () => {
     const draft = { step: 'name' as const, name: 'Mira', goal: 'habit' as const };
     expect(parseOnboardingDraft(draft)).toEqual(draft);
+    expect(parseOnboardingDraft({ ...draft, step: 'ready' })).toEqual({ ...draft, step: 'ready' });
   });
 
   it('survives anything that is not a draft', () => {

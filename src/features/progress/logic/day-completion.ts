@@ -1,16 +1,10 @@
-import type {
-  DailyChallenge,
-  DayCompletion,
-  DayNumber,
-  QuestCompletion,
-  Timestamp,
-} from '@/schemas';
+import type { CourseDay, DayCompletion, DayNumber, QuestCompletion, Timestamp } from '@/schemas';
 
 import { streakEndingAt } from './streak';
 
 /** The days whose every quest has a completion. */
 export function findCompletedDays(
-  plans: readonly DailyChallenge[],
+  plans: readonly CourseDay[],
   completions: readonly QuestCompletion[],
 ): Set<DayNumber> {
   const done = new Set(completions.map((completion) => completion.questId));
@@ -31,7 +25,7 @@ const isPerfectCompletion = (completion: QuestCompletion) =>
  * a day is complete only when all of its quests are.
  */
 export function buildDayCompletion(input: {
-  plan: DailyChallenge;
+  plan: CourseDay;
   completions: readonly QuestCompletion[];
   completedDays: ReadonlySet<DayNumber>;
   completedAt: Timestamp;

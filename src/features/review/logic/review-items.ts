@@ -9,34 +9,7 @@ import { asChoice as readingChoice } from '@/features/reading/logic/reading-sess
 import { storySentence } from '@/features/reading/logic/story-text';
 import { describeExercise, type ExerciseView } from '@/features/vocabulary/logic/exercise-view';
 import { asChoice as vocabularyChoice } from '@/features/vocabulary/logic/vocabulary-session';
-import type {
-  GrammarQuest,
-  QuestContent,
-  ReadingQuest,
-  ReviewExercise,
-  ReviewQuest,
-  ReviewSource,
-  VocabularyQuest,
-} from '@/schemas';
-
-/** Today's quests a review draws on. A missing one simply contributes nothing. */
-export type ReviewMaterial = {
-  vocabulary: VocabularyQuest | null;
-  grammar: GrammarQuest | null;
-  reading: ReadingQuest | null;
-};
-
-/** Picks the review's source quests out of loaded content. */
-export function reviewMaterial(review: ReviewQuest, contents: readonly QuestContent[]) {
-  const find = <T extends QuestContent['type']>(type: T, questId: string | undefined) =>
-    (contents.find((content) => content.type === type && content.questId === questId) ??
-      null) as Extract<QuestContent, { type: T }> | null;
-  return {
-    vocabulary: find('vocabulary', review.sources.vocabulary),
-    grammar: find('grammar', review.sources.grammar),
-    reading: find('reading', review.sources.reading),
-  } satisfies ReviewMaterial;
-}
+import type { ReviewExercise, ReviewQuest, ReviewSource } from '@/schemas';
 
 type ReviewItemBase = {
   id: string;
@@ -61,13 +34,16 @@ export const SOURCE_LABELS: Record<ReviewSource, string> = {
   reading: 'Reading',
 };
 
-function resolveItem(exercise: ReviewExercise, material: ReviewMaterial): ReviewItem | null {
+function resolveItem(
+  exercise: ReviewExercise,
+  material: ReviewQuest['material'],
+): ReviewItem | null {
   switch (exercise.source) {
     case 'vocabulary': {
-      const quest = material.vocabulary;
+      const words = { items: material.words };
       const ids = [exercise.exercise.itemId, ...exercise.exercise.optionItemIds];
-      if (!quest || !ids.every((id) => quest.items.some((item) => item.id === id))) return null;
-      const view = describeExercise(quest, exercise.exercise);
+      if (!ids.every((id) => material.words.some((word) => word.id === id))) return null;
+      const view = describeExercise(words, exercise.exercise);
       return {
         source: 'vocabulary',
         id: exercise.exercise.id,
@@ -79,9 +55,8 @@ function resolveItem(exercise: ReviewExercise, material: ReviewMaterial): Review
       };
     }
     case 'grammar': {
-      // It has to practise a point that today's rule actually taught.
-      const points = material.grammar?.rule.points ?? [];
-      if (!points.some((point) => point.id === exercise.pointId)) return null;
+      // It has to practise a point the course actually taught.
+      if (!material.points.some((point) => point.id === exercise.pointId)) return null;
       const view = describeGrammarExercise(exercise.exercise);
       return {
         source: 'grammar',
@@ -94,7 +69,7 @@ function resolveItem(exercise: ReviewExercise, material: ReviewMaterial): Review
       };
     }
     case 'reading': {
-      const story = material.reading?.story;
+      const story = material.readings.find((reading) => reading.id === exercise.readingId)?.story;
       if (!story) return null;
       const view = describeReadingQuestion(exercise.question);
       return {
@@ -115,11 +90,12 @@ function resolveItem(exercise: ReviewExercise, material: ReviewMaterial): Review
 }
 
 /**
- * The review's exercises in their authored (mixed) order. An exercise whose
- * source material is missing is left out rather than shown half-broken.
+ * The review's exercises in their authored (mixed) order, resolved against
+ * the material the review carries — today's and earlier days'. An exercise
+ * whose material is missing is left out rather than shown half-broken.
  */
-export function resolveReview(review: ReviewQuest, material: ReviewMaterial): ReviewItem[] {
+export function resolveReview(review: ReviewQuest): ReviewItem[] {
   return review.exercises
-    .map((exercise) => resolveItem(exercise, material))
+    .map((exercise) => resolveItem(exercise, review.material))
     .filter((item): item is ReviewItem => item !== null);
 }

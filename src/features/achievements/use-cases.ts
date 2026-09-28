@@ -18,7 +18,7 @@ export async function loadAchievementFacts(
 ): Promise<AchievementFacts> {
   const [user, plans, completions, dayCompletions, uniqueWords] = await Promise.all([
     repositories.user.getUser(),
-    repositories.challenge.getDailyChallenges(),
+    repositories.course.getDays(),
     repositories.progress.getCompletions(),
     repositories.progress.getDayCompletions(),
     repositories.progress.countLearnedWords(),

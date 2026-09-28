@@ -1,6 +1,7 @@
 import { z } from 'zod';
 
 import { DayNumberSchema, IdSchema, ScoreSchema, TimestampSchema } from './common';
+import { choiceProblem } from './grammar';
 
 /**
  * Exams: the weekly exam (a checkpoint on every 7th day, testing the week
@@ -54,6 +55,13 @@ export const ExamQuestionSchema = z.object({
   correctOptionId: IdSchema,
   /** Shown only after submission, in the review. */
   explanation: z.string().min(1),
+  /**
+   * The course material the question tests — word ids, grammar point ids or
+   * reading ids. Optional (a question can stand on its own), but when given,
+   * each must exist and be taught no later than `sourceDay`: an exam never
+   * tests what comes after it.
+   */
+  materialIds: z.array(IdSchema).max(4).optional(),
 });
 export type ExamQuestion = z.infer<typeof ExamQuestionSchema>;
 
@@ -65,8 +73,8 @@ const examFields = {
   day: DayNumberSchema,
   /** The days whose material it tests — all before the exam day. */
   coveredDays: z.array(DayNumberSchema).min(1),
-  /** Share of right answers needed to pass, 0…1 (the one place it is defined). */
-  passingScore: ScoreSchema,
+  /** Share of right answers needed to pass, above 0 and at most 1 (the one place it is defined). */
+  passingScore: z.number().gt(0).max(1),
   /** Paid once, for the first pass. */
   xpReward: z.number().int().nonnegative(),
   estimatedMinutes: z.number().int().positive(),
@@ -93,10 +101,8 @@ function checkExam(exam: ExamFields, ctx: z.RefinementCtx) {
     const path = ['questions', index];
     if (ids.has(question.id)) issue('question ids repeat', path);
     ids.add(question.id);
-    const options = question.options.map((option) => option.id);
-    if (new Set(options).size !== options.length) issue('option ids repeat', path);
-    if (!options.includes(question.correctOptionId))
-      issue('the answer is not among the options', path);
+    const problem = choiceProblem(question);
+    if (problem) issue(problem, path);
     if (!exam.coveredDays.includes(question.sourceDay)) issue('source day is not covered', path);
     if (question.section === 'reading' && !question.passageId)
       issue('reading needs a passage', path);
@@ -153,6 +159,8 @@ export const ExamAttemptSchema = z.object({
   id: IdSchema,
   examId: IdSchema,
   questId: IdSchema,
+  /** The course version whose questions the answers refer to. */
+  courseVersion: z.number().int().positive(),
   /** 1 for the first try. */
   number: z.number().int().positive(),
   startedAt: TimestampSchema,

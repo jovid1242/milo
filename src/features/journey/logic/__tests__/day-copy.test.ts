@@ -4,6 +4,7 @@ import { dayAccessibilityLabel, dayStatus, daysToSummitLabel, examCopy } from '.
 
 const day = (patch: Partial<JourneyDay>): JourneyDay => ({
   day: 42,
+  week: 6,
   chapterId: 'habit',
   kind: 'weeklyExam',
   state: 'completed',

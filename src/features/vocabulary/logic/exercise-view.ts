@@ -19,8 +19,9 @@ export type ExerciseView = {
   feedback: { correct: string; wrong: string };
 };
 
+/** `quest` only needs the words: a Vocabulary quest's own, or a review's material. */
 export function describeExercise(
-  quest: VocabularyQuest,
+  quest: Pick<VocabularyQuest, 'items'>,
   exercise: VocabularyExercise,
 ): ExerciseView {
   const item = itemById(quest, exercise.itemId);

@@ -3,7 +3,7 @@ import { getChallengeDay } from '@/features/challenge/logic/calendar';
 import { findCompletedDays } from '@/features/progress/logic/day-completion';
 import type {
   AchievementUnlock,
-  DailyChallenge,
+  CourseDay,
   DayCompletion,
   DayNumber,
   JoinTeamResult,
@@ -29,7 +29,7 @@ const STREAK_MILESTONES = new Set([3, 7, 14, 30, 50, 90]);
 /** The current user as a team member, built from their local progress. */
 function myProgress(input: {
   displayName: string;
-  plans: readonly DailyChallenge[];
+  plans: readonly CourseDay[];
   completions: readonly QuestCompletion[];
   totalXp: number;
   achievementsUnlocked: number;
@@ -64,7 +64,7 @@ export async function loadTeamView(
   if (!team) return null;
   const [user, plans, completions, totalXp, unlocks, others] = await Promise.all([
     repositories.user.getUser(),
-    repositories.challenge.getDailyChallenges(),
+    repositories.course.getDays(),
     repositories.progress.getCompletions(),
     repositories.progress.getTotalXp(),
     repositories.achievements.getUnlocks(),

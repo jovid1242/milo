@@ -5,7 +5,7 @@ import { StyleSheet, View } from 'react-native';
 
 import { ErrorState } from '@/components/ErrorState';
 import { AppText, Button, IconButton, LoadingState, Screen } from '@/components/ui';
-import { useQuest } from '@/features/challenge/queries';
+import { useQuest } from '@/features/course/queries';
 import { useCompleteQuest, useStartQuest } from '@/features/progress/queries';
 import type { QuestType } from '@/schemas';
 import { spacing } from '@/theme';

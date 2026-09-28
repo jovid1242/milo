@@ -21,6 +21,7 @@ import {
 
 type CompletionRow = {
   quest_id: string;
+  course_version: number;
   day: number;
   quest_type: string;
   score: number;
@@ -139,6 +140,7 @@ export async function writeChallengeCompletion(db: SQLiteDatabase, record: Chall
 const mapCompletion = (row: CompletionRow): QuestCompletion =>
   QuestCompletionSchema.parse({
     questId: row.quest_id,
+    courseVersion: row.course_version,
     day: row.day,
     questType: row.quest_type,
     score: row.score,
@@ -174,9 +176,11 @@ const placeholders = (count: number) => Array.from({ length: count }, () => '?')
 export async function writeCompletion(db: SQLiteDatabase, completion: QuestCompletion) {
   await db.runAsync(
     `INSERT INTO quest_completions
-       (quest_id, day, quest_type, score, correct_count, total_count, xp_earned, source, completed_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+       (quest_id, course_version, day, quest_type, score, correct_count, total_count, xp_earned,
+        source, completed_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
      ON CONFLICT(quest_id) DO UPDATE SET
+       course_version = excluded.course_version,
        score = excluded.score,
        correct_count = excluded.correct_count,
        total_count = excluded.total_count,
@@ -185,6 +189,7 @@ export async function writeCompletion(db: SQLiteDatabase, completion: QuestCompl
        completed_at = excluded.completed_at`,
     [
       completion.questId,
+      completion.courseVersion,
       completion.day,
       completion.questType,
       completion.score,

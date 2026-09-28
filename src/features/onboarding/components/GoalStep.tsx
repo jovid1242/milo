@@ -36,10 +36,10 @@ export function GoalStep({ goal, onSelect }: GoalStepProps) {
     <View style={styles.step} testID="onboarding-goal">
       <Animated.View entering={FadeInUp.duration(durations.normal)} style={styles.text}>
         <AppText variant="title2" accessibilityRole="header">
-          What do you want most?
+          What’s your main goal?
         </AppText>
         <AppText variant="body" color="secondary">
-          Pick the one that fits best. Milo keeps it in mind.
+          Pick one — Milo keeps it in mind.
         </AppText>
       </Animated.View>
 

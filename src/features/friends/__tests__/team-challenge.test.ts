@@ -41,12 +41,13 @@ async function setup(currentDay: number) {
 
 /** The user's own finished days, stored as quest completions. */
 async function myDays(repositories: Repositories, days: readonly number[]) {
-  const plans = await repositories.challenge.getDailyChallenges();
+  const plans = await repositories.course.getDays();
   const completions: QuestCompletion[] = plans
     .filter((plan) => days.includes(plan.day))
     .flatMap((plan) =>
       plan.quests.map((quest) => ({
         questId: quest.id,
+        courseVersion: 1,
         day: plan.day,
         questType: quest.type,
         score: 5 / 6,
@@ -62,7 +63,7 @@ async function myDays(repositories: Repositories, days: readonly number[]) {
 
 /** The rest of today's quests, through the real completion use case. */
 async function finishToday(repositories: Repositories, day: number) {
-  const plan = await repositories.challenge.getDailyChallenge(day);
+  const plan = await repositories.course.getDay(day);
   const done = new Set((await repositories.progress.getCompletions()).map((c) => c.questId));
   const outcomes = [];
   for (const quest of plan.quests.filter((item) => !done.has(item.id))) {

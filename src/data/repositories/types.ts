@@ -5,7 +5,8 @@ import type {
   AnswerRecord,
   Chapter,
   ChallengeCompletion,
-  DailyChallenge,
+  CourseDay,
+  CourseOutline,
   DayCompletion,
   DayNumber,
   Goal,
@@ -22,22 +23,34 @@ import type {
   Timestamp,
   User,
   ExamAttempt,
+  FinalChallenge,
+  WeeklyExam,
   XpEvent,
   XpEventReason,
 } from '@/schemas';
 
 /**
  * Data access contracts. Screens depend only on these, so a
- * `LocalChallengeRepository` can later be swapped for an `ApiChallengeRepository`
+ * `LocalCourseRepository` can later be swapped for an `ApiCourseRepository`
  * without touching the UI.
  */
 
-export interface ChallengeRepository {
+/**
+ * The course: what there is to learn. Every method is an async boundary —
+ * the bundled course answers at once, an API-backed one from its cache or
+ * the network — and every answer is validated content.
+ */
+export interface CourseRepository {
+  /** The course's shape: identity and version, chapters, every day's quests — no material. */
+  getCourse(): Promise<CourseOutline>;
   getChapters(): Promise<Chapter[]>;
-  getDailyChallenges(): Promise<DailyChallenge[]>;
-  getDailyChallenge(day: DayNumber): Promise<DailyChallenge>;
-  /** Authored lesson content; `null` while a day has no content yet. */
+  getDays(): Promise<CourseDay[]>;
+  getDay(day: DayNumber): Promise<CourseDay>;
+  /** A quest's playable content; `null` while the course has none for it yet. */
   getQuestContent(questId: string): Promise<QuestContent | null>;
+  /** The checkpoint on a day, if the course has written it. */
+  getWeeklyExam(day: DayNumber): Promise<WeeklyExam | null>;
+  getFinalChallenge(): Promise<FinalChallenge | null>;
 }
 
 /** What onboarding writes when the challenge starts. */
@@ -212,7 +225,7 @@ export interface DevRepository {
 }
 
 export type Repositories = {
-  challenge: ChallengeRepository;
+  course: CourseRepository;
   user: UserRepository;
   progress: ProgressRepository;
   achievements: AchievementRepository;

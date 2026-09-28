@@ -12,8 +12,8 @@ export async function loadTodayJourney(
 ): Promise<TodayJourney> {
   const progress = await loadProgressState(repositories, now);
   const [chapters, plans, completions, sessions, dayCompletion] = await Promise.all([
-    repositories.challenge.getChapters(),
-    repositories.challenge.getDailyChallenges(),
+    repositories.course.getChapters(),
+    repositories.course.getDays(),
     repositories.progress.getCompletionsForDays([progress.currentDay]),
     repositories.progress.getQuestSessions(),
     repositories.progress.getDayCompletion(progress.currentDay),

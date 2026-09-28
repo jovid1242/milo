@@ -4,9 +4,10 @@ import { GoalSchema } from './user';
 
 /**
  * First launch, step by step: who Milo is, where the 90 days lead, what a day
- * looks like, what the user wants from it, and what to call them.
+ * looks like, what the user wants from it, what to call them — and the moment
+ * Day 1 begins.
  */
-export const OnboardingStepSchema = z.enum(['welcome', 'journey', 'day', 'goal', 'name']);
+export const OnboardingStepSchema = z.enum(['welcome', 'journey', 'day', 'goal', 'name', 'ready']);
 export type OnboardingStep = z.infer<typeof OnboardingStepSchema>;
 
 export const ONBOARDING_STEPS = OnboardingStepSchema.options;

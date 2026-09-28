@@ -1,7 +1,7 @@
 import { z } from 'zod';
 
 import { ChapterIdSchema } from './chapter';
-import { DayNumberSchema, IdSchema } from './common';
+import { CefrLevelSchema, DayNumberSchema, IdSchema } from './common';
 
 /** Ids match the quest icon keys in the asset registry. */
 export const QuestTypeSchema = z.enum([
@@ -27,16 +27,29 @@ export const QuestSchema = z.object({
 });
 export type Quest = z.infer<typeof QuestSchema>;
 
+/**
+ * What a day is in the course: a regular lesson day, a checkpoint (the weekly
+ * exam) or the summit. Declared by the course for every day — the app reads
+ * it and never works it out from the day number.
+ */
 export const DayKindSchema = z.enum(['regular', 'weeklyExam', 'summit']);
 export type DayKind = z.infer<typeof DayKindSchema>;
 
-/** The plan for one challenge day: which quests make up the day. */
-export const DailyChallengeSchema = z
+/**
+ * One day of the course: which chapter it belongs to, what kind of day it is
+ * and which quests make it up. Content only — what the user did with it is
+ * progress, and lives elsewhere.
+ */
+export const CourseDaySchema = z
   .object({
+    /** `d001` … `d090`. */
+    id: IdSchema,
     day: DayNumberSchema,
     week: z.number().int().min(1),
     chapterId: ChapterIdSchema,
     kind: DayKindSchema,
+    /** The day's target level: it never goes down as the course goes on. */
+    level: CefrLevelSchema,
     quests: z.array(QuestSchema).min(1),
   })
   .superRefine((plan, ctx) => {
@@ -50,4 +63,4 @@ export const DailyChallengeSchema = z
       }
     });
   });
-export type DailyChallenge = z.infer<typeof DailyChallengeSchema>;
+export type CourseDay = z.infer<typeof CourseDaySchema>;

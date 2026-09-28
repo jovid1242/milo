@@ -1,11 +1,12 @@
-import { CHAPTERS } from '@/data/content/chapters';
-import { buildAllDailyChallenges, questId } from '@/data/content/schedule';
+import { CHAPTERS } from '@/content/course/chapters';
+import { LOCAL_COURSE } from '@/content/course';
+import { questId } from '@/features/course/logic/ids';
 import { buildProgressState } from '@/features/progress/logic/progress-state';
 import { getStartDateForDay } from '@/features/challenge/logic/calendar';
-import type { DailyChallenge, QuestCompletion, User } from '@/schemas';
+import type { CourseDay, QuestCompletion, User } from '@/schemas';
 
 const NOW = new Date(2026, 8, 18, 12, 0, 0);
-const PLANS = buildAllDailyChallenges();
+const PLANS = LOCAL_COURSE.days;
 
 const user = (currentDay: number): User => ({
   id: 'local-user',
@@ -16,12 +17,13 @@ const user = (currentDay: number): User => ({
   createdAt: NOW.toISOString(),
 });
 
-const completionsFor = (plans: DailyChallenge[], days: number[]): QuestCompletion[] =>
+const completionsFor = (plans: CourseDay[], days: number[]): QuestCompletion[] =>
   plans
     .filter((plan) => days.includes(plan.day))
     .flatMap((plan) =>
       plan.quests.map((quest) => ({
         questId: quest.id,
+        courseVersion: 1,
         day: plan.day,
         questType: quest.type,
         score: 1,
@@ -41,7 +43,7 @@ const build = (
   buildProgressState({
     user: user(currentDay),
     chapters: CHAPTERS,
-    dailyChallenges: PLANS,
+    courseDays: PLANS,
     completions: completionsFor(PLANS, completedDays),
     totalXp: 0,
     unlocks: [],

@@ -3,7 +3,7 @@ import type {
   AchievementUnlock,
   ChallengeCompletion,
   Chapter,
-  DailyChallenge,
+  CourseDay,
   DayNumber,
   ProgressState,
   QuestCompletion,
@@ -17,7 +17,7 @@ import { computeStreak } from './streak';
 export type ProgressInputs = {
   user: User;
   chapters: readonly Chapter[];
-  dailyChallenges: readonly DailyChallenge[];
+  courseDays: readonly CourseDay[];
   completions: readonly QuestCompletion[];
   totalXp: number;
   unlocks: readonly AchievementUnlock[];
@@ -30,14 +30,13 @@ export type ProgressInputs = {
 
 /** Derives everything the UI needs about progress from raw persisted facts. */
 export function buildProgressState(input: ProgressInputs): ProgressState {
-  const { user, chapters, dailyChallenges, completions, totalXp, unlocks, wordsLearned, now } =
-    input;
+  const { user, chapters, courseDays, completions, totalXp, unlocks, wordsLearned, now } = input;
   const currentDay = getChallengeDay(user.challengeStartDate, now);
   const completedQuestIds = new Set(completions.map((c) => c.questId));
-  const completedDaySet = findCompletedDays(dailyChallenges, completions);
+  const completedDaySet = findCompletedDays(courseDays, completions);
   const completedDays: DayNumber[] = [...completedDaySet].sort((a, b) => a - b);
 
-  const today = dailyChallenges.find((plan) => plan.day === currentDay);
+  const today = courseDays.find((plan) => plan.day === currentDay);
   const todayCompletedQuestIds =
     today?.quests.filter((quest) => completedQuestIds.has(quest.id)).map((quest) => quest.id) ?? [];
 

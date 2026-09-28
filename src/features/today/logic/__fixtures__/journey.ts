@@ -1,5 +1,6 @@
-import { CHAPTERS } from '@/data/content/chapters';
-import { buildAllDailyChallenges, questId } from '@/data/content/schedule';
+import { CHAPTERS } from '@/content/course/chapters';
+import { LOCAL_COURSE } from '@/content/course';
+import { questId } from '@/features/course/logic/ids';
 import { getStartDateForDay } from '@/features/challenge/logic/calendar';
 import { findTomorrow } from '@/features/challenge/logic/tomorrow';
 import { buildProgressState } from '@/features/progress/logic/progress-state';
@@ -8,7 +9,7 @@ import type { QuestCompletion, QuestSession, QuestType } from '@/schemas';
 import { buildTodayJourney, type TodayJourney } from '../today-journey';
 
 export const NOW = new Date(2026, 8, 18, 12, 0, 0);
-export const PLANS = buildAllDailyChallenges();
+export const PLANS = LOCAL_COURSE.days;
 
 const completion = (
   day: number,
@@ -17,6 +18,7 @@ const completion = (
   perfect = false,
 ): QuestCompletion => ({
   questId: questId(day, type),
+  courseVersion: 1,
   day,
   questType: type,
   score: perfect ? 1 : 0.8,
@@ -81,7 +83,7 @@ export function journeyFor({
       createdAt: NOW.toISOString(),
     },
     chapters: CHAPTERS,
-    dailyChallenges: PLANS,
+    courseDays: PLANS,
     completions,
     totalXp,
     unlocks: [],

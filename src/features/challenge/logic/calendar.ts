@@ -1,6 +1,6 @@
 import { CHALLENGE } from '@/constants/challenge';
 import { diffInCalendarDays, toLocalDate } from '@/lib/dates';
-import type { Chapter, DayKind, DayNumber, LocalDate } from '@/schemas';
+import type { Chapter, DayNumber, LocalDate } from '@/schemas';
 import { clamp } from '@/utils/number';
 
 /** Challenge day for `now`, where `startDate` is Day 1. Clamped to 1…90. */
@@ -13,16 +13,6 @@ export function getChallengeDay(startDate: LocalDate, now: Date): DayNumber {
 export function getStartDateForDay(day: DayNumber, now: Date): LocalDate {
   const start = new Date(now.getFullYear(), now.getMonth(), now.getDate() - (day - 1));
   return toLocalDate(start);
-}
-
-export function getWeekForDay(day: DayNumber): number {
-  return Math.ceil(day / CHALLENGE.weeklyExamInterval);
-}
-
-export function getDayKind(day: DayNumber): DayKind {
-  if (day === CHALLENGE.totalDays) return 'summit';
-  if (day % CHALLENGE.weeklyExamInterval === 0) return 'weeklyExam';
-  return 'regular';
 }
 
 export function findChapterForDay<T extends Pick<Chapter, 'startDay' | 'endDay'>>(

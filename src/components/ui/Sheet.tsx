@@ -1,5 +1,5 @@
 import { useEffect, useState, type ReactNode } from 'react';
-import { Modal, Pressable, StyleSheet, View } from 'react-native';
+import { Modal, Pressable, StyleSheet, View, useWindowDimensions } from 'react-native';
 import Animated, {
   useAnimatedStyle,
   useReducedMotion,
@@ -11,12 +11,23 @@ import { scheduleOnRN } from 'react-native-worklets';
 
 import { colors, durations, easings, layout, radius, shadows, spacing } from '@/theme';
 
+/** How far a sheet slides by default: enough for the short ones. */
+const TRAVEL = 360;
+/** Past its own height, so the sheet's shadow leaves the screen too. */
+const SHADOW_ROOM = 24;
+
 export type SheetProps = {
   visible: boolean;
   /** Backdrop tap and Android back. */
   onClose: () => void;
   /** Read by screen readers for the backdrop, e.g. "Close". */
   closeLabel: string;
+  /**
+   * Slide the sheet's whole (measured) height instead of the default distance:
+   * a sheet taller than that would keep its top in view while it opens and
+   * closes. Off by default — short sheets keep their quicker travel.
+   */
+  slideFullHeight?: boolean;
   children: ReactNode;
 };
 
@@ -25,10 +36,20 @@ export type SheetProps = {
  * from any layout. Slides up, fades its backdrop, and stays mounted while it
  * closes so the exit animates too.
  */
-export function Sheet({ visible, onClose, closeLabel, children }: SheetProps) {
+export function Sheet({
+  visible,
+  onClose,
+  closeLabel,
+  slideFullHeight = false,
+  children,
+}: SheetProps) {
   const reduceMotion = useReducedMotion();
   const insets = useSafeAreaInsets();
+  const { height: windowHeight } = useWindowDimensions();
   const shown = useSharedValue(0);
+  // Until a full-height sheet is measured it waits a whole screen away, so no
+  // frame drawn before the measurement can show it half in view.
+  const travel = useSharedValue(slideFullHeight ? windowHeight : TRAVEL);
   const [mounted, setMounted] = useState(visible);
   if (visible && !mounted) setMounted(true);
 
@@ -43,7 +64,7 @@ export function Sheet({ visible, onClose, closeLabel, children }: SheetProps) {
 
   const backdropStyle = useAnimatedStyle(() => ({ opacity: shown.get() }));
   const sheetStyle = useAnimatedStyle(() => ({
-    transform: [{ translateY: (1 - shown.get()) * 360 }],
+    transform: [{ translateY: (1 - shown.get()) * travel.get() }],
   }));
 
   if (!mounted) return null;
@@ -60,6 +81,11 @@ export function Sheet({ visible, onClose, closeLabel, children }: SheetProps) {
       </Animated.View>
       <Animated.View
         accessibilityViewIsModal
+        onLayout={
+          slideFullHeight
+            ? (event) => travel.set(event.nativeEvent.layout.height + SHADOW_ROOM)
+            : undefined
+        }
         style={[styles.sheet, { paddingBottom: Math.max(insets.bottom, spacing[5]) }, sheetStyle]}>
         <View style={styles.handle} />
         {children}

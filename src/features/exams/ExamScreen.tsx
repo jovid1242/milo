@@ -5,7 +5,6 @@ import { StyleSheet, View } from 'react-native';
 
 import { ErrorState } from '@/components/ErrorState';
 import { AppText, Button, ConfirmSheet, LoadingState } from '@/components/ui';
-import { CHALLENGE } from '@/constants/challenge';
 import { useRepositories } from '@/data/repository-provider';
 import { useFinishDay } from '@/features/day-complete/queries';
 import { invalidateProgress } from '@/features/progress/queries';
@@ -40,11 +39,6 @@ import {
   type ExamRun,
   type ExamSubmission,
 } from './use-cases';
-
-/** Weekly exams sit on every 7th day, up to Day 84. */
-const LAST_EXAM_DAY =
-  Math.floor((CHALLENGE.totalDays - 1) / CHALLENGE.weeklyExamInterval) *
-  CHALLENGE.weeklyExamInterval;
 
 /** What differs between a weekly exam and the Final Battle — the rules stay the same. */
 type Flavor = {
@@ -148,12 +142,12 @@ function notReadyCopy(run: ExamRun): { title: string; message: string } | null {
     };
   }
   if (run.status === 'missed') {
-    const next =
-      Math.ceil(run.currentDay / CHALLENGE.weeklyExamInterval) * CHALLENGE.weeklyExamInterval;
+    // Where the next checkpoint is comes from the course, never from arithmetic.
+    const next = run.nextCheckpointDay;
     return {
       title: 'This exam’s day has passed',
       message:
-        next <= LAST_EXAM_DAY
+        next !== null
           ? `Each weekly exam belongs to its day. The next one is on Day ${next}.`
           : 'Each weekly exam belongs to its day. The summit is next.',
     };

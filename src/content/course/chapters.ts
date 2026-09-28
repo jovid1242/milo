@@ -1,6 +1,9 @@
 import type { Chapter } from '@/schemas';
 
-/** Taglines match the lettering on the chapter illustrations. */
+/**
+ * The course's five chapters. Taglines match the lettering on the chapter
+ * illustrations; ids are the art keys.
+ */
 export const CHAPTERS = [
   {
     id: 'beginning',
@@ -42,4 +45,4 @@ export const CHAPTERS = [
     startDay: 90,
     endDay: 90,
   },
-] as const satisfies readonly Chapter[];
+] satisfies Chapter[];

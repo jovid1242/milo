@@ -7,6 +7,7 @@ import { Alert, StyleSheet, Switch, View } from 'react-native';
 import { AppText, Button, Divider, IconButton, Screen } from '@/components/ui';
 import { missingAssets } from '@/constants/assets';
 import { useRepositories } from '@/data/repository-provider';
+import { TOTAL_STEPS } from '@/features/onboarding/logic/onboarding';
 import { useProgressState } from '@/features/progress/queries';
 import { logger } from '@/lib/logger';
 import { FEEDBACK_EVENTS, playFeedback } from '@/services/feedback';
@@ -17,7 +18,7 @@ import { colors, spacing } from '@/theme';
 import * as dev from './dev-actions';
 
 const DAY_SHORTCUTS = [1, 7, 10, 11, 30, 31, 60, 61, 89, 90];
-const ONBOARDING_STEPS = [1, 2, 3, 4, 5];
+const ONBOARDING_STEPS = Array.from({ length: TOTAL_STEPS }, (_, index) => index + 1);
 const STREAKS = [0, 3, 7, 14, 30];
 
 function Section({ title, children }: { title: string; children: ReactNode }) {
@@ -140,6 +141,21 @@ export function DevToolsScreen() {
               )
             }
           />
+        </Section>
+
+        <Section title="Daily reminders">
+          {chip('Test in 5 s', async () => {
+            Alert.alert('Test notification', await dev.scheduleTestReminder(context));
+          })}
+          {chip('Cancel test', async () => {
+            Alert.alert('Test notification', await dev.cancelTestReminder());
+          })}
+          {chip('Inspect', async () => {
+            Alert.alert('Reminders', await dev.describeReminders());
+          })}
+          {chip('Sync now', async () => {
+            Alert.alert('Reminders', await dev.syncRemindersNow(context));
+          })}
         </Section>
 
         <Section title="Home states">

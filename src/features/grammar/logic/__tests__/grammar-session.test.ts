@@ -1,4 +1,4 @@
-import { DAY_089 } from '@/data/content/lessons/day-089';
+import { questContent } from '@/content/course/__fixtures__/quest-content';
 import { scorePractice } from '@/features/quests/logic/practice';
 import type { GrammarProgress, GrammarQuest } from '@/schemas';
 
@@ -15,7 +15,7 @@ import {
 } from '../grammar-session';
 import { splitMarks } from '../marked-sentence';
 
-const quest = DAY_089.find((content) => content.type === 'grammar') as GrammarQuest;
+const quest: GrammarQuest = questContent('d089-grammar', 'grammar');
 const AT = '2026-09-18T10:00:00.000Z';
 
 const run = (actions: GrammarAction[], from: GrammarProgress = INITIAL_GRAMMAR) =>

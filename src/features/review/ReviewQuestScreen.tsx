@@ -30,7 +30,7 @@ import type { ReviewProgress, ReviewQuest } from '@/schemas';
 
 import { ReviewBreakdown } from './components/ReviewBreakdown';
 import { ReviewSourceTag } from './components/ReviewSourceTag';
-import { resolveReview, reviewMaterial, type ReviewItem } from './logic/review-items';
+import { resolveReview, type ReviewItem } from './logic/review-items';
 import {
   INITIAL_REVIEW,
   currentItem,
@@ -48,8 +48,9 @@ import {
 const TITLE = 'Review';
 
 /**
- * The Review quest: a quick mixed recap of today's words, rule and story. As
- * the day's last quest, its result leads on to finishing the day.
+ * The Review quest: a quick mixed recap of today's words, rule and story — on
+ * a checkpoint day, of the week's, before the exam. As the day's last quest,
+ * its result leads on to finishing the day.
  */
 export function ReviewQuestScreen({ questId }: { questId: string }) {
   const { query, mode, setMode, close } = useQuestScreen(questId);
@@ -61,7 +62,7 @@ export function ReviewQuestScreen({ questId }: { questId: string }) {
   if (!run || mode === null) return <LoadingState />;
 
   const content = run.content?.type === 'review' ? run.content : null;
-  const items = content ? resolveReview(content, reviewMaterial(content, run.sources)) : [];
+  const items = content ? resolveReview(content) : [];
   if (!content || items.length === 0) {
     return (
       <>
@@ -208,9 +209,7 @@ function ReviewRun({
         mascot={mascots.thinking}
         overline={`Day ${day} · ${TITLE}`}
         title="Quick recap"
-        subtitle={
-          run.isLastOfDay ? 'One last step for today.' : "Today's words, rule and story, once more."
-        }
+        subtitle={run.isLastOfDay ? 'One last step for today.' : 'The week so far, once more.'}
         duration={`about ${run.quest.estimatedMinutes} min`}
         tags={[`${items.length} questions`]}
         xpReward={run.quest.xpReward}

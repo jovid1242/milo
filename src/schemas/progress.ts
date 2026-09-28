@@ -9,9 +9,17 @@ import { QuizAnswerSchema } from './quiz';
 export const CompletionSourceSchema = z.enum(['user', 'dev']);
 export type CompletionSource = z.infer<typeof CompletionSourceSchema>;
 
+/**
+ * The course version progress was earned on. Content ids stay stable across
+ * versions; the version tells a later course which content a record saw.
+ */
+export const CourseVersionSchema = z.number().int().positive();
+
 /** A finished quest, as persisted locally. */
 export const QuestCompletionSchema = z.object({
   questId: IdSchema,
+  /** The course version the quest was played on. */
+  courseVersion: CourseVersionSchema,
   day: DayNumberSchema,
   questType: QuestTypeSchema,
   score: ScoreSchema,

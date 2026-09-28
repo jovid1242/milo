@@ -4,6 +4,7 @@ import { loadProgressState } from '@/features/progress/use-cases';
 import { toLocalDate } from '@/lib/dates';
 import type { QuestCompletion } from '@/schemas';
 
+import { aboutMinutes } from '../logic/onboarding';
 import { needsOnboarding, startChallenge } from '../use-cases';
 
 type Repositories = ReturnType<typeof createMemoryRepositories>;
@@ -19,12 +20,13 @@ function firstLaunch(): Repositories {
 /** A user already walking: every day before `day` finished. */
 async function midChallenge(day: number): Promise<Repositories> {
   const repositories = createMemoryRepositories(getStartDateForDay(day, TODAY));
-  const plans = await repositories.challenge.getDailyChallenges();
+  const plans = await repositories.course.getDays();
   const history: QuestCompletion[] = plans
     .filter((plan) => plan.day < day)
     .flatMap((plan) =>
       plan.quests.map((quest) => ({
         questId: quest.id,
+        courseVersion: 1,
         day: plan.day,
         questType: quest.type,
         score: 0.9,
@@ -67,13 +69,20 @@ describe('first launch', () => {
     expect(state.challengeCompletion).toBeNull();
   });
 
-  it('gives Day 1 a full set of quests to open', async () => {
+  it('gives Day 1 the day onboarding describes', async () => {
     const repositories = firstLaunch();
     await startChallenge(repositories, { displayName: NAME, goal: 'habit' }, TODAY);
 
-    const plan = await repositories.challenge.getDailyChallenge(1);
-    expect(plan.day).toBe(1);
-    expect(plan.quests.length).toBeGreaterThan(0);
+    // The "a little English every day" step reads this same plan.
+    const plan = await repositories.course.getDay(1);
+    expect(plan.quests.map((quest) => quest.type)).toEqual([
+      'vocabulary',
+      'grammar',
+      'reading',
+      'review',
+    ]);
+    const minutes = plan.quests.reduce((sum, quest) => sum + quest.estimatedMinutes, 0);
+    expect(aboutMinutes(minutes)).toBe(20);
   });
 
   it('starts the challenge once, however often the button is pressed', async () => {

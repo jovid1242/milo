@@ -14,8 +14,6 @@ export type QuestRun = {
   isLastOfDay: boolean;
   /** `null` while the day's content is not written yet. */
   content: QuestContent | null;
-  /** Content of the quests this one builds on — the Review's sources. */
-  sources: QuestContent[];
   savedState: unknown;
   /** When the saved session began; `null` for a fresh start. */
   startedAt: Timestamp | null;
@@ -25,8 +23,8 @@ export type QuestRun = {
 
 export async function loadQuestRun(repositories: Repositories, questId: string): Promise<QuestRun> {
   const [plans, content, sessions, completions] = await Promise.all([
-    repositories.challenge.getDailyChallenges(),
-    repositories.challenge.getQuestContent(questId),
+    repositories.course.getDays(),
+    repositories.course.getQuestContent(questId),
     repositories.progress.getQuestSessions(),
     repositories.progress.getCompletions(),
   ]);
@@ -35,17 +33,12 @@ export async function loadQuestRun(repositories: Repositories, questId: string):
   if (!plan || !quest) throw new Error(`Unknown quest: ${questId}`);
 
   const own = content?.type === quest.type ? content : null;
-  const sourceIds = own?.type === 'review' ? Object.values(own.sources) : [];
-  const sources = await Promise.all(
-    sourceIds.map((id) => (id ? repositories.challenge.getQuestContent(id) : null)),
-  );
 
   const session = sessions.find((item) => item.questId === questId) ?? null;
   return {
     quest,
     isLastOfDay: plan.quests.at(-1)?.id === quest.id,
     content: own,
-    sources: sources.filter((item): item is QuestContent => item !== null),
     savedState: session?.state ?? null,
     startedAt: session?.startedAt ?? null,
     completion: completions.find((item) => item.questId === questId) ?? null,

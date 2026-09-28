@@ -19,29 +19,17 @@ export type GoalOption = {
 export const GOAL_OPTIONS: readonly GoalOption[] = [
   {
     goal: 'confidence',
-    label: 'Speak with confidence',
+    label: 'Speak with more confidence',
     hint: 'Say what I mean without freezing',
   },
   {
     goal: 'understanding',
-    label: 'Understand what I hear',
+    label: 'Understand English better',
     hint: 'Films, calls, people talking fast',
   },
-  {
-    goal: 'vocabulary',
-    label: 'Know more words',
-    hint: 'A vocabulary I actually use',
-  },
-  {
-    goal: 'habit',
-    label: 'Build a daily habit',
-    hint: 'Show up every day for 90 days',
-  },
-  {
-    goal: 'workStudy',
-    label: 'English for work or study',
-    hint: 'Meetings, emails, exams',
-  },
+  { goal: 'vocabulary', label: 'Grow my vocabulary', hint: 'Words I actually use' },
+  { goal: 'habit', label: 'Build a daily habit', hint: 'Show up every day for 90 days' },
+  { goal: 'workStudy', label: 'Improve for work or study', hint: 'Meetings, emails, exams' },
 ];
 
 /** 1-based position, as shown to the user ("Step 3 of 5"). */
@@ -65,11 +53,24 @@ export function previousStep(step: OnboardingStep): OnboardingStep | null {
   return index > 0 ? (ONBOARDING_STEPS[index - 1] ?? null) : null;
 }
 
-/** Whether the step's own answer is given — the only thing that gates Continue. */
+const hasValidName = (draft: OnboardingDraft) => DisplayNameSchema.safeParse(draft.name).success;
+
+/**
+ * Whether the step's own answer is given — the only thing that gates the
+ * button. The last step needs every answer: the challenge cannot start with a
+ * profile half made.
+ */
 export function canContinue(draft: OnboardingDraft): boolean {
-  if (draft.step === 'goal') return draft.goal !== null;
-  if (draft.step === 'name') return DisplayNameSchema.safeParse(draft.name).success;
-  return true;
+  switch (draft.step) {
+    case 'goal':
+      return draft.goal !== null;
+    case 'name':
+      return hasValidName(draft);
+    case 'ready':
+      return draft.goal !== null && hasValidName(draft);
+    default:
+      return true;
+  }
 }
 
 /**
@@ -84,5 +85,15 @@ export function nameError(name: string): string | null {
 
 /** The label of the button that leaves the step. */
 export function continueLabel(step: OnboardingStep): string {
-  return step === 'name' ? 'Start Day 1' : 'Continue';
+  if (step === 'welcome') return "Let's go";
+  if (step === 'ready') return 'Start Day 1';
+  return 'Continue';
+}
+
+/**
+ * A day's quest time as people say it: "about 20 minutes", not "19". Rounded
+ * to five minutes, never below five.
+ */
+export function aboutMinutes(total: number): number {
+  return Math.max(5, Math.round(total / 5) * 5);
 }

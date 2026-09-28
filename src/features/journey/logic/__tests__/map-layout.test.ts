@@ -1,5 +1,5 @@
-import { CHAPTERS } from '@/data/content/chapters';
-import { buildAllDailyChallenges } from '@/data/content/schedule';
+import { CHAPTERS } from '@/content/course/chapters';
+import { LOCAL_COURSE } from '@/content/course';
 import type { QuestCompletion } from '@/schemas';
 
 import { buildJourney } from '../journey';
@@ -12,7 +12,7 @@ import {
   type Rect,
 } from '../map-layout';
 
-const PLANS = buildAllDailyChallenges();
+const PLANS = LOCAL_COURSE.days;
 const RATIOS: MapArtRatios = {
   camp: 800 / 1200,
   campfire: 800 / 1200,
@@ -31,6 +31,7 @@ function journeyAt(currentDay: number, completedThrough: number) {
   ).flatMap((plan) =>
     plan.quests.map((quest) => ({
       questId: quest.id,
+      courseVersion: 1,
       day: plan.day,
       questType: quest.type,
       score: 1,

@@ -97,7 +97,7 @@ export function vocabularyStage(state: VocabularyProgress): RunStage {
   return state.phase === 'result' ? 'result' : 'playing';
 }
 
-export function itemById(quest: VocabularyQuest, id: string): VocabularyItem {
+export function itemById(quest: Pick<VocabularyQuest, 'items'>, id: string): VocabularyItem {
   const item = quest.items.find((candidate) => candidate.id === id);
   if (!item) throw new Error(`Unknown vocabulary item: ${id}`);
   return item;

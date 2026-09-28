@@ -1,6 +1,6 @@
 import { CHALLENGE } from '@/constants/challenge';
 import { useAchievements } from '@/features/achievements/queries';
-import { useChapters } from '@/features/challenge/queries';
+import { useChapters } from '@/features/course/queries';
 import { useTeam } from '@/features/friends/queries';
 import { useProgressState } from '@/features/progress/queries';
 

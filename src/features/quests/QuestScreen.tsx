@@ -1,7 +1,7 @@
 import { useLocalSearchParams } from 'expo-router';
 
 import { LoadingState, Screen } from '@/components/ui';
-import { useQuest } from '@/features/challenge/queries';
+import { useQuest } from '@/features/course/queries';
 import { ExamScreen } from '@/features/exams/ExamScreen';
 import { GrammarQuestScreen } from '@/features/grammar/GrammarQuestScreen';
 import { ReadingQuestScreen } from '@/features/reading/ReadingQuestScreen';

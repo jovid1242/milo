@@ -1,11 +1,12 @@
-import { CHAPTERS } from '@/data/content/chapters';
+import { LOCAL_COURSE } from '@/content/course';
+import { CHAPTERS } from '@/content/course/chapters';
 import {
   findChapterForDay,
   getChallengeDay,
-  getDayKind,
   getStartDateForDay,
-  getWeekForDay,
 } from '@/features/challenge/logic/calendar';
+
+const dayOf = (day: number) => LOCAL_COURSE.days[day - 1];
 
 const at = (year: number, month: number, day: number) => new Date(year, month - 1, day, 12, 0, 0);
 
@@ -28,19 +29,19 @@ describe('getChallengeDay', () => {
   });
 });
 
-describe('day structure', () => {
+describe('day structure (declared by the course)', () => {
   it('maps days to weeks', () => {
-    expect(getWeekForDay(1)).toBe(1);
-    expect(getWeekForDay(7)).toBe(1);
-    expect(getWeekForDay(8)).toBe(2);
+    expect(dayOf(1)?.week).toBe(1);
+    expect(dayOf(7)?.week).toBe(1);
+    expect(dayOf(8)?.week).toBe(2);
   });
 
   it('marks exam days and the summit', () => {
-    expect(getDayKind(1)).toBe('regular');
-    expect(getDayKind(7)).toBe('weeklyExam');
-    expect(getDayKind(84)).toBe('weeklyExam');
-    expect(getDayKind(89)).toBe('regular');
-    expect(getDayKind(90)).toBe('summit');
+    expect(dayOf(1)?.kind).toBe('regular');
+    expect(dayOf(7)?.kind).toBe('weeklyExam');
+    expect(dayOf(84)?.kind).toBe('weeklyExam');
+    expect(dayOf(89)?.kind).toBe('regular');
+    expect(dayOf(90)?.kind).toBe('summit');
   });
 
   it('finds the chapter that covers a day', () => {

@@ -3,7 +3,7 @@ import { examStatus } from '@/features/exams/logic/exam';
 import { findCompletedDays } from '@/features/progress/logic/day-completion';
 import type {
   Chapter,
-  DailyChallenge,
+  CourseDay,
   DayCompletion,
   DayNumber,
   Journey,
@@ -17,7 +17,7 @@ import type {
 } from '@/schemas';
 
 export type JourneyInput = {
-  plans: readonly DailyChallenge[];
+  plans: readonly CourseDay[];
   chapters: readonly Chapter[];
   completions: readonly QuestCompletion[];
   dayCompletions: readonly DayCompletion[];
@@ -31,7 +31,7 @@ export type JourneyInput = {
 const DEFAULT_PASSING_SCORE = 0.7;
 
 function examOf(
-  plan: DailyChallenge,
+  plan: CourseDay,
   input: JourneyInput,
   byQuest: ReadonlyMap<string, QuestCompletion>,
 ): JourneyExam | null {
@@ -60,7 +60,7 @@ function examOf(
   };
 }
 
-function kindOf(plan: DailyChallenge, chapter: Chapter): JourneyDayKind {
+function kindOf(plan: CourseDay, chapter: Chapter): JourneyDayKind {
   if (plan.kind === 'summit') return 'summit';
   if (plan.kind === 'weeklyExam') return 'weeklyExam';
   return plan.day === chapter.endDay ? 'chapterEnd' : 'regular';
@@ -115,6 +115,7 @@ export function buildJourney(input: JourneyInput): Journey {
 
       return {
         day: plan.day,
+        week: plan.week,
         chapterId: chapter.id,
         kind: kindOf(plan, chapter),
         state: stateOf(plan.day, completed, currentDay),

@@ -1,5 +1,5 @@
-import { WEEK_12_EXAM } from '@/data/content/exams/week-12';
-import { questId } from '@/data/content/schedule';
+import { WEEK_12_EXAM } from '@/content/course/checkpoints/week-12';
+import { questId } from '@/features/course/logic/ids';
 import { createMemoryRepositories } from '@/data/repositories/memory/memory-repositories';
 import { getStartDateForDay } from '@/features/challenge/logic/calendar';
 import { loadJourney } from '@/features/journey/use-cases';
@@ -16,12 +16,13 @@ const AT = '2026-09-18T10:00:00.000Z';
 /** Day 84 with Days 1–83 finished (streak 83); `warmUp` also finishes the exam day's first quests. */
 async function setup({ warmUp = true } = {}): Promise<Repositories> {
   const repositories = createMemoryRepositories(getStartDateForDay(84, new Date()));
-  const plans = await repositories.challenge.getDailyChallenges();
+  const plans = await repositories.course.getDays();
   const history: QuestCompletion[] = plans
     .filter((plan) => plan.day < 84)
     .flatMap((plan) =>
       plan.quests.map((quest) => ({
         questId: quest.id,
+        courseVersion: 1,
         day: plan.day,
         questType: quest.type,
         score: 0.8,

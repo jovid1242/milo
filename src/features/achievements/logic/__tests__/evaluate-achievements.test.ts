@@ -1,5 +1,5 @@
 import { ACHIEVEMENTS } from '@/data/content/achievements';
-import { buildAllDailyChallenges } from '@/data/content/schedule';
+import { LOCAL_COURSE } from '@/content/course';
 import { AchievementSchema, AchievementStatusSchema, type QuestCompletion } from '@/schemas';
 
 import {
@@ -12,7 +12,7 @@ import {
   type AchievementFacts,
 } from '../evaluate-achievements';
 
-const PLANS = buildAllDailyChallenges();
+const PLANS = LOCAL_COURSE.days;
 const AT = '2026-09-18T10:00:00.000Z';
 
 const facts = (patch: Partial<AchievementFacts> = {}): AchievementFacts => ({
@@ -34,6 +34,7 @@ function daysDone(days: readonly number[], perfect: readonly number[] = []): Que
       const right = perfect.includes(plan.day);
       return {
         questId: quest.id,
+        courseVersion: 1,
         day: plan.day,
         questType: quest.type,
         score: right ? 1 : 5 / 6,

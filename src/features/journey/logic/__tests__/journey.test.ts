@@ -1,17 +1,18 @@
-import { CHAPTERS } from '@/data/content/chapters';
-import { buildAllDailyChallenges } from '@/data/content/schedule';
+import { CHAPTERS } from '@/content/course/chapters';
+import { LOCAL_COURSE } from '@/content/course';
 import { findChapterForDay } from '@/features/challenge/logic/calendar';
 import { JourneySchema, type DayCompletion, type QuestCompletion } from '@/schemas';
 
 import { buildJourney, canStartDay, daysUntil } from '../journey';
 
-const PLANS = buildAllDailyChallenges();
+const PLANS = LOCAL_COURSE.days;
 const AT = '2026-09-18T10:00:00.000Z';
 
 function completionsFor(days: readonly number[], { perfect = false } = {}): QuestCompletion[] {
   return PLANS.filter((plan) => days.includes(plan.day)).flatMap((plan) =>
     plan.quests.map((quest) => ({
       questId: quest.id,
+      courseVersion: 1,
       day: plan.day,
       questType: quest.type,
       score: perfect ? 1 : 0.8,

@@ -40,7 +40,8 @@ export function AchievementsPreview({ view, onOpen }: { view: ProfileView; onOpe
         </View>
       ) : (
         <AppText variant="body" color="secondary">
-          Your first badge is waiting at the end of Day 1.
+          {/* A no-break space keeps "Day 1" together on one line. */}
+          {'Your first badge is waiting at the end of Day 1.'}
         </AppText>
       )}
       <Button

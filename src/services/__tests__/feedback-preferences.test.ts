@@ -36,7 +36,12 @@ jest.mock('expo-haptics', () => ({
 beforeEach(() => {
   jest.clearAllMocks();
   cancelHaptics();
-  useSettingsStore.setState({ soundEnabled: true, hapticsEnabled: true });
+  useSettingsStore.setState({
+    soundEnabled: true,
+    hapticsEnabled: true,
+    dailyReminderEnabled: false,
+    dailyReminderTime: { hour: 19, minute: 0 },
+  });
 });
 
 describe('sound', () => {
@@ -72,14 +77,18 @@ describe('haptics', () => {
 });
 
 describe('persistence', () => {
-  it('keeps sound and haptics off across a restart', async () => {
+  it('keeps sound, haptics and the daily reminder across a restart', async () => {
     useSettingsStore.getState().setSoundEnabled(false);
     useSettingsStore.getState().setHapticsEnabled(false);
+    useSettingsStore.getState().setDailyReminderEnabled(true);
+    useSettingsStore.getState().setDailyReminderTime({ hour: 7, minute: 45 });
     await new Promise((resolve) => setTimeout(resolve, 0));
     const stored = await AsyncStorage.getItem(STORAGE.settingsKey);
     expect(JSON.parse(stored ?? '{}').state).toEqual({
       soundEnabled: false,
       hapticsEnabled: false,
+      dailyReminderEnabled: true,
+      dailyReminderTime: { hour: 7, minute: 45 },
     });
 
     // "Restart": a fresh app (new modules) finds the same stored JSON at launch.
@@ -95,7 +104,33 @@ describe('persistence', () => {
       await fresh.persist.rehydrate();
       restarted = fresh.getState();
     });
-    expect(restarted).toMatchObject({ soundEnabled: false, hapticsEnabled: false });
+    expect(restarted).toMatchObject({
+      soundEnabled: false,
+      hapticsEnabled: false,
+      dailyReminderEnabled: true,
+      dailyReminderTime: { hour: 7, minute: 45 },
+    });
+  });
+
+  it('upgrades preferences stored before reminders existed', async () => {
+    await AsyncStorage.setItem(
+      STORAGE.settingsKey,
+      JSON.stringify({ state: { soundEnabled: false, hapticsEnabled: true }, version: 1 }),
+    );
+    await useSettingsStore.persist.rehydrate();
+    expect(useSettingsStore.getState()).toMatchObject({
+      soundEnabled: false,
+      hapticsEnabled: true,
+      dailyReminderEnabled: false,
+      dailyReminderTime: { hour: 19, minute: 0 },
+    });
+  });
+
+  it('never stores an impossible reminder time', () => {
+    expect(() =>
+      useSettingsStore.getState().setDailyReminderTime({ hour: 24, minute: 0 }),
+    ).toThrow();
+    expect(useSettingsStore.getState().dailyReminderTime).toEqual({ hour: 19, minute: 0 });
   });
 
   it('falls back safely when the stored preferences are corrupted', async () => {

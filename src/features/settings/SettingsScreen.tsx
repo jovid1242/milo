@@ -20,6 +20,7 @@ import { resetProgress } from '@/features/dev-tools/dev-actions';
 import { LinkRow } from '@/features/profile/components/LinkRow';
 import { useUser } from '@/features/profile/queries';
 import { useProgressState } from '@/features/progress/queries';
+import { ReminderSettings } from '@/features/reminders/components/ReminderSettings';
 import { useSystemReduceMotion } from '@/hooks/use-system-reduce-motion';
 import { parseLocalDate } from '@/lib/dates';
 import { logger } from '@/lib/logger';
@@ -94,6 +95,11 @@ export function SettingsScreen() {
             if (next) triggerHaptic('press');
           }}
         />
+      </Group>
+    ),
+    reminders: (
+      <Group title="Reminders" key="reminders">
+        <ReminderSettings />
       </Group>
     ),
     motion: (

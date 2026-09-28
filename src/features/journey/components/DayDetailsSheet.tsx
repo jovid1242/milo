@@ -3,7 +3,6 @@ import { useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 
 import { AppText, Badge, Button, Sheet, StatsRow, type Stat } from '@/components/ui';
-import { getWeekForDay } from '@/features/challenge/logic/calendar';
 import type { Chapter, JourneyDay } from '@/schemas';
 import { spacing } from '@/theme';
 
@@ -55,7 +54,7 @@ const EXAM_ICONS: Partial<Record<ExamCopy['tone'], LucideIcon>> = {
 function kindLine(day: JourneyDay): string | null {
   switch (day.kind) {
     case 'weeklyExam':
-      return `Weekly exam · Week ${getWeekForDay(day.day)}`;
+      return `Weekly exam · Week ${day.week}`;
     case 'chapterEnd':
       return 'Chapter milestone';
     case 'summit':

@@ -1,4 +1,4 @@
-import { LocalChallengeRepository } from './local/local-challenge-repository';
+import { LocalCourseRepository } from './local/local-course-repository';
 import { LocalDevRepository } from './local/local-dev-repository';
 import { LocalFriendsRepository } from './local/local-friends-repository';
 import { SqliteAchievementRepository } from './local/sqlite-achievement-repository';
@@ -8,13 +8,13 @@ import { SqliteUserRepository } from './local/sqlite-user-repository';
 import type { Repositories } from './types';
 
 /**
- * Local-first implementations (bundled content + SQLite).
+ * Local-first implementations (the bundled course + SQLite).
  * Swapping one of these for an API-backed implementation is the only change
  * needed when a backend appears.
  */
 export function createLocalRepositories(): Repositories {
   return {
-    challenge: new LocalChallengeRepository(),
+    course: new LocalCourseRepository(),
     user: new SqliteUserRepository(),
     progress: new SqliteProgressRepository(),
     achievements: new SqliteAchievementRepository(),

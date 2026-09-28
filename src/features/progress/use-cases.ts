@@ -24,7 +24,7 @@ export async function loadProgressState(
   const [
     user,
     chapters,
-    dailyChallenges,
+    courseDays,
     completions,
     totalXp,
     unlocks,
@@ -32,8 +32,8 @@ export async function loadProgressState(
     challengeCompletion,
   ] = await Promise.all([
     repositories.user.getUser(),
-    repositories.challenge.getChapters(),
-    repositories.challenge.getDailyChallenges(),
+    repositories.course.getChapters(),
+    repositories.course.getDays(),
     repositories.progress.getCompletions(),
     repositories.progress.getTotalXp(),
     repositories.achievements.getUnlocks(),
@@ -43,7 +43,7 @@ export async function loadProgressState(
   return buildProgressState({
     user,
     chapters,
-    dailyChallenges,
+    courseDays,
     completions,
     totalXp,
     unlocks,
@@ -102,7 +102,7 @@ export async function completeDay(
   if (existing) return { record: existing, isFirstCompletion: false };
 
   const [plans, completions] = await Promise.all([
-    repositories.challenge.getDailyChallenges(),
+    repositories.course.getDays(),
     repositories.progress.getCompletions(),
   ]);
   const plan = plans.find((item) => item.day === day);
@@ -143,7 +143,7 @@ export async function claimDayCelebration(
  */
 async function recordLearnedWords(repositories: Repositories, quest: Quest, at: string) {
   if (quest.type !== 'vocabulary') return;
-  const content = await repositories.challenge.getQuestContent(quest.id);
+  const content = await repositories.course.getQuestContent(quest.id);
   if (content?.type !== 'vocabulary') return;
   await repositories.progress.recordLearnedWords(
     content.items.map((item) => ({ wordId: item.id, questId: quest.id, learnedAt: at })),
@@ -170,8 +170,6 @@ export type QuestOutcome = {
   /** The day's record once all of its quests are done (also on later replays). */
   dayCompletion: DayCompletion | null;
   isSummit: boolean;
-  /** Only for weekly exams. */
-  examPassed: boolean | null;
   streakBefore: number;
   streakAfter: number;
   levelBefore: number;
@@ -187,8 +185,8 @@ export async function completeQuest(
   const now = input.now ?? new Date();
   const timestamp = now.toISOString();
 
-  const dailyChallenges = await repositories.challenge.getDailyChallenges();
-  const dayPlan = dailyChallenges.find((plan) =>
+  const course = await repositories.course.getCourse();
+  const dayPlan = course.days.find((plan) =>
     plan.quests.some((quest) => quest.id === input.questId),
   );
   const quest = dayPlan?.quests.find((item) => item.id === input.questId);
@@ -208,6 +206,8 @@ export async function completeQuest(
 
   const completion: QuestCompletion = {
     questId: quest.id,
+    // Earned on this version of the course.
+    courseVersion: course.version,
     day: quest.day,
     questType: quest.type,
     score,
@@ -244,7 +244,6 @@ export async function completeQuest(
     dayCompleted,
     dayCompletion: day?.record ?? null,
     isSummit: dayPlan.kind === 'summit' && dayCompleted,
-    examPassed: quest.type === 'weeklyExam' ? score >= CHALLENGE.examPassingScore : null,
     streakBefore: before.streak,
     streakAfter: progress.streak,
     levelBefore: before.level.level,

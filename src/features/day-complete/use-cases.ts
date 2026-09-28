@@ -25,8 +25,8 @@ export async function loadDaySummary(
   day: DayNumber,
 ): Promise<DaySummary> {
   const [plans, chapters, completions, record] = await Promise.all([
-    repositories.challenge.getDailyChallenges(),
-    repositories.challenge.getChapters(),
+    repositories.course.getDays(),
+    repositories.course.getChapters(),
     repositories.progress.getCompletions(),
     repositories.progress.getDayCompletion(day),
   ]);

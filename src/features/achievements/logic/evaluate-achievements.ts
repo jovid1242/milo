@@ -9,7 +9,7 @@ import type {
   AchievementRule,
   AchievementStatus,
   AchievementUnlock,
-  DailyChallenge,
+  CourseDay,
   DayCompletion,
   DayNumber,
   QuestCompletion,
@@ -56,7 +56,7 @@ const DAILY_QUEST_TYPES: ReadonlySet<QuestType> = new Set([
  * record decides when it exists; older days are judged by their quests.
  */
 export function findPerfectDays(
-  plans: readonly DailyChallenge[],
+  plans: readonly CourseDay[],
   completions: readonly QuestCompletion[],
   dayCompletions: readonly DayCompletion[],
 ): Set<DayNumber> {
@@ -78,7 +78,7 @@ export function findPerfectDays(
 }
 
 export function buildAchievementFacts(input: {
-  plans: readonly DailyChallenge[];
+  plans: readonly CourseDay[];
   completions: readonly QuestCompletion[];
   dayCompletions: readonly DayCompletion[];
   uniqueWords: number;

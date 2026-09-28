@@ -1,5 +1,5 @@
 import { ACHIEVEMENTS } from '@/data/content/achievements';
-import { CHAPTERS } from '@/data/content/chapters';
+import { CHAPTERS } from '@/content/course/chapters';
 import { createMemoryRepositories } from '@/data/repositories/memory/memory-repositories';
 import { getStartDateForDay } from '@/features/challenge/logic/calendar';
 import type { TeamView } from '@/features/friends/logic/team';

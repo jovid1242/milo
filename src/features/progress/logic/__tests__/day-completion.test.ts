@@ -1,16 +1,17 @@
-import { buildAllDailyChallenges } from '@/data/content/schedule';
+import { LOCAL_COURSE } from '@/content/course';
 import type { QuestCompletion } from '@/schemas';
 
 import { buildDayCompletion, findCompletedDays } from '../day-completion';
 
 const AT = '2026-09-18T10:00:00.000Z';
-const PLANS = buildAllDailyChallenges();
+const PLANS = LOCAL_COURSE.days;
 
 function completionsFor(day: number, { perfect = false, skip = 0 } = {}): QuestCompletion[] {
   const plan = PLANS.find((item) => item.day === day);
   if (!plan) throw new Error(`no plan for day ${day}`);
   return plan.quests.slice(0, plan.quests.length - skip).map((quest) => ({
     questId: quest.id,
+    courseVersion: 1,
     day,
     questType: quest.type,
     score: perfect ? 1 : 0.8,

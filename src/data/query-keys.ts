@@ -4,13 +4,16 @@ import type { DayNumber } from '@/schemas';
 export const queryKeys = {
   user: ['user'] as const,
 
-  challenge: {
-    all: ['challenge'] as const,
-    chapters: ['challenge', 'chapters'] as const,
-    days: ['challenge', 'days'] as const,
-    day: (day: DayNumber) => ['challenge', 'day', day] as const,
-    quest: (questId: string) => ['challenge', 'quest', questId] as const,
-    questContent: (questId: string) => ['challenge', 'quest-content', questId] as const,
+  /** The course — content only, never progress; an API-backed course caches under the same keys. */
+  course: {
+    all: ['course'] as const,
+    /** Identity, version, chapters and days. */
+    outline: ['course', 'outline'] as const,
+    chapters: ['course', 'chapters'] as const,
+    days: ['course', 'days'] as const,
+    day: (day: DayNumber) => ['course', 'day', day] as const,
+    quest: (questId: string) => ['course', 'quest', questId] as const,
+    questContent: (questId: string) => ['course', 'quest-content', questId] as const,
   },
 
   progress: {

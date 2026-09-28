@@ -1,4 +1,4 @@
-import { WEEK_12_EXAM } from '@/data/content/exams/week-12';
+import { WEEK_12_EXAM } from '@/content/course/checkpoints/week-12';
 import { WeeklyExamSchema, type WeeklyExam, type ExamAttempt } from '@/schemas';
 
 import {
@@ -32,6 +32,7 @@ const attempt = (patch: Partial<ExamAttempt> = {}): ExamAttempt => ({
   id: 'attempt-1',
   examId: EXAM.id,
   questId: EXAM.questId,
+  courseVersion: 1,
   number: 1,
   startedAt: AT,
   updatedAt: AT,

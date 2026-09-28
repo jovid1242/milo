@@ -10,6 +10,7 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { ErrorState } from '@/components/ErrorState';
 import { AchievementCelebrationHost } from '@/features/achievements/components/AchievementCelebrationHost';
 import { needsOnboarding } from '@/features/onboarding/use-cases';
+import { ReminderSync } from '@/features/reminders/components/ReminderSync';
 import { useUser } from '@/features/profile/queries';
 import { useAppBootstrap } from '@/hooks/use-app-bootstrap';
 import { AppProviders } from '@/providers/app-providers';
@@ -78,6 +79,8 @@ function AppNavigator({ initialUser }: { initialUser: User }) {
       </Stack>
       {/* Achievement unlocks are celebrated here, on calm screens only. */}
       {onboarded ? <AchievementCelebrationHost /> : null}
+      {/* Daily reminders follow the preferences and the challenge, from here. */}
+      <ReminderSync onboarded={onboarded} />
     </>
   );
 }

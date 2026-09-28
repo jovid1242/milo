@@ -1,17 +1,27 @@
 import { z } from 'zod';
 
-import { IdSchema } from './common';
+import { CefrLevelSchema, IdSchema } from './common';
 import { ChoiceAnswerSchema, type ChoiceAnswer } from './practice';
 
+/**
+ * One word of the course's vocabulary bank — the same model the Vocabulary
+ * quest shows. Learned-word progress is stored by `id` (`vocab-<lemma>`),
+ * never by the word's text, so fixing a typo in `word` changes no progress.
+ */
 export const VocabularyItemSchema = z.object({
   id: IdSchema,
   word: z.string().min(1),
+  /** Pronunciation as text, e.g. "/ˈdʒɜːrni/". */
   phonetic: z.string().optional(),
   partOfSpeech: z.enum(['noun', 'verb', 'adjective', 'adverb', 'phrase']),
+  /** Plain-English definition. */
   definition: z.string().min(1),
-  /** Translation for the group's native language (Russian). */
+  /** Meaning in the course's support language (`Course.supportLanguage`). */
   translation: z.string().min(1),
   example: z.string().min(1),
+  level: CefrLevelSchema.optional(),
+  /** Free topics for search and future grouping: "travel", "study". */
+  tags: z.array(z.string().min(1)).max(8).optional(),
 });
 export type VocabularyItem = z.infer<typeof VocabularyItemSchema>;
 
@@ -39,7 +49,53 @@ export const VocabularyExerciseSchema = z.discriminatedUnion('kind', [
 export type VocabularyExercise = z.infer<typeof VocabularyExerciseSchema>;
 export type VocabularyExerciseKind = VocabularyExercise['kind'];
 
-/** The authored content of one Vocabulary quest: words to learn, then practice. */
+/**
+ * Practice checks only the quest's own words: the answer and every option
+ * are among them, the answer is an option, and no option repeats.
+ */
+export function checkVocabularyPractice(
+  wordIds: readonly string[],
+  exercises: readonly VocabularyExercise[],
+  ctx: z.RefinementCtx,
+) {
+  const ids = new Set(wordIds);
+  if (ids.size !== wordIds.length) {
+    ctx.addIssue({ code: 'custom', message: 'words repeat', path: ['wordIds'] });
+  }
+  const exerciseIds = new Set<string>();
+  exercises.forEach((exercise, index) => {
+    const options = new Set(exercise.optionItemIds);
+    const problem = exerciseIds.has(exercise.id)
+      ? 'exercise ids repeat'
+      : !ids.has(exercise.itemId)
+        ? 'itemId is not one of the quest words'
+        : exercise.optionItemIds.some((id) => !ids.has(id))
+          ? 'an option is not one of the quest words'
+          : !options.has(exercise.itemId)
+            ? 'the answer is not among the options'
+            : options.size !== exercise.optionItemIds.length
+              ? 'options repeat'
+              : null;
+    exerciseIds.add(exercise.id);
+    if (problem) ctx.addIssue({ code: 'custom', message: problem, path: ['exercises', index] });
+  });
+}
+
+/**
+ * The Vocabulary quest as the course stores it: the words it teaches, by id
+ * from the vocabulary bank, and the practice over them.
+ */
+export const VocabularyQuestDefinitionSchema = z
+  .object({
+    type: z.literal('vocabulary'),
+    questId: IdSchema,
+    wordIds: z.array(IdSchema).min(1).max(12),
+    exercises: z.array(VocabularyExerciseSchema).min(1),
+  })
+  .superRefine((quest, ctx) => checkVocabularyPractice(quest.wordIds, quest.exercises, ctx));
+export type VocabularyQuestDefinition = z.infer<typeof VocabularyQuestDefinitionSchema>;
+
+/** One Vocabulary quest, ready to play: the words themselves, then practice. */
 export const VocabularyQuestSchema = z
   .object({
     type: z.literal('vocabulary'),
@@ -47,22 +103,13 @@ export const VocabularyQuestSchema = z
     items: z.array(VocabularyItemSchema).min(1),
     exercises: z.array(VocabularyExerciseSchema).min(1),
   })
-  .superRefine((quest, ctx) => {
-    const ids = new Set(quest.items.map((item) => item.id));
-    quest.exercises.forEach((exercise, index) => {
-      const options = new Set(exercise.optionItemIds);
-      const problem = !ids.has(exercise.itemId)
-        ? 'itemId is not one of the quest items'
-        : exercise.optionItemIds.some((id) => !ids.has(id))
-          ? 'an option is not one of the quest items'
-          : !options.has(exercise.itemId)
-            ? 'the answer is not among the options'
-            : options.size !== exercise.optionItemIds.length
-              ? 'options repeat'
-              : null;
-      if (problem) ctx.addIssue({ code: 'custom', message: problem, path: ['exercises', index] });
-    });
-  });
+  .superRefine((quest, ctx) =>
+    checkVocabularyPractice(
+      quest.items.map((item) => item.id),
+      quest.exercises,
+      ctx,
+    ),
+  );
 export type VocabularyQuest = z.infer<typeof VocabularyQuestSchema>;
 
 /** One locked-in answer during practice; the option id is the chosen item's id. */

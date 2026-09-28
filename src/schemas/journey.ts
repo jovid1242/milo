@@ -28,6 +28,8 @@ export type JourneyExam = z.infer<typeof JourneyExamSchema>;
 
 export const JourneyDaySchema = z.object({
   day: DayNumberSchema,
+  /** The course week the day is in. */
+  week: z.number().int().min(1),
   chapterId: ChapterIdSchema,
   kind: JourneyDayKindSchema,
   state: JourneyDayStateSchema,

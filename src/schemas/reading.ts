@@ -1,9 +1,10 @@
 import { z } from 'zod';
 
-import { IdSchema } from './common';
+import { CefrLevelSchema, IdSchema } from './common';
+import { choiceProblem } from './grammar';
 import { ChoiceAnswerSchema, type ChoiceAnswer } from './practice';
 
-export const ReadingLevelSchema = z.enum(['A2', 'B1', 'B2']);
+export const ReadingLevelSchema = CefrLevelSchema;
 export type ReadingLevel = z.infer<typeof ReadingLevelSchema>;
 
 export const ReadingParagraphSchema = z.object({
@@ -69,67 +70,112 @@ export function findWholeWord(text: string, word: string): number {
   return match ? match.index + (match[1]?.length ?? 0) : -1;
 }
 
-/** The authored content of one Reading quest — what a backend would send. */
+type StoryShape = {
+  paragraphs: readonly { id: string; text: string }[];
+  words: readonly { id: string; text: string; paragraphId: string }[];
+};
+
+/** What makes a story and its questions one consistent reading. */
+function checkReading(
+  reading: { story: StoryShape; questions: readonly ReadingQuestion[] },
+  ctx: z.RefinementCtx,
+) {
+  const paragraphs = new Map(reading.story.paragraphs.map((p) => [p.id, p.text]));
+  if (paragraphs.size !== reading.story.paragraphs.length) {
+    ctx.addIssue({
+      code: 'custom',
+      message: 'paragraph ids repeat',
+      path: ['story', 'paragraphs'],
+    });
+  }
+
+  const wordIds = new Set<string>();
+  reading.story.words.forEach((word, index) => {
+    const text = paragraphs.get(word.paragraphId);
+    const problem = wordIds.has(word.id)
+      ? 'word ids repeat'
+      : text === undefined
+        ? 'paragraphId is not one of the paragraphs'
+        : findWholeWord(text, word.text) < 0
+          ? `"${word.text}" is not a whole word in its paragraph`
+          : null;
+    wordIds.add(word.id);
+    if (problem)
+      ctx.addIssue({ code: 'custom', message: problem, path: ['story', 'words', index] });
+  });
+
+  const questionIds = new Set<string>();
+  reading.questions.forEach((question, index) => {
+    const problem = questionIds.has(question.id)
+      ? 'question ids repeat'
+      : (choiceProblem(question) ??
+        (question.kind === 'context' && (!question.wordId || !wordIds.has(question.wordId))
+          ? 'a context question needs a wordId from the story words'
+          : null));
+    questionIds.add(question.id);
+    if (problem) ctx.addIssue({ code: 'custom', message: problem, path: ['questions', index] });
+  });
+
+  if (reading.questions.filter((question) => question.kind === 'context').length > 1) {
+    ctx.addIssue({
+      code: 'custom',
+      message: 'at most one context question: Reading checks understanding first',
+      path: ['questions'],
+    });
+  }
+}
+
+/** One Reading quest, ready to play: the course text it reads. */
 export const ReadingQuestSchema = z
   .object({
     type: z.literal('reading'),
     questId: IdSchema,
+    /** The course's text this quest reads. */
+    readingId: IdSchema,
     story: ReadingStorySchema,
     questions: z.array(ReadingQuestionSchema).min(3).max(5),
   })
-  .superRefine((quest, ctx) => {
-    const paragraphs = new Map(quest.story.paragraphs.map((p) => [p.id, p.text]));
-    if (paragraphs.size !== quest.story.paragraphs.length) {
-      ctx.addIssue({
-        code: 'custom',
-        message: 'paragraph ids repeat',
-        path: ['story', 'paragraphs'],
-      });
-    }
-
-    const wordIds = new Set<string>();
-    quest.story.words.forEach((word, index) => {
-      const text = paragraphs.get(word.paragraphId);
-      const problem = wordIds.has(word.id)
-        ? 'word ids repeat'
-        : text === undefined
-          ? 'paragraphId is not one of the paragraphs'
-          : findWholeWord(text, word.text) < 0
-            ? `"${word.text}" is not a whole word in its paragraph`
-            : null;
-      wordIds.add(word.id);
-      if (problem)
-        ctx.addIssue({ code: 'custom', message: problem, path: ['story', 'words', index] });
-    });
-
-    const questionIds = new Set<string>();
-    quest.questions.forEach((question, index) => {
-      const optionIds = question.options.map((option) => option.id);
-      const texts = question.options.map((option) => option.text.trim().toLowerCase());
-      const problem = questionIds.has(question.id)
-        ? 'question ids repeat'
-        : new Set(optionIds).size !== optionIds.length
-          ? 'option ids repeat'
-          : new Set(texts).size !== texts.length
-            ? 'options repeat'
-            : !optionIds.includes(question.correctOptionId)
-              ? 'correctOptionId is not one of the options'
-              : question.kind === 'context' && (!question.wordId || !wordIds.has(question.wordId))
-                ? 'a context question needs a wordId from the story words'
-                : null;
-      questionIds.add(question.id);
-      if (problem) ctx.addIssue({ code: 'custom', message: problem, path: ['questions', index] });
-    });
-
-    if (quest.questions.filter((question) => question.kind === 'context').length > 1) {
-      ctx.addIssue({
-        code: 'custom',
-        message: 'at most one context question: Reading checks understanding first',
-        path: ['questions'],
-      });
-    }
-  });
+  .superRefine(checkReading);
 export type ReadingQuest = z.infer<typeof ReadingQuestSchema>;
+
+/**
+ * A highlighted word as the course stores it. A word the vocabulary bank
+ * already teaches is referenced by `vocabularyId` — its meaning is read from
+ * there, never copied into a second, drifting definition. A word the bank
+ * does not teach (or one that means something special in this text) carries
+ * its own gloss.
+ */
+export const ReadingGlossSchema = z
+  .object({
+    /** Scoped to the text; context questions refer to it. */
+    id: IdSchema,
+    text: z.string().min(1),
+    paragraphId: IdSchema,
+    vocabularyId: IdSchema.optional(),
+    phonetic: z.string().optional(),
+    translation: z.string().min(1).optional(),
+    definition: z.string().min(1).max(80).optional(),
+  })
+  .refine((gloss) => gloss.vocabularyId || (gloss.translation && gloss.definition), {
+    message: 'a gloss needs a vocabularyId, or its own translation and definition',
+  });
+export type ReadingGloss = z.infer<typeof ReadingGlossSchema>;
+
+/**
+ * A reading text of the course: the story, its highlighted words and its
+ * comprehension questions — serializable data, as an API would send it.
+ */
+export const ReadingTextSchema = z
+  .object({
+    /** `reading-<slug>`. */
+    id: IdSchema,
+    story: ReadingStorySchema.omit({ words: true }).extend({
+      words: z.array(ReadingGlossSchema).max(6),
+    }),
+    questions: z.array(ReadingQuestionSchema).min(3).max(5),
+  })
+  .superRefine(checkReading);
+export type ReadingText = z.infer<typeof ReadingTextSchema>;
 
 /** One locked-in comprehension answer. */
 export const ReadingAnswerSchema = ChoiceAnswerSchema;

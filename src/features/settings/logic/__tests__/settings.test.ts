@@ -4,14 +4,24 @@ import { visibleSettingsSections } from '../sections';
 
 describe('stored preferences', () => {
   it('keep valid values', () => {
-    expect(parseSettings({ soundEnabled: false, hapticsEnabled: false })).toEqual({
+    expect(
+      parseSettings({
+        soundEnabled: false,
+        hapticsEnabled: false,
+        dailyReminderEnabled: true,
+        dailyReminderTime: { hour: 8, minute: 30 },
+      }),
+    ).toEqual({
       soundEnabled: false,
       hapticsEnabled: false,
+      dailyReminderEnabled: true,
+      dailyReminderTime: { hour: 8, minute: 30 },
     });
   });
 
   it('recover field by field from corrupted or old data', () => {
     expect(parseSettings({ soundEnabled: 'no', hapticsEnabled: false })).toEqual({
+      ...DEFAULT_SETTINGS,
       soundEnabled: true,
       hapticsEnabled: false,
     });
@@ -28,6 +38,7 @@ describe('settings sections', () => {
     expect(visibleSettingsSections(true)).toContain('developer');
     expect(visibleSettingsSections(false)).toEqual([
       'feedback',
+      'reminders',
       'motion',
       'profile',
       'challenge',

@@ -12,6 +12,7 @@ import { triggerHaptic, type HapticPattern } from './haptics/haptics';
  */
 export type FeedbackEvent =
   | 'importantAction'
+  | 'challengeStart'
   | 'answerSelect'
   | 'correct'
   | 'wrong'
@@ -32,6 +33,9 @@ export type FeedbackEvent =
 
 const FEEDBACK: Record<FeedbackEvent, { sound?: SoundName; haptic?: HapticPattern }> = {
   importantAction: { sound: 'tapSoft', haptic: 'press' },
+  // Day 1 begins: success is felt, the sound stays soft — the Home that
+  // follows is the reward, not a fanfare.
+  challengeStart: { sound: 'tapSoft', haptic: 'correct' },
   answerSelect: { haptic: 'answerSelect' },
   correct: { sound: 'correct', haptic: 'correct' },
   wrong: { sound: 'wrong', haptic: 'wrong' },

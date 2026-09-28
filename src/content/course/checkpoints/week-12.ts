@@ -1,14 +1,14 @@
-import { questId } from '@/data/content/schedule';
 import type { WeeklyExam } from '@/schemas';
 
 /**
  * Week 12 checkpoint (Day 84) — the material of Days 78–83: the week's words,
- * five grammar points and a short reading. Self-contained, as a backend would
- * send it: the questions carry their own text, each tagged with its source day.
+ * five grammar points and a short reading. Its questions carry their own text,
+ * each tagged with its source day (those days' lessons are not written yet, so
+ * no question points at course material by id).
  */
-export const WEEK_12_EXAM = {
+export const WEEK_12_EXAM: WeeklyExam = {
   type: 'weeklyExam',
-  questId: questId(84, 'weeklyExam'),
+  questId: 'd084-weeklyExam',
   id: 'exam-week-12',
   week: 12,
   day: 84,
@@ -30,10 +30,22 @@ export const WEEK_12_EXAM = {
       sourceDay: 78,
       prompt: 'What does “persistent” mean?',
       options: [
-        { id: 'a', text: 'рассеянный' },
-        { id: 'b', text: 'настойчивый' },
-        { id: 'c', text: 'вежливый' },
-        { id: 'd', text: 'уставший' },
+        {
+          id: 'a',
+          text: 'рассеянный',
+        },
+        {
+          id: 'b',
+          text: 'настойчивый',
+        },
+        {
+          id: 'c',
+          text: 'вежливый',
+        },
+        {
+          id: 'd',
+          text: 'уставший',
+        },
       ],
       correctOptionId: 'b',
       explanation: 'Persistent — настойчивый: someone who keeps trying, even when it is hard.',
@@ -45,10 +57,22 @@ export const WEEK_12_EXAM = {
       prompt: 'Complete the sentence.',
       sentence: 'Ten minutes of English every morning became part of her daily ___.',
       options: [
-        { id: 'a', text: 'setback' },
-        { id: 'b', text: 'reminder' },
-        { id: 'c', text: 'routine' },
-        { id: 'd', text: 'fluency' },
+        {
+          id: 'a',
+          text: 'setback',
+        },
+        {
+          id: 'b',
+          text: 'reminder',
+        },
+        {
+          id: 'c',
+          text: 'routine',
+        },
+        {
+          id: 'd',
+          text: 'fluency',
+        },
       ],
       correctOptionId: 'c',
       explanation: 'A routine is something you do regularly, in the same way — a daily routine.',
@@ -59,10 +83,22 @@ export const WEEK_12_EXAM = {
       sourceDay: 79,
       prompt: 'Which word means “a problem that slows your progress for a while”?',
       options: [
-        { id: 'a', text: 'setback' },
-        { id: 'b', text: 'shortcut' },
-        { id: 'c', text: 'feedback' },
-        { id: 'd', text: 'habit' },
+        {
+          id: 'a',
+          text: 'setback',
+        },
+        {
+          id: 'b',
+          text: 'shortcut',
+        },
+        {
+          id: 'c',
+          text: 'feedback',
+        },
+        {
+          id: 'd',
+          text: 'habit',
+        },
       ],
       correctOptionId: 'a',
       explanation:
@@ -74,10 +110,22 @@ export const WEEK_12_EXAM = {
       sourceDay: 79,
       prompt: 'What does “fluent” mean?',
       options: [
-        { id: 'a', text: 'говорящий тихо' },
-        { id: 'b', text: 'говорящий быстро' },
-        { id: 'c', text: 'говорящий редко' },
-        { id: 'd', text: 'говорящий свободно' },
+        {
+          id: 'a',
+          text: 'говорящий тихо',
+        },
+        {
+          id: 'b',
+          text: 'говорящий быстро',
+        },
+        {
+          id: 'c',
+          text: 'говорящий редко',
+        },
+        {
+          id: 'd',
+          text: 'говорящий свободно',
+        },
       ],
       correctOptionId: 'd',
       explanation:
@@ -90,10 +138,22 @@ export const WEEK_12_EXAM = {
       prompt: 'Complete the sentence.',
       sentence: 'After watching the video, I felt ___ to practise even more.',
       options: [
-        { id: 'a', text: 'exhausted' },
-        { id: 'b', text: 'motivated' },
-        { id: 'c', text: 'confused' },
-        { id: 'd', text: 'embarrassed' },
+        {
+          id: 'a',
+          text: 'exhausted',
+        },
+        {
+          id: 'b',
+          text: 'motivated',
+        },
+        {
+          id: 'c',
+          text: 'confused',
+        },
+        {
+          id: 'd',
+          text: 'embarrassed',
+        },
       ],
       correctOptionId: 'b',
       explanation: 'Motivated — wanting to do something. The video made her want to practise more.',
@@ -104,10 +164,22 @@ export const WEEK_12_EXAM = {
       sourceDay: 82,
       prompt: 'How do you say “напомнить” in English?',
       options: [
-        { id: 'a', text: 'remember' },
-        { id: 'b', text: 'repeat' },
-        { id: 'c', text: 'remind' },
-        { id: 'd', text: 'report' },
+        {
+          id: 'a',
+          text: 'remember',
+        },
+        {
+          id: 'b',
+          text: 'repeat',
+        },
+        {
+          id: 'c',
+          text: 'remind',
+        },
+        {
+          id: 'd',
+          text: 'report',
+        },
       ],
       correctOptionId: 'c',
       explanation:
@@ -120,10 +192,22 @@ export const WEEK_12_EXAM = {
       prompt: 'Choose the right form.',
       sentence: 'I ___ English for two years now.',
       options: [
-        { id: 'a', text: 'have been learning' },
-        { id: 'b', text: 'am learning' },
-        { id: 'c', text: 'learned' },
-        { id: 'd', text: 'was learning' },
+        {
+          id: 'a',
+          text: 'have been learning',
+        },
+        {
+          id: 'b',
+          text: 'am learning',
+        },
+        {
+          id: 'c',
+          text: 'learned',
+        },
+        {
+          id: 'd',
+          text: 'was learning',
+        },
       ],
       correctOptionId: 'a',
       explanation:
@@ -136,10 +220,22 @@ export const WEEK_12_EXAM = {
       prompt: 'Choose the right form.',
       sentence: 'If you practise every day, you ___ faster.',
       options: [
-        { id: 'a', text: 'improved' },
-        { id: 'b', text: 'would improve' },
-        { id: 'c', text: 'improving' },
-        { id: 'd', text: 'will improve' },
+        {
+          id: 'a',
+          text: 'improved',
+        },
+        {
+          id: 'b',
+          text: 'would improve',
+        },
+        {
+          id: 'c',
+          text: 'improving',
+        },
+        {
+          id: 'd',
+          text: 'will improve',
+        },
       ],
       correctOptionId: 'd',
       explanation:
@@ -152,10 +248,22 @@ export const WEEK_12_EXAM = {
       prompt: 'Choose the right form.',
       sentence: 'I ___ be shy, but now I speak in class.',
       options: [
-        { id: 'a', text: 'use to' },
-        { id: 'b', text: 'used to' },
-        { id: 'c', text: 'am used to' },
-        { id: 'd', text: 'was used' },
+        {
+          id: 'a',
+          text: 'use to',
+        },
+        {
+          id: 'b',
+          text: 'used to',
+        },
+        {
+          id: 'c',
+          text: 'am used to',
+        },
+        {
+          id: 'd',
+          text: 'was used',
+        },
       ],
       correctOptionId: 'b',
       explanation: 'Used to + verb: a past habit or state that is not true any more.',
@@ -167,10 +275,22 @@ export const WEEK_12_EXAM = {
       prompt: 'Choose the right form.',
       sentence: 'She avoids ___ mistakes by checking her notes.',
       options: [
-        { id: 'a', text: 'to make' },
-        { id: 'b', text: 'make' },
-        { id: 'c', text: 'making' },
-        { id: 'd', text: 'made' },
+        {
+          id: 'a',
+          text: 'to make',
+        },
+        {
+          id: 'b',
+          text: 'make',
+        },
+        {
+          id: 'c',
+          text: 'making',
+        },
+        {
+          id: 'd',
+          text: 'made',
+        },
       ],
       correctOptionId: 'c',
       explanation: 'After avoid, enjoy and keep, use the -ing form: avoid making, enjoy reading.',
@@ -181,10 +301,22 @@ export const WEEK_12_EXAM = {
       sourceDay: 83,
       prompt: 'Which sentence is correct?',
       options: [
-        { id: 'a', text: 'He is more confident that last year.' },
-        { id: 'b', text: 'He is confidenter than last year.' },
-        { id: 'c', text: 'He is more confident than last year.' },
-        { id: 'd', text: 'He is the more confident than last year.' },
+        {
+          id: 'a',
+          text: 'He is more confident that last year.',
+        },
+        {
+          id: 'b',
+          text: 'He is confidenter than last year.',
+        },
+        {
+          id: 'c',
+          text: 'He is more confident than last year.',
+        },
+        {
+          id: 'd',
+          text: 'He is the more confident than last year.',
+        },
       ],
       correctOptionId: 'c',
       explanation: 'Long adjectives form the comparative with more … than: more confident than.',
@@ -196,10 +328,22 @@ export const WEEK_12_EXAM = {
       passageId: 'podcast-commute',
       prompt: 'What is the passage mainly about?',
       options: [
-        { id: 'a', text: 'Dilnoza turned her bus rides into English practice.' },
-        { id: 'b', text: 'Dilnoza changed her job to meet visitors.' },
-        { id: 'c', text: 'Dilnoza stopped using social media completely.' },
-        { id: 'd', text: 'Dilnoza learned English at a language school.' },
+        {
+          id: 'a',
+          text: 'Dilnoza turned her bus rides into English practice.',
+        },
+        {
+          id: 'b',
+          text: 'Dilnoza changed her job to meet visitors.',
+        },
+        {
+          id: 'c',
+          text: 'Dilnoza stopped using social media completely.',
+        },
+        {
+          id: 'd',
+          text: 'Dilnoza learned English at a language school.',
+        },
       ],
       correctOptionId: 'a',
       explanation: 'The story is about using her forty minutes on the bus for a podcast every day.',
@@ -211,10 +355,22 @@ export const WEEK_12_EXAM = {
       passageId: 'podcast-commute',
       prompt: 'What did Dilnoza do when she understood only a few words?',
       options: [
-        { id: 'a', text: 'She chose an easier podcast.' },
-        { id: 'b', text: 'She listened to each episode twice.' },
-        { id: 'c', text: 'She asked her colleague for help.' },
-        { id: 'd', text: 'She stopped listening for a month.' },
+        {
+          id: 'a',
+          text: 'She chose an easier podcast.',
+        },
+        {
+          id: 'b',
+          text: 'She listened to each episode twice.',
+        },
+        {
+          id: 'c',
+          text: 'She asked her colleague for help.',
+        },
+        {
+          id: 'd',
+          text: 'She stopped listening for a month.',
+        },
       ],
       correctOptionId: 'b',
       explanation:
@@ -227,10 +383,22 @@ export const WEEK_12_EXAM = {
       passageId: 'podcast-commute',
       prompt: 'Why did her manager ask about her English?',
       options: [
-        { id: 'a', text: 'He wanted her to teach a class.' },
-        { id: 'b', text: 'She asked him for a new role.' },
-        { id: 'c', text: 'The visitors complained about her.' },
-        { id: 'd', text: 'He noticed how well she spoke to the visitors.' },
+        {
+          id: 'a',
+          text: 'He wanted her to teach a class.',
+        },
+        {
+          id: 'b',
+          text: 'She asked him for a new role.',
+        },
+        {
+          id: 'c',
+          text: 'The visitors complained about her.',
+        },
+        {
+          id: 'd',
+          text: 'He noticed how well she spoke to the visitors.',
+        },
       ],
       correctOptionId: 'd',
       explanation:
@@ -243,13 +411,25 @@ export const WEEK_12_EXAM = {
       passageId: 'podcast-commute',
       prompt: '“I just used the time I already had” means that she…',
       options: [
-        { id: 'a', text: 'practised in moments she already had, like the bus ride.' },
-        { id: 'b', text: 'worked fewer hours at her office.' },
-        { id: 'c', text: 'woke up earlier every morning.' },
-        { id: 'd', text: 'had a lot of free time in spring.' },
+        {
+          id: 'a',
+          text: 'practised in moments she already had, like the bus ride.',
+        },
+        {
+          id: 'b',
+          text: 'worked fewer hours at her office.',
+        },
+        {
+          id: 'c',
+          text: 'woke up earlier every morning.',
+        },
+        {
+          id: 'd',
+          text: 'had a lot of free time in spring.',
+        },
       ],
       correctOptionId: 'a',
       explanation: 'She did not add new hours — she used her daily bus ride for English.',
     },
   ],
-} as const satisfies WeeklyExam;
+};

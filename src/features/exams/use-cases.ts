@@ -7,7 +7,7 @@ import type {
   Achievement,
   AnswerRecord,
   ChallengeCompletion,
-  DailyChallenge,
+  CourseDay,
   DayNumber,
   Exam,
   ExamAttempt,
@@ -43,6 +43,8 @@ export type ExamRun = {
   status: ExamStatus;
   /** Today in the challenge — a locked exam says when it opens. */
   currentDay: DayNumber;
+  /** The course's next checkpoint from today on (a missed exam points to it); `null` when only the summit is left. */
+  nextCheckpointDay: DayNumber | null;
   /** The pass reward was paid already (a retake cannot earn it again). */
   rewardPaid: boolean;
   isLastOfDay: boolean;
@@ -58,11 +60,12 @@ const isExam = (content: unknown): content is Exam =>
   (content.type === 'weeklyExam' || content.type === 'finalBattle');
 
 async function findExamQuest(repositories: Repositories, questId: string) {
-  const plans = await repositories.challenge.getDailyChallenges();
+  const plans = await repositories.course.getDays();
   const plan = plans.find((item) => item.quests.some((quest) => quest.id === questId));
   const quest = plan?.quests.find((item) => item.id === questId);
   if (!plan || !quest || !isExamQuest(quest)) throw new Error(`Not an exam: ${questId}`);
-  return { plan, quest };
+  const checkpoints = plans.filter((item) => item.kind === 'weeklyExam').map((item) => item.day);
+  return { plan, quest, checkpoints };
 }
 
 export async function loadExamRun(
@@ -70,9 +73,9 @@ export async function loadExamRun(
   questId: string,
   now: Date = new Date(),
 ): Promise<ExamRun> {
-  const [{ plan, quest }, content, user, completions] = await Promise.all([
+  const [{ plan, quest, checkpoints }, content, user, completions] = await Promise.all([
     findExamQuest(repositories, questId),
-    repositories.challenge.getQuestContent(questId),
+    repositories.course.getQuestContent(questId),
     repositories.user.getUser(),
     repositories.progress.getCompletions(),
   ]);
@@ -100,6 +103,7 @@ export async function loadExamRun(
     best: bestAttempt(attempts),
     status,
     currentDay,
+    nextCheckpointDay: checkpoints.find((day) => day >= currentDay) ?? null,
     // Paid in the same write as the first passing submission.
     rewardPaid: status === 'passed',
     isLastOfDay: plan.quests.at(-1)?.id === questId,
@@ -107,7 +111,7 @@ export async function loadExamRun(
 }
 
 async function examOf(repositories: Repositories, questId: string): Promise<Exam> {
-  const content = await repositories.challenge.getQuestContent(questId);
+  const content = await repositories.course.getQuestContent(questId);
   if (!isExam(content)) throw new Error(`No exam content for ${questId}`);
   return content;
 }
@@ -122,13 +126,18 @@ export async function startExamAttempt(
   questId: string,
   now: Date = new Date(),
 ): Promise<ExamAttempt> {
-  const exam = await examOf(repositories, questId);
+  const [exam, course] = await Promise.all([
+    examOf(repositories, questId),
+    repositories.course.getCourse(),
+  ]);
   const attempts = await repositories.exams.getAttempts(exam.id);
   const timestamp = now.toISOString();
   const attempt = await repositories.exams.openAttempt({
     id: `${exam.id}-${attempts.length + 1}-${now.getTime().toString(36)}`,
     examId: exam.id,
     questId,
+    // The answers refer to this version's questions.
+    courseVersion: course.version,
     number: attempts.length + 1,
     startedAt: timestamp,
     updatedAt: timestamp,
@@ -208,12 +217,12 @@ const toAnswerRecords = (exam: Exam, attempt: ExamAttempt, at: string): AnswerRe
 /** The record of the day a completion would finish — `null` while other quests are open. */
 async function dayRecordWith(
   repositories: Repositories,
-  plan: DailyChallenge,
+  plan: CourseDay,
   completion: QuestCompletion,
   completedAt: Timestamp,
 ) {
   const [plans, completions] = await Promise.all([
-    repositories.challenge.getDailyChallenges(),
+    repositories.course.getDays(),
     repositories.progress.getCompletions(),
   ]);
   const all = [...completions.filter((item) => item.questId !== completion.questId), completion];
@@ -265,6 +274,8 @@ export async function submitExam(
   const completion: QuestCompletion | null = finishes
     ? {
         questId: quest.id,
+        // Earned on the version the attempt was taken on.
+        courseVersion: attempt.courseVersion,
         day: quest.day,
         questType: quest.type,
         score: result.score,

@@ -1,4 +1,4 @@
-import { questId } from '@/data/content/schedule';
+import { questId } from '@/features/course/logic/ids';
 import { createMemoryRepositories } from '@/data/repositories/memory/memory-repositories';
 import { getStartDateForDay } from '@/features/challenge/logic/calendar';
 import { completeQuest } from '@/features/progress/use-cases';
@@ -21,12 +21,13 @@ async function setup(currentDay: number): Promise<Repositories> {
 
 /** Earlier days as stored history (the badges they earn are left for the test to sync). */
 async function seedDays(repositories: Repositories, days: readonly number[], perfect = false) {
-  const plans = await repositories.challenge.getDailyChallenges();
+  const plans = await repositories.course.getDays();
   const completions: QuestCompletion[] = plans
     .filter((plan) => days.includes(plan.day))
     .flatMap((plan) =>
       plan.quests.map((quest) => ({
         questId: quest.id,
+        courseVersion: 1,
         day: plan.day,
         questType: quest.type,
         score: perfect ? 1 : 5 / 6,
@@ -42,7 +43,7 @@ async function seedDays(repositories: Repositories, days: readonly number[], per
 
 /** A whole day, played through the real completion use case. */
 async function playDay(repositories: Repositories, day: number, perfect = false) {
-  const plan = await repositories.challenge.getDailyChallenge(day);
+  const plan = await repositories.course.getDay(day);
   const outcomes = [];
   for (const quest of plan.quests) {
     outcomes.push(

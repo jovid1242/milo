@@ -1,6 +1,6 @@
 /** Settings groups — only ones with settings that really work. */
 export type SettingsSection =
-  'feedback' | 'motion' | 'profile' | 'challenge' | 'developer' | 'about';
+  'feedback' | 'reminders' | 'motion' | 'profile' | 'challenge' | 'developer' | 'about';
 
 /**
  * The developer group (dev tools, resetting the local challenge) exists only
@@ -9,6 +9,7 @@ export type SettingsSection =
 export function visibleSettingsSections(isDevBuild: boolean): SettingsSection[] {
   return [
     'feedback',
+    'reminders',
     'motion',
     'profile',
     'challenge',

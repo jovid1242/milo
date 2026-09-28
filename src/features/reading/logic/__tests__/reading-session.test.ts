@@ -1,4 +1,4 @@
-import { DAY_089 } from '@/data/content/lessons/day-089';
+import { questContent } from '@/content/course/__fixtures__/quest-content';
 import { scorePractice } from '@/features/quests/logic/practice';
 import type { ReadingProgress, ReadingQuest } from '@/schemas';
 
@@ -14,7 +14,7 @@ import {
 } from '../reading-session';
 import { splitParagraph } from '../story-text';
 
-const quest = DAY_089.find((content) => content.type === 'reading') as ReadingQuest;
+const quest: ReadingQuest = questContent('d089-reading', 'reading');
 const AT = '2026-09-18T10:00:00.000Z';
 
 const run = (actions: ReadingAction[], from: ReadingProgress = INITIAL_READING) =>

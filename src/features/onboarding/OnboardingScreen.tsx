@@ -1,7 +1,7 @@
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { ChevronLeft, Wrench } from 'lucide-react-native';
-import { useEffect, useEffectEvent, useState } from 'react';
-import { BackHandler, Keyboard, ScrollView, StyleSheet, View } from 'react-native';
+import { useEffect, useEffectEvent } from 'react';
+import { BackHandler, Keyboard, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import Animated, { useAnimatedKeyboard, useAnimatedStyle } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -23,6 +23,7 @@ import { GoalStep } from './components/GoalStep';
 import { JourneyPreview } from './components/JourneyPreview';
 import { MeetMilo } from './components/MeetMilo';
 import { NameStep } from './components/NameStep';
+import { ReadyStep } from './components/ReadyStep';
 import {
   TOTAL_STEPS,
   canContinue,
@@ -35,10 +36,10 @@ import {
 import { useStartChallenge } from './queries';
 
 /**
- * First launch. Five short steps — Milo, the ninety days, a day of it, the
- * user's goal, their name — and then the challenge begins. There is no
- * account, nothing to sign up for and nothing to skip: every step asks for
- * little and the last one starts Day 1.
+ * First launch. Short steps — Milo, the ninety days, a day of it, the user's
+ * goal, their name — and the moment Day 1 begins. There is no account,
+ * nothing to sign up for and nothing to skip: every step asks for little, and
+ * the last one starts the challenge.
  *
  * The answers live in a persisted draft, so closing the app halfway through
  * comes back to the same step with the same answers.
@@ -54,7 +55,6 @@ export function OnboardingScreen() {
   const setName = useOnboardingStore((state) => state.setName);
   const setGoal = useOnboardingStore((state) => state.setGoal);
   const start = useStartChallenge();
-  const [keyboardUp, setKeyboardUp] = useState(false);
   const insets = useSafeAreaInsets();
   const keyboard = useAnimatedKeyboard();
   // The footer rides the keyboard: "Start Day 1" must stay reachable while the
@@ -72,15 +72,6 @@ export function OnboardingScreen() {
   useEffect(() => {
     if (hasHydrated) openDevStep();
   }, [hasHydrated, devStep]);
-
-  useEffect(() => {
-    const shown = Keyboard.addListener('keyboardDidShow', () => setKeyboardUp(true));
-    const hidden = Keyboard.addListener('keyboardDidHide', () => setKeyboardUp(false));
-    return () => {
-      shown.remove();
-      hidden.remove();
-    };
-  }, []);
 
   const back = () => {
     const previous = previousStep(step);
@@ -102,16 +93,17 @@ export function OnboardingScreen() {
   const advance = () => {
     const next = nextStep(step);
     if (next) {
+      Keyboard.dismiss();
       setStep(next);
       return;
     }
     if (goal === null || start.isPending) return;
-    Keyboard.dismiss();
-    // Day 1 begins: a deliberate action, and the only sound in the whole flow.
-    playFeedback('importantAction');
     start.mutate(
       { displayName: name, goal },
       {
+        // Day 1 has begun: the only sound in the whole flow, and success is
+        // felt only once it is true.
+        onSuccess: () => playFeedback('challengeStart'),
         onError: (error: unknown) => logger.error('starting the challenge failed', error),
       },
     );
@@ -146,7 +138,8 @@ export function OnboardingScreen() {
             style={styles.progress}
             accessible
             accessibilityRole="progressbar"
-            accessibilityLabel={`Step ${stepNumber(step)} of ${TOTAL_STEPS}`}>
+            accessibilityLabel={`Step ${stepNumber(step)} of ${TOTAL_STEPS}`}
+            accessibilityValue={{ min: 1, max: TOTAL_STEPS, now: stepNumber(step) }}>
             <SegmentedProgress groups={[TOTAL_STEPS]} done={stepNumber(step)} />
           </View>
           <View style={styles.headerSide}>
@@ -164,8 +157,10 @@ export function OnboardingScreen() {
         <ScrollView
           contentContainerStyle={styles.content}
           keyboardShouldPersistTaps="handled"
+          keyboardDismissMode="interactive"
           showsVerticalScrollIndicator={false}>
-          <View key={step} style={styles.fill}>
+          {/* A tap anywhere outside the field puts the keyboard away. */}
+          <Pressable key={step} style={styles.fill} onPress={Keyboard.dismiss} accessible={false}>
             {step === 'welcome' ? <MeetMilo /> : null}
             {step === 'journey' ? <JourneyPreview /> : null}
             {step === 'day' ? <DailyQuests /> : null}
@@ -177,10 +172,10 @@ export function OnboardingScreen() {
                 onSubmit={() => {
                   if (ready) advance();
                 }}
-                compact={keyboardUp}
               />
             ) : null}
-          </View>
+            {step === 'ready' ? <ReadyStep /> : null}
+          </Pressable>
         </ScrollView>
 
         <View style={styles.footer}>

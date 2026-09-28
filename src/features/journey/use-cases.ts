@@ -11,8 +11,8 @@ export async function loadJourney(
 ): Promise<Journey> {
   const [user, plans, chapters, completions, dayCompletions, examAttempts] = await Promise.all([
     repositories.user.getUser(),
-    repositories.challenge.getDailyChallenges(),
-    repositories.challenge.getChapters(),
+    repositories.course.getDays(),
+    repositories.course.getChapters(),
     repositories.progress.getCompletions(),
     repositories.progress.getDayCompletions(),
     repositories.exams.getAllAttempts(),
@@ -21,7 +21,7 @@ export async function loadJourney(
     plan.quests.filter((quest) => quest.type === 'weeklyExam' || quest.type === 'finalBattle'),
   );
   const examContents = await Promise.all(
-    examQuests.map((quest) => repositories.challenge.getQuestContent(quest.id)),
+    examQuests.map((quest) => repositories.course.getQuestContent(quest.id)),
   );
   const examPassingScores = new Map(
     examContents.flatMap((content) =>

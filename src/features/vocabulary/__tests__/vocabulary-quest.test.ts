@@ -1,4 +1,4 @@
-import { questId } from '@/data/content/schedule';
+import { questId } from '@/features/course/logic/ids';
 import { createMemoryRepositories } from '@/data/repositories/memory/memory-repositories';
 import { getStartDateForDay } from '@/features/challenge/logic/calendar';
 import { finishQuestRun, loadQuestRun, saveQuestRun } from '@/features/quests/use-cases';

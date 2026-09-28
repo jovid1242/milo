@@ -10,6 +10,8 @@ export type SettingToggleRowProps = {
   description: string;
   value: boolean;
   onValueChange: (value: boolean) => void;
+  /** While something is being worked out (e.g. the permission dialog). */
+  disabled?: boolean;
 };
 
 export function SettingToggleRow({
@@ -18,6 +20,7 @@ export function SettingToggleRow({
   description,
   value,
   onValueChange,
+  disabled = false,
 }: SettingToggleRowProps) {
   return (
     <View style={styles.row}>
@@ -33,6 +36,7 @@ export function SettingToggleRow({
       <Switch
         value={value}
         onValueChange={onValueChange}
+        disabled={disabled}
         accessibilityLabel={label}
         accessibilityHint={description}
         trackColor={{ false: colors.border.default, true: colors.brand.primary }}

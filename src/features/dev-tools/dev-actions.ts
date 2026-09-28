@@ -1,7 +1,6 @@
 import type { QueryClient } from '@tanstack/react-query';
 
 import { CHALLENGE } from '@/constants/challenge';
-import { FINAL_CHALLENGE } from '@/data/content/exams/final-challenge';
 import { queryKeys } from '@/data/query-keys';
 import type { Repositories } from '@/data/repositories/types';
 import { getStartDateForDay } from '@/features/challenge/logic/calendar';
@@ -19,7 +18,11 @@ import {
   submitExam,
 } from '@/features/exams/use-cases';
 import { withExamAnswer, withPosition } from '@/features/exams/logic/exam';
+import { FINAL_CHALLENGE_ID, weeklyExamId } from '@/features/course/logic/ids';
 import { stepAt } from '@/features/onboarding/logic/onboarding';
+import { reminderCopy } from '@/features/reminders/copy';
+import { reminders } from '@/features/reminders/instance';
+import { toClock } from '@/features/reminders/logic/plan';
 import { startChallenge } from '@/features/onboarding/use-cases';
 import { claimSummit } from '@/features/summit/use-cases';
 import {
@@ -41,7 +44,7 @@ import {
   reduceReading,
   type ReadingAction,
 } from '@/features/reading/logic/reading-session';
-import { resolveReview, reviewMaterial } from '@/features/review/logic/review-items';
+import { resolveReview } from '@/features/review/logic/review-items';
 import {
   INITIAL_REVIEW,
   reduceReview,
@@ -71,6 +74,7 @@ import type {
   XpEvent,
 } from '@/schemas';
 import { useOnboardingStore } from '@/stores/onboarding-store';
+import { getSettings } from '@/stores/settings-store';
 import { clamp } from '@/utils/number';
 
 /**
@@ -94,7 +98,7 @@ async function refetchEverything({ queryClient }: DevContext): Promise<void> {
 
 function invalidateAll({ queryClient }: DevContext): void {
   invalidateProgress(queryClient);
-  for (const queryKey of [queryKeys.friends.all, queryKeys.challenge.all]) {
+  for (const queryKey of [queryKeys.friends.all, queryKeys.course.all]) {
     void queryClient.invalidateQueries({ queryKey, refetchType: 'all' });
   }
 }
@@ -120,14 +124,11 @@ async function settleAchievements(ctx: DevContext): Promise<void> {
 /** Words a seeded vocabulary quest taught: its real words, or stand-ins for unwritten days. */
 async function seededWords(ctx: DevContext, quest: Quest, at: string): Promise<LearnedWord[]> {
   if (quest.type !== 'vocabulary') return [];
-  const content = await ctx.repositories.challenge.getQuestContent(quest.id);
+  const content = await ctx.repositories.course.getQuestContent(quest.id);
   const ids =
     content?.type === 'vocabulary'
       ? content.items.map((item) => item.id)
-      : Array.from(
-          { length: quest.wordCount ?? CHALLENGE.wordsPerVocabularyQuest },
-          (_, n) => `${quest.id}-word-${n + 1}`,
-        );
+      : Array.from({ length: quest.wordCount ?? 6 }, (_, n) => `${quest.id}-word-${n + 1}`);
   return ids.map((wordId) => ({ wordId, questId: quest.id, learnedAt: at }));
 }
 
@@ -143,6 +144,8 @@ async function seedCompletedQuests(
 ): Promise<void> {
   const existing = await ctx.repositories.progress.getCompletions();
   const done = new Set(existing.map((c) => c.questId));
+  const course = await ctx.repositories.course.getCourse();
+  const weeks = new Map(course.days.map((d) => [d.day, d.week]));
   const timestamp = new Date().toISOString();
   const completions: QuestCompletion[] = [];
   const xpEvents: XpEvent[] = [];
@@ -159,6 +162,7 @@ async function seedCompletedQuests(
         : quest.xpReward + (perfect ? CHALLENGE.perfectScoreBonusXp : 0);
     completions.push({
       questId: quest.id,
+      courseVersion: course.version,
       day: quest.day,
       questType: quest.type,
       score: correctCount / 5,
@@ -171,9 +175,9 @@ async function seedCompletedQuests(
     // A passed exam pays its reward once per exam — like the real exam flow.
     const examId =
       quest.type === 'finalBattle'
-        ? FINAL_CHALLENGE.id
+        ? FINAL_CHALLENGE_ID
         : quest.type === 'weeklyExam'
-          ? `exam-week-${Math.ceil(quest.day / CHALLENGE.weeklyExamInterval)}`
+          ? weeklyExamId(weeks.get(quest.day) ?? 1)
           : null;
     xpEvents.push(
       examId
@@ -187,7 +191,7 @@ async function seedCompletedQuests(
   const challenge: ChallengeCompletion | null = final
     ? {
         completedAt: timestamp,
-        finalAttemptId: `${FINAL_CHALLENGE.id}-seeded`,
+        finalAttemptId: `${FINAL_CHALLENGE_ID}-seeded`,
         correctCount: final.correctCount,
         totalCount: final.totalCount,
         score: final.score,
@@ -198,7 +202,7 @@ async function seedCompletedQuests(
     : null;
 
   const [plans, recorded] = await Promise.all([
-    ctx.repositories.challenge.getDailyChallenges(),
+    ctx.repositories.course.getDays(),
     ctx.repositories.progress.getDayCompletions(),
   ]);
   const all = [...existing, ...completions];
@@ -247,7 +251,7 @@ export async function completeNextQuest(
   { perfect = false }: { perfect?: boolean } = {},
 ): Promise<boolean> {
   const state = await loadProgressState(ctx.repositories);
-  const plan = await ctx.repositories.challenge.getDailyChallenge(state.currentDay);
+  const plan = await ctx.repositories.course.getDay(state.currentDay);
   const done = new Set(state.todayCompletedQuestIds);
   const next = plan.quests.find((quest) => !done.has(quest.id));
   if (!next) return false;
@@ -281,7 +285,7 @@ export async function completeToday(
  * are recorded as passed, the way seeded history is.
  */
 async function handInExam(ctx: DevContext, quest: Quest, perfect: boolean): Promise<void> {
-  const exam = await ctx.repositories.challenge.getQuestContent(quest.id);
+  const exam = await ctx.repositories.course.getQuestContent(quest.id);
   if (exam?.type !== 'weeklyExam') {
     await seedCompletedQuests(ctx, [quest], { perfect, celebrated: false });
     return;
@@ -320,7 +324,7 @@ function answerExam(
 
 export async function resetToday(ctx: DevContext): Promise<void> {
   const state = await loadProgressState(ctx.repositories);
-  const plan = await ctx.repositories.challenge.getDailyChallenge(state.currentDay);
+  const plan = await ctx.repositories.course.getDay(state.currentDay);
   await ctx.repositories.progress.deleteCompletions(plan.quests.map((quest) => quest.id));
   invalidateAll(ctx);
 }
@@ -328,7 +332,7 @@ export async function resetToday(ctx: DevContext): Promise<void> {
 /** Opens the current quest halfway, to see the in-progress state on Home. */
 export async function startCurrentQuest(ctx: DevContext, progress = 0.4): Promise<void> {
   const state = await loadProgressState(ctx.repositories);
-  const plan = await ctx.repositories.challenge.getDailyChallenge(state.currentDay);
+  const plan = await ctx.repositories.course.getDay(state.currentDay);
   const done = new Set(state.todayCompletedQuestIds);
   const next = plan.quests.find((quest) => !done.has(quest.id));
   if (!next) return;
@@ -347,7 +351,7 @@ export async function startCurrentQuest(ctx: DevContext, progress = 0.4): Promis
 /** Fills the days before today so the streak becomes exactly `streak` days. */
 export async function setStreak(ctx: DevContext, streak: number): Promise<void> {
   const state = await loadProgressState(ctx.repositories);
-  const plans = await ctx.repositories.challenge.getDailyChallenges();
+  const plans = await ctx.repositories.course.getDays();
   const target = clamp(Math.round(streak), 0, state.currentDay - 1);
   const firstStreakDay = state.currentDay - target;
 
@@ -382,13 +386,14 @@ export async function resetAchievements(ctx: DevContext): Promise<void> {
   invalidateAll(ctx);
 }
 
-/** Jumps to the next weekly exam day and passes it. */
+/** Jumps to the next weekly exam day (or the course's last one) and passes it. */
 export async function simulateWeeklyExam(ctx: DevContext): Promise<void> {
   const state = await loadProgressState(ctx.repositories);
-  const interval = CHALLENGE.weeklyExamInterval;
-  // Last exam day of the challenge (day 90 is the summit, not an exam).
-  const lastExamDay = Math.floor((CHALLENGE.totalDays - 1) / interval) * interval;
-  const examDay = Math.min(Math.ceil(state.currentDay / interval) * interval, lastExamDay);
+  const checkpoints = (await ctx.repositories.course.getDays())
+    .filter((day) => day.kind === 'weeklyExam')
+    .map((day) => day.day);
+  const examDay = checkpoints.find((day) => day >= state.currentDay) ?? checkpoints.at(-1);
+  if (examDay === undefined) return;
   await setCurrentDay(ctx, examDay);
   await completeToday(ctx, { perfect: true });
 }
@@ -466,7 +471,7 @@ async function rebuildProgress(ctx: DevContext, spec: HomeScenarioSpec): Promise
   await ctx.repositories.achievements.resetUnlocks();
   await startAtDay(ctx, spec.day);
 
-  const plans = await ctx.repositories.challenge.getDailyChallenges();
+  const plans = await ctx.repositories.course.getDays();
   const today = plans.find((plan) => plan.day === spec.day);
   const history = plans
     .filter((plan) => plan.day < spec.day && !missed.has(plan.day))
@@ -500,13 +505,13 @@ async function prepareDay89Quest(
   type: QuestType,
 ): Promise<{ quest: Quest; content: QuestContent }> {
   await applyHomeScenario(ctx, 'day89');
-  const plan = await ctx.repositories.challenge.getDailyChallenge(89);
+  const plan = await ctx.repositories.course.getDay(89);
   const index = plan.quests.findIndex((quest) => quest.type === type);
   const quest = plan.quests[index];
   if (!quest) throw new Error(`Day 89 has no ${type} quest`);
   await seedCompletedQuests(ctx, plan.quests.slice(0, index), { perfect: false });
 
-  const content = await ctx.repositories.challenge.getQuestContent(quest.id);
+  const content = await ctx.repositories.course.getQuestContent(quest.id);
   if (!content) throw new Error(`Day 89 has no ${type} content`);
   return { quest, content };
 }
@@ -842,18 +847,7 @@ export async function applyReviewScenario(
 ): Promise<string> {
   const { quest, content } = await prepareDay89Quest(ctx, 'review');
   if (content.type !== 'review') throw new Error('Day 89 review content has another type');
-  const sources = await Promise.all(
-    Object.values(content.sources).map((id) =>
-      id ? ctx.repositories.challenge.getQuestContent(id) : null,
-    ),
-  );
-  const items = resolveReview(
-    content,
-    reviewMaterial(
-      content,
-      sources.filter((item): item is QuestContent => item !== null),
-    ),
-  );
+  const items = resolveReview(content);
 
   const at = new Date().toISOString();
   const count = items.length;
@@ -916,7 +910,7 @@ export type DayScenario = keyof typeof DAY_SCENARIOS;
 /** Rebuilds Day 89 in the chosen state; returns the day to open for the summary states. */
 export async function applyDayScenario(ctx: DevContext, scenario: DayScenario): Promise<number> {
   await applyHomeScenario(ctx, 'day89');
-  const plan = await ctx.repositories.challenge.getDailyChallenge(89);
+  const plan = await ctx.repositories.course.getDay(89);
   if (scenario === 'threeOfFour') {
     await seedCompletedQuests(ctx, plan.quests.slice(0, -1), { perfect: false });
   } else {
@@ -1003,9 +997,9 @@ const EXAM_MISSES = {
 /** Day 84 (83 days walked); `warmUp` also finishes the day's quests before the exam. */
 async function prepareExamDay(ctx: DevContext, { warmUp }: { warmUp: boolean }) {
   await rebuildProgress(ctx, { label: 'Day 84', day: EXAM_DAY, todayDone: warmUp ? 2 : 0 });
-  const plan = await ctx.repositories.challenge.getDailyChallenge(EXAM_DAY);
+  const plan = await ctx.repositories.course.getDay(EXAM_DAY);
   const quest = plan.quests.find((item) => item.type === 'weeklyExam');
-  const exam = quest ? await ctx.repositories.challenge.getQuestContent(quest.id) : null;
+  const exam = quest ? await ctx.repositories.course.getQuestContent(quest.id) : null;
   if (!quest || exam?.type !== 'weeklyExam') throw new Error('Day 84 has no weekly exam');
   return { quest, exam };
 }
@@ -1142,9 +1136,9 @@ export async function applyFinalScenario(
   ctx: DevContext,
   scenario: FinalScenario,
 ): Promise<{ questId: string; open: FinalOpen }> {
-  const plan = await ctx.repositories.challenge.getDailyChallenge(CHALLENGE.totalDays);
+  const plan = await ctx.repositories.course.getDay(CHALLENGE.totalDays);
   const quest = plan.quests.find((item) => item.type === 'finalBattle');
-  const exam = quest ? await ctx.repositories.challenge.getQuestContent(quest.id) : null;
+  const exam = quest ? await ctx.repositories.course.getQuestContent(quest.id) : null;
   if (!quest || exam?.type !== 'finalBattle') throw new Error('Day 90 has no Final Battle');
   const done = { questId: quest.id, open: FINAL_SCENARIOS[scenario].open };
 
@@ -1243,7 +1237,7 @@ async function freshStart(ctx: DevContext, day: number): Promise<void> {
 
 /** Days before `day` completed; from `perfectFrom` on, without a mistake. */
 async function seedDaysBefore(ctx: DevContext, day: number, perfectFrom?: number): Promise<void> {
-  const plans = await ctx.repositories.challenge.getDailyChallenges();
+  const plans = await ctx.repositories.course.getDays();
   const before = plans.filter((plan) => plan.day < day);
   const isPerfect = (planDay: number) => perfectFrom !== undefined && planDay >= perfectFrom;
   await seedCompletedQuests(
@@ -1276,7 +1270,7 @@ async function playQuests(
   day: number,
   { perfect, only }: { perfect: boolean; only?: QuestType },
 ): Promise<void> {
-  const plan = await ctx.repositories.challenge.getDailyChallenge(day);
+  const plan = await ctx.repositories.course.getDay(day);
   for (const quest of plan.quests) {
     if (only && quest.type !== only) continue;
     await completeQuest(ctx.repositories, {
@@ -1381,10 +1375,12 @@ export async function resetOnboarding(ctx: DevContext): Promise<void> {
  */
 export async function openOnboardingStep(ctx: DevContext, position: number): Promise<void> {
   const step = stepAt(position);
+  // A later step opens with the answers the earlier ones would have given; the
+  // step itself opens empty, so its own input can be tried.
   useOnboardingStore.setState({
     step,
-    name: step === 'name' ? 'Explorer' : '',
-    goal: step === 'name' ? 'habit' : null,
+    name: step === 'ready' ? 'Explorer' : '',
+    goal: step === 'name' || step === 'ready' ? 'habit' : null,
   });
   await devRepository(ctx).resetOnboarding();
   await refetchEverything(ctx);
@@ -1612,7 +1608,7 @@ export async function applyTeamScenario(ctx: DevContext, scenario: TeamScenario)
   const spec: TeamScenarioSpec = TEAM_SCENARIOS[scenario];
   await freshStart(ctx, TEAM_DAY);
   await seedDaysBefore(ctx, TEAM_DAY);
-  const plan = await ctx.repositories.challenge.getDailyChallenge(TEAM_DAY);
+  const plan = await ctx.repositories.course.getDay(TEAM_DAY);
   const questCount = plan.quests.length;
   await seedCompletedQuests(ctx, plan.quests.slice(0, Math.min(spec.youToday, questCount)), {
     perfect: false,
@@ -1650,7 +1646,7 @@ export async function simulateFriendJoined(ctx: DevContext): Promise<string> {
   const next = DEMO_FRIENDS.findIndex((friend) => !members.some((m) => m.id === friend.id));
   if (next < 0) throw new Error('Both demo friends are already in the team.');
   const state = await loadProgressState(ctx.repositories);
-  const plan = await ctx.repositories.challenge.getDailyChallenge(state.currentDay);
+  const plan = await ctx.repositories.course.getDay(state.currentDay);
   const friend = DEMO_FRIENDS[next] ?? DEMO_FRIENDS[0];
   const member: TeamMember = {
     id: friend.id,
@@ -1681,7 +1677,7 @@ export async function simulateFriendJoined(ctx: DevContext): Promise<string> {
 /** Finishes your remaining quests today through the real completion use case. */
 export async function finishMyDay(ctx: DevContext): Promise<void> {
   const state = await loadProgressState(ctx.repositories);
-  const plan = await ctx.repositories.challenge.getDailyChallenge(state.currentDay);
+  const plan = await ctx.repositories.course.getDay(state.currentDay);
   const done = new Set(state.todayCompletedQuestIds);
   for (const quest of plan.quests.filter((item) => !done.has(item.id))) {
     await completeQuest(ctx.repositories, {
@@ -1692,4 +1688,89 @@ export async function finishMyDay(ctx: DevContext): Promise<void> {
     });
   }
   invalidateAll(ctx);
+}
+
+// ─── Daily reminders ─────────────────────────────────────────────────────────
+
+const describePermission = (
+  permission: Awaited<ReturnType<typeof reminders.getPermissionStatus>>,
+) =>
+  permission.status === 'denied'
+    ? `denied${permission.canAskAgain ? '' : ' (only in iOS Settings)'}`
+    : permission.status;
+
+/**
+ * One notification in a few seconds, worded as today's reminder — to see what
+ * a user would see. It shows even with the app open (a daily reminder would
+ * stay quiet there), and tapping it opens Today.
+ */
+export async function scheduleTestReminder(ctx: DevContext, seconds = 5): Promise<string> {
+  let permission = await reminders.getPermissionStatus();
+  if (
+    permission.status === 'undetermined' ||
+    (permission.status === 'denied' && permission.canAskAgain)
+  ) {
+    permission = await reminders.requestPermission();
+  }
+  if (permission.status !== 'granted') {
+    return `Notifications are not allowed: ${describePermission(permission)}.`;
+  }
+  const state = await loadProgressState(ctx.repositories);
+  const today = await ctx.repositories.course.getDay(state.currentDay);
+  const scheduled = await reminders.scheduleTestReminder(
+    reminderCopy(state.currentDay, today.kind),
+    seconds,
+  );
+  return scheduled
+    ? `Arrives in ${seconds} s. Go to the Home screen or lock the device to see it as a user would; tapping it opens Today.`
+    : 'Scheduling failed — see the log.';
+}
+
+export async function cancelTestReminder(): Promise<string> {
+  return (await reminders.cancelTestReminder())
+    ? 'Test notification cancelled.'
+    : 'Cancelling failed — see the log.';
+}
+
+/** What the system really has scheduled, next to what the preference says. */
+export async function describeReminders(): Promise<string> {
+  const { dailyReminderEnabled, dailyReminderTime } = getSettings();
+  const inspection = await reminders.inspect();
+  const shown = inspection.reminders.slice(0, 5);
+  return [
+    `Preference: ${dailyReminderEnabled ? 'on' : 'off'}, ${toClock(dailyReminderTime)}`,
+    `Permission: ${describePermission(inspection.permission)}`,
+    `Scheduled: ${inspection.reminders.length}${inspection.testPending ? ' + a test' : ''}`,
+    ...shown.map(
+      (reminder) => `· ${reminder.date} ${reminder.time} · Day ${reminder.day} · ${reminder.title}`,
+    ),
+    ...(inspection.reminders.length > shown.length
+      ? [`· … ${inspection.reminders.length - shown.length} more`]
+      : []),
+    `Delivered, still in Notification Center: ${inspection.presented}`,
+  ].join('\n');
+}
+
+/** The same sync the app runs on every change, on demand. */
+export async function syncRemindersNow(ctx: DevContext): Promise<string> {
+  const { dailyReminderEnabled, dailyReminderTime } = getSettings();
+  const [user, state, days] = await Promise.all([
+    ctx.repositories.user.getUser(),
+    loadProgressState(ctx.repositories),
+    ctx.repositories.course.getDays(),
+  ]);
+  const report = await reminders.syncDailyReminders({
+    dayKinds: new Map(days.map((day) => [day.day, day.kind])),
+    enabled: dailyReminderEnabled,
+    time: dailyReminderTime,
+    onboarded: user.onboardedAt !== null,
+    challengeStartDate: user.challengeStartDate,
+    isTodayComplete: state.isTodayComplete,
+    challengeCompleted: state.challengeCompletion !== null,
+  });
+  return [
+    `Permission: ${describePermission(report.permission)}`,
+    `Planned ${report.planned} · scheduled ${report.scheduled} · cancelled ${report.cancelled}`,
+    `Dismissed ${report.dismissed} · failures ${report.failures} (+${report.tidyFailures} tidying)`,
+  ].join('\n');
 }

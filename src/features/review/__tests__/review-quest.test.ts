@@ -1,4 +1,4 @@
-import { questId } from '@/data/content/schedule';
+import { questId } from '@/features/course/logic/ids';
 import { createMemoryRepositories } from '@/data/repositories/memory/memory-repositories';
 import { getStartDateForDay } from '@/features/challenge/logic/calendar';
 import { loadDaySummary } from '@/features/day-complete/use-cases';
@@ -16,12 +16,13 @@ type Repositories = ReturnType<typeof createMemoryRepositories>;
 /** Day 89 with 88 days walked before it (streak 88). */
 async function setup(): Promise<Repositories> {
   const repositories = createMemoryRepositories(getStartDateForDay(DAY, new Date()));
-  const plans = await repositories.challenge.getDailyChallenges();
+  const plans = await repositories.course.getDays();
   const history: QuestCompletion[] = plans
     .filter((plan) => plan.day < DAY)
     .flatMap((plan) =>
       plan.quests.map((quest) => ({
         questId: quest.id,
+        courseVersion: 1,
         day: plan.day,
         questType: quest.type,
         score: 1,
@@ -67,14 +68,15 @@ const playReview = (repositories: Repositories, wrong = 1) =>
   });
 
 describe('review quest and the end of the day', () => {
-  it('opens with its source material and knows it ends the day', async () => {
+  it('opens with its material and knows it ends the day', async () => {
     const repositories = await setup();
     const run = await loadQuestRun(repositories, REVIEW_ID);
-    expect(run.content?.type).toBe('review');
-    expect(run.sources.map((content) => content.type).sort()).toEqual([
-      'grammar',
-      'reading',
-      'vocabulary',
+    if (run.content?.type !== 'review') throw new Error('the review has content');
+    // The words, the rule points and the story it comes back to — all carried with it.
+    expect(run.content.material.words.length).toBeGreaterThan(0);
+    expect(run.content.material.points.length).toBeGreaterThan(0);
+    expect(run.content.material.readings.map((reading) => reading.id)).toEqual([
+      'reading-small-steps',
     ]);
     expect(run.isLastOfDay).toBe(true);
   });
@@ -216,7 +218,7 @@ describe('review quest and the end of the day', () => {
     await finishFirstThree(repositories);
     await playReview(repositories);
 
-    const plan = await repositories.challenge.getDailyChallenge(DAY);
+    const plan = await repositories.course.getDay(DAY);
     await repositories.progress.deleteCompletions(plan.quests.map((quest) => quest.id));
     expect(await repositories.progress.getDayCompletion(DAY)).toBeNull();
     expect((await loadProgressState(repositories)).streak).toBe(88);

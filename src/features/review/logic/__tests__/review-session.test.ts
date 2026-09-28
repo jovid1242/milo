@@ -1,8 +1,8 @@
-import { QUEST_CONTENT } from '@/data/content/lessons';
-import { questId } from '@/data/content/schedule';
-import type { QuestContent, ReviewProgress, ReviewQuest } from '@/schemas';
+import { questContent } from '@/content/course/__fixtures__/quest-content';
+import { questId } from '@/features/course/logic/ids';
+import type { ReviewProgress, ReviewQuest } from '@/schemas';
 
-import { resolveReview, reviewMaterial, type ReviewItem } from '../review-items';
+import { resolveReview, type ReviewItem } from '../review-items';
 import {
   INITIAL_REVIEW,
   currentItem,
@@ -17,17 +17,12 @@ import {
 } from '../review-session';
 
 const AT = '2026-09-18T10:00:00.000Z';
-const CONTENTS = [...QUEST_CONTENT.values()];
-
 function review(day: number): ReviewQuest {
-  const content = QUEST_CONTENT.get(questId(day, 'review'));
-  if (content?.type !== 'review') throw new Error(`no review for day ${day}`);
-  return content;
+  return questContent(questId(day, 'review'), 'review');
 }
 
-function itemsFor(day: number, contents: readonly QuestContent[] = CONTENTS): ReviewItem[] {
-  const quest = review(day);
-  return resolveReview(quest, reviewMaterial(quest, contents));
+function itemsFor(day: number): ReviewItem[] {
+  return resolveReview(review(day));
 }
 
 const ITEMS = itemsFor(89);
@@ -56,22 +51,22 @@ describe('review content', () => {
     expect(ITEMS.map((item) => item.source[0]?.toUpperCase()).join(' ')).toBe('V G R V G V R G');
   });
 
-  it('resolves every reference against the day it reviews — nothing is dropped', () => {
-    for (const day of [1, 89]) {
+  it('resolves every reference against its material — nothing is dropped', () => {
+    for (const day of [1, 2, 7, 89]) {
       expect(itemsFor(day)).toHaveLength(review(day).exercises.length);
     }
   });
 
-  it('points at today’s quests instead of copying them', () => {
-    for (const day of [1, 89]) {
-      const quest = review(day);
-      expect(quest.sources).toEqual({
-        vocabulary: questId(day, 'vocabulary'),
-        grammar: questId(day, 'grammar'),
-        reading: questId(day, 'reading'),
-      });
+  it('carries only the material its exercises refer to, by id', () => {
+    const quest = review(89);
+    const words = new Set(quest.material.words.map((word) => word.id));
+    for (const exercise of quest.exercises) {
+      if (exercise.source === 'vocabulary') {
+        expect(words.has(exercise.exercise.itemId)).toBe(true);
+      }
     }
-    // The words come from the Vocabulary quest…
+    expect([...words].every((id) => id.startsWith('vocab-'))).toBe(true);
+    // The words come from the course's vocabulary bank…
     const vocabulary = ITEMS.find((item) => item.source === 'vocabulary');
     expect(vocabulary?.source === 'vocabulary' && vocabulary.view.prompt?.text).toBe('consistent');
     // …and the story line is quoted from the Reading quest by reference.
@@ -82,8 +77,8 @@ describe('review content', () => {
   });
 
   it('leaves out exercises whose material is missing, without crashing', () => {
-    const withoutVocabulary = CONTENTS.filter((content) => content.type !== 'vocabulary');
-    const items = itemsFor(89, withoutVocabulary);
+    const quest = review(89);
+    const items = resolveReview({ ...quest, material: { ...quest.material, words: [] } });
     expect(items).toHaveLength(5);
     expect(items.some((item) => item.source === 'vocabulary')).toBe(false);
   });

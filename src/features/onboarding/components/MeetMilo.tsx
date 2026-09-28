@@ -7,27 +7,27 @@ import { mascots } from '@/constants/assets';
 import { durations, spacing } from '@/theme';
 import { clamp } from '@/utils/number';
 
-/** Step one: who is walking next to you for the next ninety days. */
+/** Step one: the product's face, before anything is explained. */
 export function MeetMilo() {
   const { width } = useWindowDimensions();
   return (
     <View style={styles.step} testID="onboarding-welcome">
-      <Animated.View entering={FadeIn.duration(durations.slow)}>
+      <Animated.View entering={FadeInUp.duration(durations.slow)}>
         <AssetImage
           asset={mascots.idle}
           width={clamp(Math.round(width * 0.56), 180, 260)}
-          accessibilityLabel="Milo, a small bear with a backpack"
+          accessibilityLabel="Milo, a small round explorer in a green beanie with a backpack"
         />
       </Animated.View>
-      <Animated.View entering={FadeInUp.duration(durations.normal).delay(140)} style={styles.text}>
+      <Animated.View entering={FadeIn.duration(durations.normal).delay(220)} style={styles.text}>
         <AppText variant="overline" color="wood" align="center">
           90 Day English Challenge
         </AppText>
         <AppText variant="title1" align="center" accessibilityRole="header">
-          Hi, I&apos;m Milo.
+          Meet Milo.
         </AppText>
         <AppText variant="bodyLarge" color="secondary" align="center">
-          {'We walk this road together.\nA little English every day — that’s the whole idea.'}
+          Your companion for the next 90 days.
         </AppText>
       </Animated.View>
     </View>
