@@ -2,6 +2,7 @@ export * from './achievement';
 export * from './chapter';
 export * from './common';
 export * from './course';
+export * from './curriculum';
 export * from './exam';
 export * from './grammar';
 export * from './journey';

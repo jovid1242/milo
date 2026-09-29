@@ -2,6 +2,7 @@ import { z } from 'zod';
 
 import { ChapterIdSchema } from './chapter';
 import { CefrLevelSchema, DayNumberSchema, IdSchema } from './common';
+import { DayCurriculumSchema } from './curriculum';
 
 /** Ids match the quest icon keys in the asset registry. */
 export const QuestTypeSchema = z.enum([
@@ -51,6 +52,11 @@ export const CourseDaySchema = z
     /** The day's target level: it never goes down as the course goes on. */
     level: CefrLevelSchema,
     quests: z.array(QuestSchema).min(1),
+    /**
+     * What the day should teach — its learning objectives. Optional in shape;
+     * the curriculum validator requires it for every day of a course.
+     */
+    curriculum: DayCurriculumSchema.optional(),
   })
   .superRefine((plan, ctx) => {
     plan.quests.forEach((quest, index) => {

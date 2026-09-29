@@ -2,6 +2,7 @@ import { z } from 'zod';
 
 import { ChapterSchema } from './chapter';
 import { IdSchema } from './common';
+import { CourseCurriculumSchema } from './curriculum';
 import { FinalChallengeSchema, WeeklyExamSchema } from './exam';
 import { GrammarLessonSchema } from './grammar';
 import { CourseDaySchema } from './quest';
@@ -19,8 +20,9 @@ import { VocabularyItemSchema, VocabularyQuestDefinitionSchema } from './vocabul
  * texts), and everything else refers to it by stable id.
  *
  *   Course
- *    ├── chapters            Beginning · Momentum · Habit · Growth · Summit
- *    ├── days (1…totalDays)  kind, chapter, level, quest slots
+ *    ├── chapters            Beginning · Momentum · Habit · Growth · Summit (band, purpose)
+ *    ├── days (1…totalDays)  kind, chapter, level, quest slots, the day's curriculum
+ *    ├── curriculum          bands, grammar topics, theme families, learning outcomes
  *    ├── vocabulary          vocab-<lemma>
  *    ├── grammar             grammar-<topic>, points grammar-<topic>.<point>
  *    ├── readings            reading-<slug>
@@ -96,5 +98,6 @@ export const CourseSchema = z.object({
   lessons: z.array(LessonQuestDefinitionSchema),
   checkpoints: z.array(WeeklyExamSchema),
   finalChallenge: FinalChallengeSchema.nullable(),
+  curriculum: CourseCurriculumSchema,
 });
 export type Course = z.infer<typeof CourseSchema>;

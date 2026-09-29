@@ -2,7 +2,7 @@
   "name": "milo",
   "version": "1.0.0",
   "private": true,
-  "description": "Milo — 90 Day English Challenge (Expo, local-first).",
+  "description": "Milo \u2014 90 Day English Challenge (Expo, local-first).",
   "main": "expo-router/entry",
   "scripts": {
     "start": "expo start",
@@ -10,7 +10,8 @@
     "typecheck": "tsc --noEmit",
     "lint": "expo lint",
     "test": "jest",
-    "content:validate": "jest --config scripts/content/jest.config.js",
+    "content:validate": "jest --config scripts/content/jest.config.js validate-course",
+    "curriculum:doc": "jest --config scripts/content/jest.config.js curriculum-doc",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "verify": "npm run typecheck && npm run lint && npm run test",

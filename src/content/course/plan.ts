@@ -1,13 +1,12 @@
 import { dayId, questId } from '@/features/course/logic/ids';
-import type {
-  CefrLevel,
-  Chapter,
-  ChapterId,
-  CourseDay,
-  DayKind,
-  DayNumber,
-  Quest,
-  QuestType,
+import {
+  BAND_LEVEL,
+  type Chapter,
+  type CourseDay,
+  type DayKind,
+  type DayNumber,
+  type Quest,
+  type QuestType,
 } from '@/schemas';
 
 /**
@@ -23,15 +22,6 @@ import type {
 
 const CHECKPOINT_EVERY = 7;
 const WORDS_PER_DAY = 6;
-
-/** The level each chapter works at; days never get easier as the course goes on. */
-const LEVEL: Record<ChapterId, CefrLevel> = {
-  beginning: 'A2',
-  momentum: 'A2',
-  habit: 'B1',
-  growth: 'B1',
-  summit: 'B1',
-};
 
 const SLOTS: Record<
   QuestType,
@@ -113,7 +103,8 @@ export function buildCourseDays(chapters: readonly Chapter[], totalDays: number)
       week,
       chapterId: chapter.id,
       kind,
-      level: LEVEL[chapter.id],
+      // The chapter's band on the difficulty curve: days never get easier.
+      level: BAND_LEVEL[chapter.band],
       quests: questTypesFor(kind).map((type) => slot(day, week, type)),
     };
   });

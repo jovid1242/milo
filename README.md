@@ -11,7 +11,8 @@ npm run ios               # dev server + iOS Simulator
 npm run typecheck         # tsc --noEmit
 npm run lint              # expo lint (ESLint 9, eslint-config-expo)
 npm test                  # jest-expo unit tests (domain logic + content validation)
-npm run content:validate  # validate the 90-day course, print its content status; fails on errors
+npm run content:validate  # validate the 90-day course and its curriculum; fails on errors
+npm run curriculum:doc    # regenerate docs/CURRICULUM_90_DAY.md from the curriculum data
 npm run verify            # typecheck + lint + test
 npm run assets:optimize   # re-optimize assets/ from assets-original/ and regenerate the registry
 npm run assets:check      # validate assets/ against assets-manifest.json
@@ -174,9 +175,11 @@ chapter, level and quests all come from the course.
 ```
 src/content/course/
   meta.ts             id "milo-english-90", version, title, language "en", support language "ru", 90 days
-  chapters.ts         the five chapters (day ranges)
+  chapters.ts         the five chapters: day ranges, band on the difficulty curve, purpose
   plan.ts             the 90 course days: kind (regular · weeklyExam · summit), week, chapter,
-                      CEFR level, quest slots with XP and minutes
+                      CEFR level (from the chapter's band), quest slots with XP and minutes
+  curriculum/         the learning design: bands, grammar syllabus, theme families, outcomes,
+                      one draft per day (days/chapter-0N.ts, summit.ts), attached to each day
   days/day-NNN.ts     a written day: its new words, grammar lesson, reading text and quest definitions
   checkpoints/        weekly exams (week-NN.ts)
   final-challenge.ts  the Final Battle
@@ -219,8 +222,33 @@ src/content/course/
   89, the Week 1 and Week 12 exams and the Final Battle. Every other day is planned (kind, level,
   quests, rewards); a quest without content opens as "not ready yet" (`QuestUnavailable`).
 
-Adding a day: write `days/day-NNN.ts` (new words, lesson, text, quest definitions whose ids follow
-the convention), add it to `WRITTEN_DAYS` in `index.ts`, run `npm run content:validate`.
+Adding a day: read its row in [docs/CURRICULUM_90_DAY.md](docs/CURRICULUM_90_DAY.md), write
+`days/day-NNN.ts` (new words, lesson, text, quest definitions whose ids follow the convention), add
+it to `WRITTEN_DAYS` in `index.ts`, run `npm run content:validate`.
+
+### Curriculum (the 90-day blueprint)
+
+What every day should teach, as data: `CourseDay.curriculum` (theme, vocabulary focus with anchor
+words, grammar topic and stage, reading genre/topic/skills/length, review mix and days — or a
+checkpoint's exam objectives, or the Final Battle's blueprint) and `Course.curriculum` (difficulty
+bands, a 32-topic grammar syllabus with prerequisites, 26 theme families, learning outcomes). The
+drafts in `content/course/curriculum/` hold only what a person decides; the build works out the
+rest from the course plan (text length from the band, review days by spaced repetition, what a
+weekly exam covers — never from `day % 7`).
+
+`validateCurriculum` (`features/course/logic/curriculum.ts`) runs in `content:validate` and the
+tests — not at app startup. Errors: a day without objectives or of another kind than the plan's, a
+topic before its prerequisites or practised before it is introduced, a theme family twice in a row,
+an anchor word planned twice or already taught, a review that does not add up or comes back to a
+later day, a checkpoint not covering exactly the days since the previous one, a Final Battle
+blueprint that does not add up, a band that goes down, a chapter without an outcome. Warnings:
+written content that drifted from the plan (reading length, question kinds, review days, exam
+coverage and balance). Days whose written content no longer fits carry a `revision` note and show
+as NEEDS_CONTENT_REVISION.
+
+The human-readable version, with the strategy, the day-by-day map and the audit, is
+[docs/CURRICULUM_90_DAY.md](docs/CURRICULUM_90_DAY.md); its generated sections come from the same
+data (`npm run curriculum:doc`, kept in sync by a test).
 
 ## Exams (weekly checkpoints and the Final Battle)
 

@@ -26,3 +26,19 @@ export const ScoreSchema = z.number().min(0).max(1);
 export const CefrLevelSchema = z.enum(['A1', 'A2', 'B1', 'B2', 'C1']);
 export type CefrLevel = z.infer<typeof CefrLevelSchema>;
 export const CEFR_LEVELS = CefrLevelSchema.options;
+
+/**
+ * The course's difficulty curve, finer than CEFR: every band sits inside one
+ * CEFR level (A2 and A2+ in A2, B1- and B1 in B1). Chapters declare their
+ * band; a day's `level` is its band's level.
+ */
+export const CurriculumBandSchema = z.enum(['A2', 'A2+', 'B1-', 'B1']);
+export type CurriculumBand = z.infer<typeof CurriculumBandSchema>;
+export const CURRICULUM_BANDS = CurriculumBandSchema.options;
+
+export const BAND_LEVEL: Readonly<Record<CurriculumBand, CefrLevel>> = {
+  A2: 'A2',
+  'A2+': 'A2',
+  'B1-': 'B1',
+  B1: 'B1',
+};
