@@ -9,12 +9,15 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 
 import { ErrorState } from '@/components/ErrorState';
 import { AchievementCelebrationHost } from '@/features/achievements/components/AchievementCelebrationHost';
+import { AccountProfileSync } from '@/features/auth/components/AccountProfileSync';
+import { SessionWatcher } from '@/features/auth/components/SessionWatcher';
 import { needsOnboarding } from '@/features/onboarding/use-cases';
 import { ReminderSync } from '@/features/reminders/components/ReminderSync';
 import { useUser } from '@/features/profile/queries';
 import { useAppBootstrap } from '@/hooks/use-app-bootstrap';
 import { AppProviders } from '@/providers/app-providers';
 import type { User } from '@/schemas';
+import { useAuthStore } from '@/stores/auth-store';
 import { colors, layout } from '@/theme';
 import { fontSources } from '@/theme/fonts';
 import { navigationTheme } from '@/theme/navigation-theme';
@@ -24,13 +27,17 @@ export { RootErrorBoundary as ErrorBoundary } from '@/components/RootErrorBounda
 void SplashScreen.preventAutoHideAsync();
 
 /**
- * Which app the user gets: a profile that never finished onboarding sees only
+ * Which app the user gets. Signed out (with the Milo API on), only signing in
+ * or up. Signed in, a profile that never finished onboarding sees only
  * onboarding, and the moment the challenge starts every other route appears —
- * and onboarding is gone for good, beyond the reach of any back gesture.
+ * and onboarding is gone for good, beyond the reach of any back gesture. In
+ * local mode the device is always signed in.
  */
 function AppNavigator({ initialUser }: { initialUser: User }) {
   const user = useUser();
+  const signedIn = useAuthStore((state) => state.status === 'authenticated');
   const onboarded = !needsOnboarding(user.data ?? initialUser);
+  const inChallenge = signedIn && onboarded;
 
   return (
     <>
@@ -39,7 +46,7 @@ function AppNavigator({ initialUser }: { initialUser: User }) {
           headerShown: false,
           contentStyle: { backgroundColor: colors.background.base },
         }}>
-        <Stack.Protected guard={onboarded}>
+        <Stack.Protected guard={inChallenge}>
           <Stack.Screen name="(tabs)" />
           {/* Gameplay is immersive: full screen, no tab bar, no swipe-away mid-quest. */}
           <Stack.Screen
@@ -70,17 +77,24 @@ function AppNavigator({ initialUser }: { initialUser: User }) {
           <Stack.Screen name="member/[memberId]" />
         </Stack.Protected>
         {/* First launch. No tabs, no gestures out: the only way on is Day 1. */}
-        <Stack.Protected guard={!onboarded}>
+        <Stack.Protected guard={signedIn && !onboarded}>
           <Stack.Screen name="onboarding" options={{ animation: 'fade', gestureEnabled: false }} />
+        </Stack.Protected>
+        {/* Signed out: the account comes first; local progress waits, untouched. */}
+        <Stack.Protected guard={!signedIn}>
+          <Stack.Screen name="sign-in" options={{ animation: 'fade', gestureEnabled: false }} />
+          <Stack.Screen name="sign-up" />
         </Stack.Protected>
         {/* Reachable from both sides — onboarding is a state to develop against
           too. The route itself redirects when `__DEV__` is false. */}
         <Stack.Screen name="dev-tools" options={{ presentation: 'modal' }} />
       </Stack>
       {/* Achievement unlocks are celebrated here, on calm screens only. */}
-      {onboarded ? <AchievementCelebrationHost /> : null}
+      {inChallenge ? <AchievementCelebrationHost /> : null}
       {/* Daily reminders follow the preferences and the challenge, from here. */}
-      <ReminderSync onboarded={onboarded} />
+      <ReminderSync onboarded={inChallenge} />
+      <SessionWatcher />
+      {signedIn ? <AccountProfileSync /> : null}
     </>
   );
 }

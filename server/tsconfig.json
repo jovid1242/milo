@@ -1,0 +1,32 @@
+{
+  // The server compiles its own code and the app's course core (`@/…` → ../src):
+  // schemas, content and validators are shared, never copied.
+  "compilerOptions": {
+    "module": "nodenext",
+    "moduleResolution": "nodenext",
+    "target": "es2023",
+    "lib": ["es2023"],
+    "types": ["node"],
+    "strict": true,
+    "noUncheckedIndexedAccess": true,
+    "noImplicitOverride": true,
+    "noImplicitReturns": true,
+    "noFallthroughCasesInSwitch": true,
+    "forceConsistentCasingInFileNames": true,
+    "experimentalDecorators": true,
+    "emitDecoratorMetadata": true,
+    "esModuleInterop": true,
+    // Each file compiles on its own (ts-jest, like Babel for the app).
+    "isolatedModules": true,
+    "skipLibCheck": true,
+    "sourceMap": true,
+    "outDir": "dist",
+    "rootDir": "..",
+    "paths": {
+      "@/*": ["../src/*"],
+      // One zod for the server and the shared schemas it compiles.
+      "zod": ["./node_modules/zod"]
+    }
+  },
+  "include": ["src/**/*", "test/**/*", "prisma.config.ts", "vitest.config.mts"]
+}

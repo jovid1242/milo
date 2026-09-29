@@ -346,6 +346,25 @@ export const MIGRATIONS: readonly Migration[] = [
       }
     },
   },
+  {
+    version: 11,
+    name: 'course cache',
+    up: async (db) => {
+      // The course downloaded from the API: one row, replaced only by a newer
+      // course that passed validation — the last known good one.
+      await db.execAsync(`
+        CREATE TABLE course_cache (
+          slot INTEGER PRIMARY KEY NOT NULL CHECK (slot = 1),
+          course_id TEXT NOT NULL,
+          version INTEGER NOT NULL,
+          schema_version INTEGER NOT NULL,
+          content_hash TEXT NOT NULL,
+          document TEXT NOT NULL,
+          saved_at TEXT NOT NULL
+        );
+      `);
+    },
+  },
 ];
 
 export async function runMigrations(db: SQLiteDatabase): Promise<void> {

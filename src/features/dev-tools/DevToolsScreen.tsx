@@ -15,6 +15,7 @@ import { HAPTIC_PATTERNS, triggerHaptic } from '@/services/haptics/haptics';
 import { useDevStore } from '@/stores/dev-store';
 import { colors, spacing } from '@/theme';
 
+import { BackendStatus } from './components/BackendStatus';
 import * as dev from './dev-actions';
 
 const DAY_SHORTCUTS = [1, 7, 10, 11, 30, 31, 60, 61, 89, 90];
@@ -100,6 +101,13 @@ export function DevToolsScreen() {
                 : 'Loading state…'}
             </AppText>
           </View>
+        </View>
+
+        <View style={styles.section}>
+          <AppText variant="overline" color="wood">
+            Backend
+          </AppText>
+          <BackendStatus />
         </View>
 
         {/* This sheet is reachable from both sides of the onboarding guard, so

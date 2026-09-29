@@ -1,0 +1,73 @@
+// Milo API — PostgreSQL schema. Change it only through migrations
+// (`npm run db:migrate`), never with `db push` or a manual ALTER TABLE.
+
+generator client {
+  provider     = "prisma-client"
+  output       = "../src/generated/prisma"
+  moduleFormat = "cjs"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+/// An account. The learning profile (days, XP, streak) still lives in the app;
+/// the server keeps who the user is and what onboarding told it.
+model User {
+  id           String           @id @default(uuid()) @db.Uuid
+  /// Normalized: trimmed and lower-cased before it is stored or looked up.
+  email        String           @unique
+  passwordHash String
+  /// Null until onboarding sends it.
+  displayName  String?
+  /// One of the app's goals (GoalSchema); validated at the API boundary.
+  goal         String?
+  createdAt    DateTime         @default(now())
+  updatedAt    DateTime         @updatedAt
+  sessions     RefreshSession[]
+
+  @@map("users")
+}
+
+/// One signed-in device. Revoking it ends every refresh token it ever had.
+model RefreshSession {
+  id            String         @id @default(uuid()) @db.Uuid
+  userId        String         @db.Uuid
+  user          User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt     DateTime       @default(now())
+  lastUsedAt    DateTime       @default(now())
+  /// Slides forward with each rotation.
+  expiresAt     DateTime
+  revokedAt     DateTime?
+  /// logout · reuse
+  revokedReason String?
+  userAgent     String?
+  tokens        RefreshToken[]
+
+  @@index([userId])
+  @@map("refresh_sessions")
+}
+
+/// A refresh token, stored only as a keyed hash: the raw token never touches
+/// the database. Each use rotates it; a rotated token presented again (outside
+/// a short retry window) is treated as stolen and revokes its session.
+model RefreshToken {
+  id           String         @id @default(uuid()) @db.Uuid
+  sessionId    String         @db.Uuid
+  session      RefreshSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  /// The token this one was issued in exchange for; null for a session's first.
+  parentId     String?        @db.Uuid
+  parent       RefreshToken?  @relation("Rotation", fields: [parentId], references: [id], onDelete: Cascade)
+  successors   RefreshToken[] @relation("Rotation")
+  tokenHash    String         @unique
+  createdAt    DateTime       @default(now())
+  expiresAt    DateTime
+  /// When it was exchanged for a successor.
+  rotatedAt    DateTime?
+  /// When a sibling successor was used first: never valid again.
+  supersededAt DateTime?
+
+  @@index([sessionId])
+  @@index([parentId])
+  @@map("refresh_tokens")
+}

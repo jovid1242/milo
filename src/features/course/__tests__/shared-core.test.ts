@@ -1,0 +1,87 @@
+// Jest runs this file in Node; the app's tsconfig has no Node types, so the
+// little of `fs` and `path` used here is typed for this file only.
+declare const require: (id: 'fs' | 'path') => unknown;
+declare const __dirname: string;
+const { existsSync, readFileSync } = require('fs') as {
+  existsSync: (path: string) => boolean;
+  readFileSync: (path: string, encoding: 'utf8') => string;
+};
+const { dirname, join, relative } = require('path') as {
+  dirname: (path: string) => string;
+  join: (...parts: string[]) => string;
+  relative: (from: string, to: string) => string;
+};
+
+/**
+ * The Milo API compiles the app's own course code instead of a copy of it
+ * (server/tsconfig.json maps `@/…` to `src/`): the schemas, the course, its
+ * validator, and the clients the server's tests drive. That only works while
+ * this code needs nothing but `zod` — no React Native, no Expo. This keeps it so.
+ */
+const SRC = join(__dirname, '../../..');
+
+const SHARED_ENTRIES = [
+  'schemas/index.ts',
+  'content/course/index.ts',
+  'features/course/logic/validate.ts',
+  'constants/challenge.ts',
+  'data/repositories/api/api-course-repository.ts',
+  'data/repositories/api/course-api.ts',
+  'data/repositories/api/api-auth-repository.ts',
+  'services/api/api-client.ts',
+  'services/auth/auth-session.ts',
+  'services/auth/stored-session.ts',
+];
+
+const importsOf = (code: string) =>
+  [...code.matchAll(/(?:\bfrom\s+|\bimport\s*\(?\s*|\brequire\(\s*)['"]([^'"]+)['"]/g)].map(
+    (match) => match[1] ?? '',
+  );
+
+function resolveLocal(from: string, specifier: string): string | null {
+  const base = specifier.startsWith('@/')
+    ? join(SRC, specifier.slice(2))
+    : join(dirname(from), specifier);
+  for (const candidate of [`${base}.ts`, `${base}.tsx`, join(base, 'index.ts')])
+    if (existsSync(candidate)) return candidate;
+  return null;
+}
+
+function sharedClosure() {
+  const files = new Set<string>();
+  const packages = new Set<string>();
+  const queue = SHARED_ENTRIES.map((entry) => join(SRC, entry));
+  while (queue.length > 0) {
+    const file = queue.pop();
+    if (!file || files.has(file)) continue;
+    files.add(file);
+    for (const specifier of importsOf(readFileSync(file, 'utf8'))) {
+      if (specifier.startsWith('.') || specifier.startsWith('@/')) {
+        const resolved = resolveLocal(file, specifier);
+        if (!resolved) throw new Error(`${relative(SRC, file)}: cannot resolve ${specifier}`);
+        queue.push(resolved);
+      } else {
+        packages.add(specifier);
+      }
+    }
+  }
+  return { files: [...files].map((file) => relative(SRC, file)), packages: [...packages] };
+}
+
+describe('the course core shared with the server', () => {
+  it('depends on nothing but zod', () => {
+    expect(sharedClosure().packages).toEqual(['zod']);
+  });
+
+  it('stays out of the UI and the device', () => {
+    const { files } = sharedClosure();
+    expect(files.filter((file) => file.endsWith('.tsx'))).toEqual([]);
+    expect(
+      files.filter((file) =>
+        /^(app|components|hooks|providers|stores|theme|services\/(audio|haptics|notifications))\//.test(
+          file,
+        ),
+      ),
+    ).toEqual([]);
+  });
+});

@@ -37,9 +37,9 @@ import { useStartChallenge } from './queries';
 
 /**
  * First launch. Short steps — Milo, the ninety days, a day of it, the user's
- * goal, their name — and the moment Day 1 begins. There is no account,
- * nothing to sign up for and nothing to skip: every step asks for little, and
- * the last one starts the challenge.
+ * goal, their name — and the moment Day 1 begins. Nothing to skip, and no
+ * account to make here (with the Milo API, that came just before): every step
+ * asks for little, and the last one starts the challenge.
  *
  * The answers live in a persisted draft, so closing the app halfway through
  * comes back to the same step with the same answers.

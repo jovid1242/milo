@@ -7,7 +7,7 @@ describe('migrations', () => {
     expect(MIGRATIONS.map((migration) => migration.version)).toEqual(
       MIGRATIONS.map((_, index) => index + 1),
     );
-    expect(MIGRATIONS.at(-1)?.name).toBe('course version, course-wide word ids');
+    expect(MIGRATIONS.at(-1)?.name).toBe('course cache');
   });
 });
 

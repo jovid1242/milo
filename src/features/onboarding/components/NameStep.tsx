@@ -26,7 +26,7 @@ export function NameStep({ name, onChange, onSubmit }: NameStepProps) {
           What should Milo call you?
         </AppText>
         <AppText variant="body" color="secondary">
-          Just a name — it stays on this device.
+          Just a name — you can change it later in Settings.
         </AppText>
       </Animated.View>
 

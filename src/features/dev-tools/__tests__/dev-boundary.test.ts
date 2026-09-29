@@ -61,7 +61,8 @@ describe('development fixtures stay out of production', () => {
   });
 
   it('show the settings developer group only in development builds', () => {
-    expect(visibleSettingsSections(false)).not.toContain('developer');
+    for (const account of [false, true])
+      expect(visibleSettingsSections({ devBuild: false, account })).not.toContain('developer');
   });
 
   it('never let the in-memory test repositories into the app', () => {

@@ -13,15 +13,19 @@ import type {
   JoinTeamResult,
   LearnedWord,
   LocalDate,
+  LoginRequest,
   QuestCompletion,
   QuestContent,
   QuestSession,
+  RegisterRequest,
   Team,
   TeamActivity,
   TeamInvite,
   TeamMember,
   Timestamp,
+  UpdateProfileRequest,
   User,
+  UserDto,
   ExamAttempt,
   FinalChallenge,
   WeeklyExam,
@@ -201,6 +205,64 @@ export interface FriendsRepository {
   joinTeam(code: string): Promise<JoinTeamResult>;
 }
 
+/**
+ * Where the course in use came from — the copy downloaded from the API, or
+ * the one bundled with the app — and a check for a newer one.
+ */
+export type CourseOrigin = {
+  source: 'cache' | 'bundled';
+  courseId: string;
+  version: number;
+  /** SHA-256 of the downloaded document; `null` for the bundled course. */
+  contentHash: string | null;
+  /** When the download was saved; `null` for the bundled course. */
+  savedAt: Timestamp | null;
+};
+
+export type CourseUpdateResult =
+  /** The saved copy is the server's current course. */
+  | { status: 'current'; version: number }
+  /** A newer course was downloaded, validated and saved: it is used from the next launch. */
+  | { status: 'saved'; version: number }
+  /** The server's course needs a newer app; the saved one stays. */
+  | { status: 'unsupported'; schemaVersion: number }
+  /** The download was broken or invalid; the saved (last known good) one stays. */
+  | { status: 'rejected'; reason: string };
+
+/** An API-backed course's updates. The course in use never changes under a running app. */
+export interface CourseUpdates {
+  origin(): Promise<CourseOrigin>;
+  /** Asks the server for its current course. Network failures reject; bad content never does. */
+  check(): Promise<CourseUpdateResult>;
+}
+
+/** The account on the Milo API, as this app knows it. */
+export type Account = UserDto;
+
+/**
+ * Who is signed in. `local`: there is no backend and nobody to sign in — the
+ * app is the device's own, as before accounts. `remote`: an account on the
+ * Milo API, its tokens in the Keychain.
+ */
+export interface AuthRepository {
+  readonly mode: 'local' | 'remote';
+  /** The session saved on this device, read at launch; `null` when signed out. */
+  restoreSession(): Promise<Account | null>;
+  register(input: RegisterRequest): Promise<Account>;
+  login(input: LoginRequest): Promise<Account>;
+  /**
+   * Ends the session on this device and, when it can be reached, on the
+   * server. Nothing else is touched: progress stays on the device.
+   */
+  logout(): Promise<void>;
+  /** The account from the server — which also proves the session still holds. */
+  fetchAccount(): Promise<Account>;
+  /** Only the profile fields the API accepts: the name and the goal. */
+  updateProfile(update: UpdateProfileRequest): Promise<Account>;
+  /** Called once when the server ends the session (expired, revoked or replayed). */
+  onSessionEnded(listener: () => void): () => void;
+}
+
 /** Local-only operations used by the development tools. */
 export interface DevRepository {
   /** Writes simulated history in one transaction (seeding 89 days one by one is slow). */
@@ -225,7 +287,10 @@ export interface DevRepository {
 }
 
 export type Repositories = {
+  auth: AuthRepository;
   course: CourseRepository;
+  /** Only present when the course comes from the API. */
+  courseUpdates: CourseUpdates | null;
   user: UserRepository;
   progress: ProgressRepository;
   achievements: AchievementRepository;

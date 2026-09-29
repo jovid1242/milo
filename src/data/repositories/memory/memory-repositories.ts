@@ -26,6 +26,7 @@ import {
   type XpEventReason,
 } from '@/schemas';
 
+import { LocalAuthRepository } from '../local/local-auth-repository';
 import { LocalCourseRepository } from '../local/local-course-repository';
 import type {
   AchievementRepository,
@@ -491,7 +492,9 @@ export function createMemoryRepositories(
   const progress = new MemoryProgressRepository(store);
   return {
     store,
+    auth: new LocalAuthRepository(),
     course: new LocalCourseRepository(),
+    courseUpdates: null,
     user: new MemoryUserRepository(store),
     progress,
     achievements: new MemoryAchievementRepository(store),

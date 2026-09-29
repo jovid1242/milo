@@ -1,19 +1,28 @@
 /** Settings groups — only ones with settings that really work. */
 export type SettingsSection =
-  'feedback' | 'reminders' | 'motion' | 'profile' | 'challenge' | 'developer' | 'about';
+  'account' | 'feedback' | 'reminders' | 'motion' | 'profile' | 'challenge' | 'developer' | 'about';
 
 /**
- * The developer group (dev tools, resetting the local challenge) exists only
- * in development builds: a user can never erase their progress by accident.
+ * The account group (who is signed in, logging out) exists only with an
+ * account — there is none in local mode. The developer group (dev tools,
+ * resetting the local challenge) exists only in development builds: a user
+ * can never erase their progress by accident.
  */
-export function visibleSettingsSections(isDevBuild: boolean): SettingsSection[] {
+export function visibleSettingsSections({
+  devBuild,
+  account,
+}: {
+  devBuild: boolean;
+  account: boolean;
+}): SettingsSection[] {
   return [
+    ...(account ? (['account'] as const) : []),
     'feedback',
     'reminders',
     'motion',
     'profile',
     'challenge',
-    ...(isDevBuild ? (['developer'] as const) : []),
+    ...(devBuild ? (['developer'] as const) : []),
     'about',
   ];
 }

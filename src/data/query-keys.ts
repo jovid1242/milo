@@ -4,6 +4,12 @@ import type { DayNumber } from '@/schemas';
 export const queryKeys = {
   user: ['user'] as const,
 
+  /** The signed-in account on the Milo API: removed on logout, unlike everything local. */
+  account: {
+    all: ['account'] as const,
+    me: ['account', 'me'] as const,
+  },
+
   /** The course — content only, never progress; an API-backed course caches under the same keys. */
   course: {
     all: ['course'] as const,

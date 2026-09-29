@@ -1,83 +1,65 @@
-import { CHALLENGE } from '@/constants/challenge';
 import { LOCAL_COURSE } from '@/content/course';
 import type { CourseRepository } from '@/data/repositories/types';
-import { indexCourse, type CourseIndex } from '@/features/course/logic/course-index';
-import { resolveQuestContent } from '@/features/course/logic/resolve';
-import { formatIssue, validateCourse } from '@/features/course/logic/validate';
-import {
-  QuestContentSchema,
-  type Chapter,
-  type CourseDay,
-  type CourseOutline,
-  type DayNumber,
-  type FinalChallenge,
-  type QuestContent,
-  type WeeklyExam,
+import type {
+  Chapter,
+  CourseDay,
+  CourseOutline,
+  DayNumber,
+  FinalChallenge,
+  QuestContent,
+  WeeklyExam,
 } from '@/schemas';
 
-type Loaded = { index: CourseIndex; contents: Map<string, QuestContent | null> };
+import { CourseReader, validatedCourse } from '../course/course-reader';
 
 /** One validated copy per course document, however many repositories read it. */
-const cache = new WeakMap<object, Loaded>();
+const readers = new WeakMap<object, CourseReader>();
 
 /**
- * The course bundled with the app. It is plain data — exactly what an API
- * would send — and it is treated like it: validated in full (shape, references,
+ * The course bundled with the app. It is plain data — exactly what the API
+ * sends — and it is treated like it: validated in full (shape, references,
  * rules across the course) before the first read, and a course that fails is
- * never used. An `ApiCourseRepository` will do the same with the downloaded
- * document, then keep it for offline play.
+ * never used. `ApiCourseRepository` does the same with the downloaded
+ * document, then keeps it for offline play.
  */
 export class LocalCourseRepository implements CourseRepository {
   /** `source` is for tests: any course document, validated the same way. */
   constructor(private readonly source: object = LOCAL_COURSE) {}
 
-  private load(): Loaded {
-    const cached = cache.get(this.source);
-    if (cached) return cached;
-    const result = validateCourse(this.source, { expectedTotalDays: CHALLENGE.totalDays });
-    if (!result.ok || !result.course) {
-      const errors = result.issues.filter((issue) => issue.severity === 'error');
-      throw new Error(`The course is invalid:\n${errors.map(formatIssue).join('\n')}`);
+  private reader(): CourseReader {
+    let reader = readers.get(this.source);
+    if (!reader) {
+      reader = new CourseReader(validatedCourse(this.source));
+      readers.set(this.source, reader);
     }
-    const loaded: Loaded = { index: indexCourse(result.course), contents: new Map() };
-    cache.set(this.source, loaded);
-    return loaded;
+    return reader;
   }
 
   async getCourse(): Promise<CourseOutline> {
-    return this.load().index.outline;
+    return this.reader().outline();
   }
 
   async getChapters(): Promise<Chapter[]> {
-    return this.load().index.outline.chapters;
+    return this.reader().chapters();
   }
 
   async getDays(): Promise<CourseDay[]> {
-    return this.load().index.outline.days;
+    return this.reader().days();
   }
 
   async getDay(day: DayNumber): Promise<CourseDay> {
-    const found = this.load().index.days.get(day);
-    if (!found) throw new Error(`No course day ${day}`);
-    return found;
+    return this.reader().day(day);
   }
 
   async getQuestContent(questId: string): Promise<QuestContent | null> {
-    const { index, contents } = this.load();
-    if (!contents.has(questId)) {
-      const resolved = resolveQuestContent(index, questId);
-      // The boundary gameplay relies on: resolved content is parsed once more.
-      contents.set(questId, resolved ? QuestContentSchema.parse(resolved) : null);
-    }
-    return contents.get(questId) ?? null;
+    return this.reader().questContent(questId);
   }
 
   async getWeeklyExam(day: DayNumber): Promise<WeeklyExam | null> {
-    const exam = this.load().index.course.checkpoints.find((item) => item.day === day);
-    return exam ?? null;
+    return this.reader().weeklyExam(day);
   }
 
   async getFinalChallenge(): Promise<FinalChallenge | null> {
-    return this.load().index.course.finalChallenge;
+    return this.reader().finalChallenge();
   }
 }

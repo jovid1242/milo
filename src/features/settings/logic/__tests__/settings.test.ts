@@ -34,9 +34,9 @@ describe('stored preferences', () => {
 
 describe('settings sections', () => {
   it('never offers the developer reset outside development builds', () => {
-    expect(visibleSettingsSections(false)).not.toContain('developer');
-    expect(visibleSettingsSections(true)).toContain('developer');
-    expect(visibleSettingsSections(false)).toEqual([
+    expect(visibleSettingsSections({ devBuild: false, account: false })).not.toContain('developer');
+    expect(visibleSettingsSections({ devBuild: true, account: false })).toContain('developer');
+    expect(visibleSettingsSections({ devBuild: false, account: false })).toEqual([
       'feedback',
       'reminders',
       'motion',
@@ -44,5 +44,10 @@ describe('settings sections', () => {
       'challenge',
       'about',
     ]);
+  });
+
+  it('shows the account, and logging out, only when there is an account', () => {
+    expect(visibleSettingsSections({ devBuild: false, account: false })).not.toContain('account');
+    expect(visibleSettingsSections({ devBuild: false, account: true })[0]).toBe('account');
   });
 });

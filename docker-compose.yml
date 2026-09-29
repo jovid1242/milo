@@ -1,0 +1,25 @@
+# Local development services for the Milo API.
+#   docker compose up -d db     start PostgreSQL (data survives restarts)
+#   docker compose down         stop it (add -v to delete the data volume)
+services:
+  db:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: milo
+      POSTGRES_PASSWORD: milo
+      POSTGRES_DB: milo
+    ports:
+      - '${MILO_DB_PORT:-5432}:5432'
+    volumes:
+      - milo-pgdata:/var/lib/postgresql/data
+      # Creates milo_test next to milo: the API tests never touch dev data.
+      - ./server/docker/init-test-db.sql:/docker-entrypoint-initdb.d/init-test-db.sql:ro
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U milo -d milo']
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+volumes:
+  milo-pgdata:

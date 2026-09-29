@@ -13,3 +13,4 @@ export { Screen, type ScreenProps } from './Screen';
 export { SegmentedProgress, type SegmentedProgressProps } from './SegmentedProgress';
 export { Sheet, type SheetProps } from './Sheet';
 export { StatsRow, type Stat } from './StatsRow';
+export { TextField, type TextFieldProps } from './TextField';

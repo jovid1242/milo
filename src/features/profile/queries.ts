@@ -2,6 +2,8 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
 import { queryKeys } from '@/data/query-keys';
 import { useRepositories } from '@/data/repository-provider';
+import { logger } from '@/lib/logger';
+import { useAuthStore } from '@/stores/auth-store';
 
 export function useUser() {
   const repositories = useRepositories();
@@ -18,6 +20,12 @@ export function useUpdateDisplayName() {
     mutationFn: (displayName: string) => repositories.user.updateDisplayName(displayName),
     onSuccess: (user) => {
       queryClient.setQueryData(queryKeys.user, user);
+      // With an account, the new name goes to it too (best effort: saved here either way).
+      if (repositories.auth.mode !== 'remote') return;
+      repositories.auth
+        .updateProfile({ displayName: user.displayName })
+        .then((account) => useAuthStore.getState().accountUpdated(account))
+        .catch((error: unknown) => logger.warn('the new name could not reach the account', error));
     },
   });
 }

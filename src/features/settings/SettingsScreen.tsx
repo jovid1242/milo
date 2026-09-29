@@ -29,6 +29,7 @@ import { triggerHaptic } from '@/services/haptics/haptics';
 import { useSettingsStore } from '@/stores/settings-store';
 import { colors, radius, spacing } from '@/theme';
 
+import { AccountSection } from './components/AccountSection';
 import { DisplayNameForm } from './components/DisplayNameForm';
 import { SettingToggleRow } from './components/SettingToggleRow';
 import { visibleSettingsSections, type SettingsSection } from './logic/sections';
@@ -71,6 +72,11 @@ export function SettingsScreen() {
   const version = Constants.expoConfig?.version;
 
   const sections: Record<SettingsSection, ReactNode> = {
+    account: (
+      <Group title="Account" key="account">
+        <AccountSection />
+      </Group>
+    ),
     feedback: (
       <Group title="Sound & haptics" key="feedback">
         <SettingToggleRow
@@ -205,7 +211,10 @@ export function SettingsScreen() {
             Settings
           </AppText>
         </View>
-        {visibleSettingsSections(__DEV__).map((section) => sections[section])}
+        {visibleSettingsSections({
+          devBuild: __DEV__,
+          account: repositories.auth.mode === 'remote',
+        }).map((section) => sections[section])}
       </View>
       {__DEV__ ? (
         <ConfirmSheet

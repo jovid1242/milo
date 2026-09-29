@@ -7,3 +7,7 @@ assets-original/
 ASSET_MANIFEST.md
 assets-manifest.json
 package-lock.json
+server/dist/
+server/coverage/
+server/src/generated/
+server/prisma/migrations/
