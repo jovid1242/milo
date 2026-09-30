@@ -1,6 +1,4 @@
-import type { SQLiteDatabase } from 'expo-sqlite';
-
-import { getDatabase, writeDatabase } from '@/data/db/database';
+import type { LocalStore, SqlExecutor } from '@/data/db/local-store';
 import type { FriendsRepository } from '@/data/repositories/types';
 import { generateInviteCode, normalizeInviteCode } from '@/features/friends/logic/invite-code';
 import {
@@ -53,13 +51,15 @@ const mapActivity = (row: ActivityRow): TeamActivity =>
     createdAt: row.created_at,
   });
 
-async function readMembers(db: SQLiteDatabase, where = '', params: string[] = []) {
+async function readMembers(db: SqlExecutor, owner: string, memberId: string | null = null) {
   const rows = await db.getAllAsync<MemberRow>(
-    `SELECT * FROM team_members ${where} ORDER BY position ASC`,
-    params,
+    `SELECT * FROM team_members WHERE owner_id = ? ${memberId === null ? '' : 'AND id = ?'}
+     ORDER BY position ASC`,
+    memberId === null ? [owner] : [owner, memberId],
   );
   const days = await db.getAllAsync<{ member_id: string; day: number }>(
-    'SELECT member_id, day FROM team_member_days ORDER BY day ASC',
+    'SELECT member_id, day FROM team_member_days WHERE owner_id = ? ORDER BY day ASC',
+    [owner],
   );
   return rows.map((row) =>
     TeamMemberSchema.parse({
@@ -80,13 +80,19 @@ async function readMembers(db: SQLiteDatabase, where = '', params: string[] = []
 }
 
 /** Shared with the dev repository, which writes demo teams. */
-export async function writeTeamMember(db: SQLiteDatabase, member: TeamMember, position: number) {
+export async function writeTeamMember(
+  db: SqlExecutor,
+  owner: string,
+  member: TeamMember,
+  position: number,
+) {
   await db.runAsync(
     `INSERT OR REPLACE INTO team_members
-       (id, display_name, avatar_url, joined_day, today_day, today_quests_done, total_xp,
-        achievements_unlocked, last_activity_at, position)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+       (owner_id, id, display_name, avatar_url, joined_day, today_day, today_quests_done,
+        total_xp, achievements_unlocked, last_activity_at, position)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     [
+      owner,
       member.id,
       member.displayName,
       member.avatarUrl,
@@ -99,36 +105,43 @@ export async function writeTeamMember(db: SQLiteDatabase, member: TeamMember, po
       position,
     ],
   );
-  await db.runAsync('DELETE FROM team_member_days WHERE member_id = ?', [member.id]);
+  await db.runAsync('DELETE FROM team_member_days WHERE owner_id = ? AND member_id = ?', [
+    owner,
+    member.id,
+  ]);
   for (const day of member.completedDays) {
-    await db.runAsync('INSERT OR IGNORE INTO team_member_days (member_id, day) VALUES (?, ?)', [
-      member.id,
-      day,
-    ]);
-  }
-}
-
-export async function writeTeamActivity(db: SQLiteDatabase, activity: readonly TeamActivity[]) {
-  for (const item of activity) {
     await db.runAsync(
-      `INSERT OR REPLACE INTO team_activity (id, member_id, type, metadata_json, created_at)
-       VALUES (?, ?, ?, ?, ?)`,
-      [item.id, item.memberId, item.type, JSON.stringify(item.metadata), item.createdAt],
+      'INSERT OR IGNORE INTO team_member_days (owner_id, member_id, day) VALUES (?, ?, ?)',
+      [owner, member.id, day],
     );
   }
 }
 
-export async function writeTeam(db: SQLiteDatabase, team: Team) {
+export async function writeTeamActivity(
+  db: SqlExecutor,
+  owner: string,
+  activity: readonly TeamActivity[],
+) {
+  for (const item of activity) {
+    await db.runAsync(
+      `INSERT OR REPLACE INTO team_activity (owner_id, id, member_id, type, metadata_json, created_at)
+       VALUES (?, ?, ?, ?, ?, ?)`,
+      [owner, item.id, item.memberId, item.type, JSON.stringify(item.metadata), item.createdAt],
+    );
+  }
+}
+
+export async function writeTeam(db: SqlExecutor, owner: string, team: Team) {
   await db.runAsync(
-    'INSERT OR REPLACE INTO team (id, name, invite_code, created_at) VALUES (?, ?, ?, ?)',
-    [team.id, team.name, team.inviteCode, team.createdAt],
+    'INSERT OR REPLACE INTO team (owner_id, id, name, invite_code, created_at) VALUES (?, ?, ?, ?, ?)',
+    [owner, team.id, team.name, team.inviteCode, team.createdAt],
   );
 }
 
-export async function clearTeam(db: SQLiteDatabase) {
-  await db.execAsync(
-    'DELETE FROM team; DELETE FROM team_members; DELETE FROM team_member_days; DELETE FROM team_activity;',
-  );
+export async function clearTeam(db: SqlExecutor, owner: string) {
+  for (const table of ['team', 'team_members', 'team_member_days', 'team_activity']) {
+    await db.runAsync(`DELETE FROM ${table} WHERE owner_id = ?`, [owner]);
+  }
 }
 
 /**
@@ -137,35 +150,43 @@ export async function clearTeam(db: SQLiteDatabase) {
  * is creating the user's own team for an invite.
  */
 export class LocalFriendsRepository implements FriendsRepository {
+  constructor(
+    private readonly store: LocalStore,
+    private readonly owner: string,
+  ) {}
+
   async getMyTeam(): Promise<Team | null> {
-    const db = await getDatabase();
-    const row = await db.getFirstAsync<TeamRow>('SELECT * FROM team LIMIT 1');
+    const db = await this.store.read();
+    const row = await db.getFirstAsync<TeamRow>('SELECT * FROM team WHERE owner_id = ? LIMIT 1', [
+      this.owner,
+    ]);
     return row ? mapTeam(row) : null;
   }
 
   async getTeamMembers(): Promise<TeamMember[]> {
-    const db = await getDatabase();
-    return readMembers(db);
+    return readMembers(await this.store.read(), this.owner);
   }
 
   async getMemberDetails(memberId: string): Promise<TeamMember | null> {
-    const db = await getDatabase();
-    const [member] = await readMembers(db, 'WHERE id = ?', [memberId]);
+    const [member] = await readMembers(await this.store.read(), this.owner, memberId);
     return member ?? null;
   }
 
   async getTeamActivity(limit: number): Promise<TeamActivity[]> {
-    const db = await getDatabase();
+    const db = await this.store.read();
     const rows = await db.getAllAsync<ActivityRow>(
-      'SELECT * FROM team_activity ORDER BY created_at DESC LIMIT ?',
-      [limit],
+      'SELECT * FROM team_activity WHERE owner_id = ? ORDER BY created_at DESC LIMIT ?',
+      [this.owner, limit],
     );
     return rows.map(mapActivity);
   }
 
   async createInvite(now: Timestamp): Promise<TeamInvite> {
-    const team = await writeDatabase(async (db) => {
-      const existing = await db.getFirstAsync<TeamRow>('SELECT * FROM team LIMIT 1');
+    const team = await this.store.write(async (db) => {
+      const existing = await db.getFirstAsync<TeamRow>(
+        'SELECT * FROM team WHERE owner_id = ? LIMIT 1',
+        [this.owner],
+      );
       if (existing) return mapTeam(existing);
       const created = TeamSchema.parse({
         id: `team-${Date.parse(now).toString(36)}`,
@@ -173,7 +194,7 @@ export class LocalFriendsRepository implements FriendsRepository {
         inviteCode: generateInviteCode(),
         createdAt: now,
       });
-      await writeTeam(db, created);
+      await writeTeam(db, this.owner, created);
       return created;
     });
     // Nobody can join from another phone until there is a server to meet at.

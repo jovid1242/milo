@@ -1,6 +1,3 @@
-import { QueryClient } from '@tanstack/react-query';
-
-import { queryKeys } from '@/data/query-keys';
 import { ApiAuthRepository } from '@/data/repositories/api/api-auth-repository';
 import { LocalAuthRepository } from '@/data/repositories/local/local-auth-repository';
 import { createMemoryRepositories } from '@/data/repositories/memory/memory-repositories';
@@ -23,6 +20,7 @@ import {
 import { ApiClient } from '@/services/api/api-client';
 import { AuthSessionManager } from '@/services/auth/auth-session';
 import { MemorySessionStore, type StoredSession } from '@/services/auth/stored-session';
+import type { OwnerSession } from '@/services/session/owner-session';
 
 import {
   completeAccountProfile,
@@ -169,7 +167,7 @@ describe('logging out', () => {
     expect(t.store.saved).toBeNull();
   });
 
-  it('clears the account’s cached data and keeps every bit of local progress', async () => {
+  it('stops the account’s sync before the session ends, and keeps its progress here', async () => {
     const repositories = createMemoryRepositories('2026-09-01');
     const t = apiAuth(accountServer().handler, sessionN(1));
     await t.auth.restoreSession();
@@ -186,17 +184,21 @@ describe('logging out', () => {
       completedAt: '2026-09-01T09:00:00.000Z',
     };
     await repositories.progress.recordFirstCompletion(completion, [], null);
-    // No garbage-collection timers left running after the test.
-    const queryClient = new QueryClient({ defaultOptions: { queries: { gcTime: Infinity } } });
-    queryClient.setQueryData(queryKeys.account.me, USER);
-    queryClient.setQueryData(queryKeys.user, repositories.store.user);
-    queryClient.setQueryData(queryKeys.progress.state, { currentDay: 1 });
+    const order: string[] = [];
+    const session = {
+      engine: { stop: () => order.push('sync stopped') },
+    } as unknown as OwnerSession;
+    const logout = t.auth.logout.bind(t.auth);
+    t.auth.logout = async () => {
+      order.push('signed out');
+      await logout();
+    };
 
-    await signOut(t.auth, queryClient);
+    await signOut(t.auth, session);
 
-    expect(queryClient.getQueryData(queryKeys.account.me)).toBeUndefined();
-    expect(queryClient.getQueryData(queryKeys.user)).toEqual(repositories.store.user);
-    expect(queryClient.getQueryData(queryKeys.progress.state)).toEqual({ currentDay: 1 });
+    // Nothing more is sent for the account once its session is gone.
+    expect(order).toEqual(['sync stopped', 'signed out']);
+    expect(t.store.saved).toBeNull();
     await expect(repositories.progress.getCompletions()).resolves.toHaveLength(1);
   });
 });

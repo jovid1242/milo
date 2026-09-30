@@ -4,6 +4,7 @@ import { StyleSheet, View, useWindowDimensions } from 'react-native';
 
 import { ErrorState } from '@/components/ErrorState';
 import { LoadingState, Screen } from '@/components/ui';
+import { SyncNotice } from '@/features/sync/components/SyncNotice';
 import { spacing } from '@/theme';
 import { clamp } from '@/utils/number';
 
@@ -77,6 +78,7 @@ function TodayContent({ journey }: { journey: TodayJourney }) {
       testID="today-screen">
       <View style={[styles.content, compact && styles.contentCompact]}>
         <TodayHeader journey={journey} moment={moment} compact={compact} />
+        <SyncNotice />
         <MiloGreeting
           greeting={getGreeting(journey)}
           miloWidth={compact ? 80 : clamp(Math.round(width * 0.25), 88, 116)}

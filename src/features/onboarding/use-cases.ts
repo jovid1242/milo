@@ -1,5 +1,6 @@
 import type { Repositories } from '@/data/repositories/types';
 import { toLocalDate } from '@/lib/dates';
+import { deviceTimeZone } from '@/lib/time-zone';
 import { DisplayNameSchema, GoalSchema, type Goal, type User } from '@/schemas';
 
 export type StartChallengeInput = {
@@ -22,12 +23,30 @@ export async function startChallenge(
   input: StartChallengeInput,
   now: Date = new Date(),
 ): Promise<User> {
-  return repositories.user.completeOnboarding({
-    displayName: DisplayNameSchema.parse(input.displayName),
-    goal: GoalSchema.parse(input.goal),
-    challengeStartDate: toLocalDate(now),
-    onboardedAt: now.toISOString(),
-  });
+  const challengeStartDate = toLocalDate(now);
+  // With an account, the server starts it too: on this date, in this time zone.
+  const mutation = repositories.sync
+    ? repositories.sync.mutation(
+        'startChallenge',
+        {
+          courseId: (await repositories.course.getCourse()).id,
+          startDate: challengeStartDate,
+          timeZone: deviceTimeZone(),
+        },
+        now,
+      )
+    : null;
+  const user = await repositories.user.completeOnboarding(
+    {
+      displayName: DisplayNameSchema.parse(input.displayName),
+      goal: GoalSchema.parse(input.goal),
+      challengeStartDate,
+      onboardedAt: now.toISOString(),
+    },
+    mutation,
+  );
+  repositories.sync?.requestSync('mutation');
+  return user;
 }
 
 /** Whether the app should show onboarding instead of the challenge. */

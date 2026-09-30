@@ -11,20 +11,22 @@ datasource db {
   provider = "postgresql"
 }
 
-/// An account. The learning profile (days, XP, streak) still lives in the app;
-/// the server keeps who the user is and what onboarding told it.
+/// An account: who the user is and what onboarding told it. Their progress is
+/// a `UserChallenge` and the records under it.
 model User {
-  id           String           @id @default(uuid()) @db.Uuid
+  id                 String              @id @default(uuid()) @db.Uuid
   /// Normalized: trimmed and lower-cased before it is stored or looked up.
-  email        String           @unique
-  passwordHash String
+  email              String              @unique
+  passwordHash       String
   /// Null until onboarding sends it.
-  displayName  String?
+  displayName        String?
   /// One of the app's goals (GoalSchema); validated at the API boundary.
-  goal         String?
-  createdAt    DateTime         @default(now())
-  updatedAt    DateTime         @updatedAt
-  sessions     RefreshSession[]
+  goal               String?
+  createdAt          DateTime            @default(now())
+  updatedAt          DateTime            @updatedAt
+  sessions           RefreshSession[]
+  challenges         UserChallenge[]
+  processedMutations ProcessedMutation[]
 
   @@map("users")
 }
@@ -70,4 +72,191 @@ model RefreshToken {
   @@index([sessionId])
   @@index([parentId])
   @@map("refresh_tokens")
+}
+
+// ---------------------------------------------------------------------------
+// Progress. The server owns it: devices send what the user did, the server
+// decides from the course what that earned. Records are facts (a quest
+// finished, an exam handed in, a reward paid); everything else — the current
+// day, the streak, total XP, completed days — is derived from them.
+// Timestamps are UTC instants (timestamptz).
+// ---------------------------------------------------------------------------
+
+/// A user's run through a course: started once, on a calendar date in a time
+/// zone. `revision` goes up with every change to its progress; devices keep the
+/// revision their copy reflects.
+model UserChallenge {
+  id               String              @id @default(uuid()) @db.Uuid
+  userId           String              @db.Uuid
+  user             User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  courseId         String
+  /// Day 1: a calendar date in `timeZone`.
+  startDate        DateTime            @db.Date
+  /// IANA zone the challenge started in: the server counts its days there.
+  timeZone         String
+  startedAt        DateTime            @default(now()) @db.Timestamptz(3)
+  /// The summit: the Final Battle's first pass.
+  completedAt      DateTime?           @db.Timestamptz(3)
+  /// The device's id of the attempt that passed the Final Battle.
+  finalAttemptId   String?
+  revision         Int                 @default(0)
+  questCompletions QuestCompletion[]
+  dayCompletions   DayCompletion[]
+  learnedWords     LearnedWord[]
+  examAttempts     ExamAttempt[]
+  xpLedger         XpLedgerEntry[]
+  achievements     AchievementUnlock[]
+
+  @@unique([userId, courseId])
+  @@map("user_challenges")
+}
+
+/// A quest finished — once per quest, whatever retries or devices do.
+model QuestCompletion {
+  id            String        @id @default(uuid()) @db.Uuid
+  challengeId   String        @db.Uuid
+  challenge     UserChallenge @relation(fields: [challengeId], references: [id], onDelete: Cascade)
+  questId       String
+  day           Int
+  /// The course's quest type (vocabulary, grammar, reading, review, weeklyExam, finalBattle).
+  questType     String
+  /// The course version the answers were scored against.
+  courseVersion Int
+  correctCount  Int
+  totalCount    Int
+  /// What the quest earned (its reward and perfect bonus, or an exam's pass reward);
+  /// paid through the XP ledger.
+  xpEarned      Int
+  /// The answers as played, `[{ exerciseId, optionId }]` — the learning record.
+  /// Exams keep theirs on the attempt.
+  answers       Json?
+  /// When the device finished it (never later than `recordedAt`); for display only.
+  completedAt   DateTime      @db.Timestamptz(3)
+  recordedAt    DateTime      @default(now()) @db.Timestamptz(3)
+  /// The mutation that recorded it.
+  mutationId    String        @db.Uuid
+
+  @@unique([challengeId, questId])
+  @@index([challengeId, day])
+  @@map("quest_completions")
+}
+
+/// A challenge day with every quest finished: written once, by the server,
+/// in the transaction that finished its last quest.
+model DayCompletion {
+  challengeId  String        @db.Uuid
+  challenge    UserChallenge @relation(fields: [challengeId], references: [id], onDelete: Cascade)
+  day          Int
+  questCount   Int
+  xpEarned     Int
+  streakBefore Int
+  streakAfter  Int
+  isPerfect    Boolean
+  completedAt  DateTime      @db.Timestamptz(3)
+  recordedAt   DateTime      @default(now()) @db.Timestamptz(3)
+
+  @@id([challengeId, day])
+  @@map("day_completions")
+}
+
+/// A vocabulary word learned: once per word, by its stable course id.
+model LearnedWord {
+  challengeId String        @db.Uuid
+  challenge   UserChallenge @relation(fields: [challengeId], references: [id], onDelete: Cascade)
+  wordId      String
+  /// The quest that taught it first.
+  questId     String
+  learnedAt   DateTime      @db.Timestamptz(3)
+
+  @@id([challengeId, wordId])
+  @@map("learned_words")
+}
+
+/// A submitted exam attempt (a weekly exam or the Final Battle), scored here.
+model ExamAttempt {
+  id            String        @id @default(uuid()) @db.Uuid
+  challengeId   String        @db.Uuid
+  challenge     UserChallenge @relation(fields: [challengeId], references: [id], onDelete: Cascade)
+  /// The device's id for the attempt: how every device knows it.
+  attemptId     String
+  examId        String
+  questId       String
+  /// 1 for the first attempt at this exam, in the order the server received them.
+  number        Int
+  courseVersion Int
+  /// `[{ questionId, optionId }]`; unanswered questions are missing.
+  answers       Json
+  correctCount  Int
+  totalCount    Int
+  passed        Boolean
+  submittedAt   DateTime      @db.Timestamptz(3)
+  recordedAt    DateTime      @default(now()) @db.Timestamptz(3)
+  mutationId    String        @db.Uuid
+
+  @@unique([challengeId, attemptId])
+  @@unique([challengeId, examId, number])
+  @@map("exam_attempts")
+}
+
+enum XpReason {
+  quest
+  examPass
+  achievement
+}
+
+/// The XP ledger: append-only, one entry per reward. `(challengeId, reason,
+/// refId)` is unique, so a reward is paid once — however often it is asked for.
+/// Total XP is their sum.
+model XpLedgerEntry {
+  id          String        @id @default(uuid()) @db.Uuid
+  challengeId String        @db.Uuid
+  challenge   UserChallenge @relation(fields: [challengeId], references: [id], onDelete: Cascade)
+  amount      Int
+  reason      XpReason
+  /// The quest, exam or achievement it pays for.
+  refId       String
+  /// When what it pays for happened (the device's time, never later than `recordedAt`).
+  createdAt   DateTime      @db.Timestamptz(3)
+  recordedAt  DateTime      @default(now()) @db.Timestamptz(3)
+  mutationId  String        @db.Uuid
+
+  @@unique([challengeId, reason, refId])
+  @@map("xp_ledger")
+}
+
+/// A badge unlocked by the server's evaluation of its rule: once, ever.
+model AchievementUnlock {
+  challengeId   String        @db.Uuid
+  challenge     UserChallenge @relation(fields: [challengeId], references: [id], onDelete: Cascade)
+  achievementId String
+  unlockedAt    DateTime      @db.Timestamptz(3)
+  mutationId    String        @db.Uuid
+
+  @@id([challengeId, achievementId])
+  @@map("achievement_unlocks")
+}
+
+enum MutationStatus {
+  accepted
+  rejected
+}
+
+/// Every mutation the server decided on. Its outcome is final: a retry of the
+/// same id gets the same answer and changes nothing.
+model ProcessedMutation {
+  userId      String         @db.Uuid
+  user        User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  mutationId  String         @db.Uuid
+  type        String
+  /// SHA-256 of the mutation as received: the same id with other content is refused.
+  payloadHash String
+  status      MutationStatus
+  /// Why it was rejected.
+  code        String?
+  /// The challenge revision right after it (0 before a challenge exists).
+  revision    Int
+  processedAt DateTime       @default(now()) @db.Timestamptz(3)
+
+  @@id([userId, mutationId])
+  @@map("processed_mutations")
 }

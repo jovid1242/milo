@@ -99,6 +99,9 @@ export const API_ERROR_CODES = [
   'PAYLOAD_TOO_LARGE',
   'RATE_LIMITED',
   'COURSE_UNAVAILABLE',
+  'COURSE_MISMATCH',
+  'COURSE_VERSION_UNSUPPORTED',
+  'ACCOUNT_MISMATCH',
   'INTERNAL_ERROR',
 ] as const;
 export type ApiErrorCode = (typeof API_ERROR_CODES)[number];

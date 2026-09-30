@@ -1,4 +1,4 @@
-import { ApiErrorBodySchema, type ApiErrorCode } from '@/schemas';
+import { API_ERROR_CODES, ApiErrorBodySchema, type ApiErrorCode } from '@/schemas';
 
 /**
  * Why a request failed, for code to switch on: the API's own codes, plus the
@@ -35,19 +35,8 @@ const BY_STATUS: Record<number, ApiErrorCode> = {
   503: 'COURSE_UNAVAILABLE',
 };
 
-const KNOWN = new Set<string>([
-  'VALIDATION_ERROR',
-  'EMAIL_TAKEN',
-  'INVALID_CREDENTIALS',
-  'UNAUTHORIZED',
-  'REFRESH_TOKEN_INVALID',
-  'REFRESH_TOKEN_REUSED',
-  'NOT_FOUND',
-  'PAYLOAD_TOO_LARGE',
-  'RATE_LIMITED',
-  'COURSE_UNAVAILABLE',
-  'INTERNAL_ERROR',
-] satisfies ApiErrorCode[]);
+/** Every code of the shared contract: one list, never a second copy to fall behind. */
+const KNOWN = new Set<string>(API_ERROR_CODES);
 
 /**
  * An error response as an `ApiError`: the API's `{ code, message, details? }`

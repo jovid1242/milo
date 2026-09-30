@@ -1,4 +1,3 @@
-import { CHALLENGE } from '@/constants/challenge';
 import type { Repositories } from '@/data/repositories/types';
 import { syncAchievements } from '@/features/achievements/use-cases';
 import type {
@@ -15,6 +14,7 @@ import { clamp } from '@/utils/number';
 
 import { buildDayCompletion, findCompletedDays } from './logic/day-completion';
 import { buildProgressState } from './logic/progress-state';
+import { questReward, questScore } from './logic/quest-scoring';
 
 /** Reads every fact the progress view needs and derives the current state. */
 export async function loadProgressState(
@@ -195,14 +195,12 @@ export async function completeQuest(
   const before = await loadProgressState(repositories, now);
 
   const totalCount = Math.max(0, Math.round(input.totalCount));
-  const correctCount = clamp(Math.round(input.correctCount), 0, totalCount);
-  const score = totalCount > 0 ? correctCount / totalCount : 1;
-  const isPerfect = totalCount > 0 && correctCount === totalCount;
+  const { correctCount, score, isPerfect } = questScore(
+    clamp(Math.round(input.correctCount), 0, totalCount),
+    totalCount,
+  );
   // A weekly exam pays through its own flow: once, for the first pass (see exams/use-cases).
-  const reward =
-    quest.type === 'weeklyExam'
-      ? 0
-      : quest.xpReward + (isPerfect ? CHALLENGE.perfectScoreBonusXp : 0);
+  const reward = questReward(quest, isPerfect);
 
   const completion: QuestCompletion = {
     questId: quest.id,
@@ -218,12 +216,34 @@ export async function completeQuest(
     completedAt: timestamp,
   };
 
+  // With an account, the server hears what was played — the answers, never the
+  // score or the XP — and decides for itself; this device shows its own
+  // reckoning of the same rules until then.
+  const mutation =
+    repositories.sync?.mutation(
+      'completeQuest',
+      {
+        courseId: course.id,
+        courseVersion: course.version,
+        questId: quest.id,
+        answers: (input.answers ?? []).flatMap((answer) =>
+          answer.answer.kind === 'singleChoice'
+            ? [{ exerciseId: answer.questionId, optionId: answer.answer.optionId }]
+            : [],
+        ),
+        completedAt: timestamp,
+      },
+      now,
+    ) ?? null;
+
   // XP is awarded once per quest: a replay changes nothing but closing its
-  // session. The repository decides atomically, so a double tap cannot farm XP.
+  // session. The repository decides atomically, so a double tap cannot farm XP
+  // — and only a first completion goes to the outbox, in the same transaction.
   const isFirstCompletion = await repositories.progress.recordFirstCompletion(
     completion,
     input.answers ?? [],
     reward > 0 ? { amount: reward, reason: 'quest', refId: quest.id, createdAt: timestamp } : null,
+    mutation,
   );
   const xpEarned = isFirstCompletion ? reward : 0;
   await recordLearnedWords(repositories, quest, timestamp);
@@ -235,6 +255,7 @@ export async function completeQuest(
   const progress = newAchievements.length > 0 ? await loadProgressState(repositories, now) : after;
 
   const dayCompleted = day?.isFirstCompletion ?? false;
+  if (isFirstCompletion) repositories.sync?.requestSync('mutation');
 
   return {
     quest,

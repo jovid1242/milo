@@ -2,7 +2,26 @@ import * as SQLite from 'expo-sqlite';
 
 import { STORAGE } from '@/constants/challenge';
 
+import type { LocalStore, SqlDatabase, SqlExecutor } from './local-store';
 import { runMigrations } from './migrations';
+
+function executor(db: SQLite.SQLiteDatabase): SqlExecutor {
+  return {
+    execAsync: (source) => db.execAsync(source),
+    runAsync: (source, params = []) => db.runAsync(source, params),
+    getFirstAsync: (source, params = []) => db.getFirstAsync(source, params),
+    getAllAsync: (source, params = []) => db.getAllAsync(source, params),
+  };
+}
+
+/** An expo-sqlite connection as the repositories use a database. */
+function sqlDatabase(db: SQLite.SQLiteDatabase): SqlDatabase {
+  return {
+    ...executor(db),
+    withExclusiveTransactionAsync: (task) =>
+      db.withExclusiveTransactionAsync((txn) => task(executor(txn))),
+  };
+}
 
 let connection: Promise<SQLite.SQLiteDatabase> | null = null;
 
@@ -13,7 +32,7 @@ async function openDatabase(): Promise<SQLite.SQLiteDatabase> {
   await db.execAsync(
     'PRAGMA journal_mode = WAL; PRAGMA foreign_keys = ON; PRAGMA busy_timeout = 3000;',
   );
-  await runMigrations(db);
+  await runMigrations(sqlDatabase(db));
   return db;
 }
 
@@ -43,23 +62,8 @@ export function writeDatabase<T>(task: (db: SQLite.SQLiteDatabase) => Promise<T>
   return run;
 }
 
-/**
- * Drops all local data: the device looks freshly installed, down to the profile
- * being created again on the next read (dev tools only).
- *
- * The rows go, not the file. SQLite refuses to delete a database that is still
- * open anywhere, and a running app always holds a connection — a reset that
- * depends on closing every one of them fails exactly when it is needed. The
- * schema is already at the current version, so nothing has to be migrated
- * again either.
- */
-export function resetDatabase(): Promise<void> {
-  return writeDatabase(async (db) => {
-    const tables = await db.getAllAsync<{ name: string }>(
-      "SELECT name FROM sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite_%'",
-    );
-    await db.withExclusiveTransactionAsync(async (txn) => {
-      for (const { name } of tables) await txn.execAsync(`DELETE FROM "${name}"`);
-    });
-  });
-}
+/** The app's database, as the repositories take it. */
+export const appStore: LocalStore = {
+  read: async () => sqlDatabase(await getDatabase()),
+  write: (task) => writeDatabase((db) => task(sqlDatabase(db))),
+};

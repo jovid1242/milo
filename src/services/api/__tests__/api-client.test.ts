@@ -1,9 +1,9 @@
-import { AuthSessionSchema, UserDtoSchema, type AuthSession } from '@/schemas';
+import { API_ERROR_CODES, AuthSessionSchema, UserDtoSchema, type AuthSession } from '@/schemas';
 
 import { AuthSessionManager } from '../../auth/auth-session';
 import { MemorySessionStore } from '../../auth/stored-session';
 import { ApiClient } from '../api-client';
-import { ApiError } from '../api-error';
+import { ApiError, errorFromResponse } from '../api-error';
 import {
   BASE_URL,
   NOW,
@@ -217,5 +217,23 @@ describe('401 → refresh → retry', () => {
       '/auth/refresh',
       '/users/me',
     ]);
+  });
+});
+
+describe('error responses', () => {
+  it('keeps every code of the shared contract — the client never mistakes one for another', () => {
+    for (const code of API_ERROR_CODES) {
+      const error = errorFromResponse(409, JSON.stringify({ code, message: 'm' }));
+      expect(error).toMatchObject({ code, status: 409, message: 'm' });
+    }
+  });
+
+  it('falls back to what the status says for anything else', () => {
+    expect(errorFromResponse(413, '<html>')).toMatchObject({ code: 'PAYLOAD_TOO_LARGE' });
+    expect(
+      errorFromResponse(500, JSON.stringify({ code: 'SOMETHING_NEW', message: 'm' })),
+    ).toMatchObject({
+      code: 'INTERNAL_ERROR',
+    });
   });
 });

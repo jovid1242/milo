@@ -28,6 +28,10 @@ import type {
   UserDto,
   ExamAttempt,
   FinalChallenge,
+  ProgressMutation,
+  ProgressMutationOf,
+  ProgressMutationType,
+  SyncResponse,
   WeeklyExam,
   XpEvent,
   XpEventReason,
@@ -67,15 +71,18 @@ export type ChallengeStart = {
 };
 
 export interface UserRepository {
-  /** Returns the local profile, creating it (not onboarded yet) on first launch. */
+  /** Returns the owner's profile, creating it (not onboarded yet) the first time. */
   getUser(): Promise<User>;
   updateDisplayName(displayName: string): Promise<User>;
+  /** Takes the account's name and goal, where it has them. */
+  adoptAccountProfile(profile: Pick<Account, 'displayName' | 'goal'>): Promise<User>;
   updateChallengeStartDate(date: LocalDate): Promise<User>;
   /**
    * Finishes onboarding and starts the challenge — once: a profile already
-   * onboarded is returned unchanged, whatever `start` says.
+   * onboarded is returned unchanged, whatever `start` says. With an account,
+   * `mutation` (the start, for the server) is stored in the same transaction.
    */
-  completeOnboarding(start: ChallengeStart): Promise<User>;
+  completeOnboarding(start: ChallengeStart, mutation?: ProgressMutation | null): Promise<User>;
 }
 
 export interface ProgressRepository {
@@ -85,12 +92,15 @@ export interface ProgressRepository {
    * Stores a quest's first completion — the completion, its answers and its XP —
    * in one transaction, and closes its session. When the quest is already
    * completed nothing but the session changes and it returns `false`: XP is
-   * awarded once per quest, whatever the caller does.
+   * awarded once per quest, whatever the caller does. With an account,
+   * `mutation` goes to the outbox in the same transaction — only with a first
+   * completion.
    */
   recordFirstCompletion(
     completion: QuestCompletion,
     answers: readonly AnswerRecord[],
     xp: XpEvent | null,
+    mutation?: ProgressMutation | null,
   ): Promise<boolean>;
   /** Quests that were started but not finished. */
   getQuestSessions(): Promise<QuestSession[]>;
@@ -152,6 +162,8 @@ export type ExamSubmissionWrite = {
   day: DayCompletion | null;
   /** The summit — the Final Battle's first pass finishes the challenge. */
   challenge: ChallengeCompletion | null;
+  /** With an account: the submission for the server, stored with it (only if it is submitted now). */
+  mutation?: ProgressMutation | null;
 };
 
 export type ExamSubmissionOutcome = {
@@ -183,6 +195,88 @@ export interface ExamRepository {
    * attempt submitted already changes nothing.
    */
   submitAttempt(submission: ExamSubmissionWrite): Promise<ExamSubmissionOutcome>;
+}
+
+/** An outbox entry as the development tools show it. */
+export type OutboxEntry = {
+  mutationId: string;
+  /** `null` when the stored mutation cannot be read by this app. */
+  type: ProgressMutationType | null;
+  createdAt: Timestamp | null;
+  status: 'pending' | 'rejected';
+  attemptCount: number;
+  lastAttemptAt: Timestamp | null;
+  errorCode: string | null;
+  errorMessage: string | null;
+};
+
+/** The server revision the account's copy on this device reflects. */
+export type SyncState = { revision: number; syncedAt: Timestamp | null };
+
+export type SyncApplied = {
+  /** Anything the screens show changed. */
+  changed: boolean;
+};
+
+/** Who got the device's progress from before accounts — decided once. */
+export type LegacyClaim = {
+  status: 'claimed' | 'skipped' | 'none';
+  ownerId: string | null;
+  mutationId: string | null;
+  decidedAt: Timestamp;
+};
+
+export type LegacyClaimInput = {
+  mutationId: string;
+  courseId: string;
+  courseVersion: number;
+  timeZone: string;
+  now: Timestamp;
+};
+
+/** An account's outbox and its copy of the server's progress, on this device. */
+export interface SyncRepository {
+  readonly owner: string;
+  /** Mutations waiting for the server, oldest first. */
+  pending(limit: number): Promise<ProgressMutation[]>;
+  outbox(): Promise<OutboxEntry[]>;
+  counts(): Promise<{ pending: number; rejected: number }>;
+  state(): Promise<SyncState>;
+  markAttempt(ids: readonly string[], at: Timestamp): Promise<void>;
+  /** Sets aside a mutation no server will take as it is (the request itself was refused). */
+  rejectLocally(mutationId: string, code: string, message: string): Promise<void>;
+  /** Applies a server answer to the outbox and the projection, in one transaction. */
+  apply(response: SyncResponse, at: Timestamp): Promise<SyncApplied>;
+  /** Nothing of the account on this device yet. */
+  isFresh(): Promise<boolean>;
+  legacyClaim(): Promise<LegacyClaim | null>;
+  /** Claims the device's progress from before accounts (see `SqliteSyncRepository`). */
+  claimLegacy(input: LegacyClaimInput): Promise<ProgressMutation | null>;
+  /** The first account here already has progress: the device's own stays unclaimed, for good. */
+  skipLegacy(now: Timestamp): Promise<void>;
+}
+
+export type SyncReason =
+  'launch' | 'signIn' | 'mutation' | 'foreground' | 'online' | 'retry' | 'manual';
+
+/**
+ * An account's progress sync, as the use cases meet it (`null` in local mode,
+ * where there is no server): a way to write down an action for the server and
+ * to wake the sync up. The sync itself runs elsewhere (`ProgressSyncEngine`).
+ */
+export interface ProgressSync {
+  readonly accountId: string;
+  readonly repository: SyncRepository;
+  /** A new mutation, its id and time made here. Stored by the write that makes its progress. */
+  mutation<Type extends ProgressMutationType>(
+    type: Type,
+    payload: ProgressMutationOf<Type>['payload'],
+    now: Date,
+  ): ProgressMutationOf<Type>;
+  /** Asks for a sync soon. Returns at once; never throws. */
+  requestSync(reason: SyncReason): void;
+  /** For the engine that runs the sync: it hears the requests while it listens. */
+  connect(listener: (reason: SyncReason) => void): () => void;
 }
 
 /**
@@ -296,6 +390,8 @@ export type Repositories = {
   achievements: AchievementRepository;
   exams: ExamRepository;
   friends: FriendsRepository;
-  /** Only present for local implementations. */
+  /** An account's progress sync; `null` in local mode, where progress is the device's own. */
+  sync: ProgressSync | null;
+  /** Only for the device's own progress: never with an account, whose progress is the server's. */
   dev: DevRepository | null;
 };

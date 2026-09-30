@@ -16,6 +16,7 @@ import { useDevStore } from '@/stores/dev-store';
 import { colors, spacing } from '@/theme';
 
 import { BackendStatus } from './components/BackendStatus';
+import { SyncStatusPanel } from './components/SyncStatusPanel';
 import * as dev from './dev-actions';
 
 const DAY_SHORTCUTS = [1, 7, 10, 11, 30, 31, 60, 61, 89, 90];
@@ -81,6 +82,8 @@ export function DevToolsScreen() {
   );
 
   const state = progress.data;
+  // With an account, progress is the server's: no shortcut here may write it.
+  const localProgress = repositories.dev !== null;
 
   return (
     <Screen scroll>
@@ -110,46 +113,62 @@ export function DevToolsScreen() {
           <BackendStatus />
         </View>
 
+        <View style={styles.section}>
+          <AppText variant="overline" color="wood">
+            Progress sync
+          </AppText>
+          <SyncStatusPanel />
+        </View>
+
+        {localProgress ? null : (
+          <AppText variant="caption" color="secondary">
+            Signed in, progress belongs to the account and the server decides it: the shortcuts that
+            write progress (days, quests, streak, XP, badges, team, resets) work in local mode only.
+          </AppText>
+        )}
+
         {/* This sheet is reachable from both sides of the onboarding guard, so
           each of these closes it and lets the guard decide where the user
           lands: onboarding, or Day 1. */}
-        <Section title="Onboarding · first launch">
-          {chip(
-            'Reset onboarding',
-            closeThen(() => dev.resetOnboarding(context)),
-          )}
-          {ONBOARDING_STEPS.map((position) =>
-            chip(
-              `Step ${position}`,
-              closeThen(() => dev.openOnboardingStep(context, position)),
-            ),
-          )}
-          {chip(
-            'Start fresh Day 1',
-            closeThen(() => dev.startFreshDayOne(context)),
-          )}
-          <Button
-            label="Wipe user + challenge"
-            size="sm"
-            variant="danger"
-            haptic={null}
-            disabled={busy}
-            onPress={() =>
-              Alert.alert(
-                'Wipe user and challenge?',
-                'Deletes the profile and all progress, exactly like a fresh install. Onboarding opens again.',
-                [
-                  { text: 'Cancel', style: 'cancel' },
-                  {
-                    text: 'Wipe',
-                    style: 'destructive',
-                    onPress: run(closeThen(() => dev.resetAllLocalData(context))),
-                  },
-                ],
-              )
-            }
-          />
-        </Section>
+        {localProgress ? (
+          <Section title="Onboarding · first launch">
+            {chip(
+              'Reset onboarding',
+              closeThen(() => dev.resetOnboarding(context)),
+            )}
+            {ONBOARDING_STEPS.map((position) =>
+              chip(
+                `Step ${position}`,
+                closeThen(() => dev.openOnboardingStep(context, position)),
+              ),
+            )}
+            {chip(
+              'Start fresh Day 1',
+              closeThen(() => dev.startFreshDayOne(context)),
+            )}
+            <Button
+              label="Wipe user + challenge"
+              size="sm"
+              variant="danger"
+              haptic={null}
+              disabled={busy}
+              onPress={() =>
+                Alert.alert(
+                  'Wipe user and challenge?',
+                  'Deletes the profile and all progress, exactly like a fresh install. Onboarding opens again.',
+                  [
+                    { text: 'Cancel', style: 'cancel' },
+                    {
+                      text: 'Wipe',
+                      style: 'destructive',
+                      onPress: run(closeThen(() => dev.resetAllLocalData(context))),
+                    },
+                  ],
+                )
+              }
+            />
+          </Section>
+        ) : null}
 
         <Section title="Daily reminders">
           {chip('Test in 5 s', async () => {
@@ -166,175 +185,187 @@ export function DevToolsScreen() {
           })}
         </Section>
 
-        <Section title="Home states">
-          {(Object.keys(dev.HOME_SCENARIOS) as dev.HomeScenario[]).map((scenario) =>
-            chip(dev.HOME_SCENARIOS[scenario].label, () =>
-              dev.applyHomeScenario(context, scenario),
-            ),
-          )}
-          {chip('Start current quest', () => dev.startCurrentQuest(context))}
-        </Section>
+        {localProgress ? (
+          <>
+            <Section title="Home states">
+              {(Object.keys(dev.HOME_SCENARIOS) as dev.HomeScenario[]).map((scenario) =>
+                chip(dev.HOME_SCENARIOS[scenario].label, () =>
+                  dev.applyHomeScenario(context, scenario),
+                ),
+              )}
+              {chip('Start current quest', () => dev.startCurrentQuest(context))}
+            </Section>
 
-        <Section title="Journey map">
-          {(Object.keys(dev.JOURNEY_SCENARIOS) as dev.JourneyScenario[]).map((scenario) =>
-            chip(dev.JOURNEY_SCENARIOS[scenario].label, async () => {
-              await dev.applyJourneyScenario(context, scenario);
-              router.dismissTo('/journey');
-            }),
-          )}
-        </Section>
+            <Section title="Journey map">
+              {(Object.keys(dev.JOURNEY_SCENARIOS) as dev.JourneyScenario[]).map((scenario) =>
+                chip(dev.JOURNEY_SCENARIOS[scenario].label, async () => {
+                  await dev.applyJourneyScenario(context, scenario);
+                  router.dismissTo('/journey');
+                }),
+              )}
+            </Section>
 
-        <Section title="Vocabulary quest · Day 89">
-          {(Object.keys(dev.VOCABULARY_SCENARIOS) as dev.VocabularyScenario[]).map((scenario) =>
-            chip(dev.VOCABULARY_SCENARIOS[scenario], async () => {
-              const questId = await dev.applyVocabularyScenario(context, scenario);
-              router.replace({ pathname: '/quest/[questId]', params: { questId } });
-            }),
-          )}
-        </Section>
+            <Section title="Vocabulary quest · Day 89">
+              {(Object.keys(dev.VOCABULARY_SCENARIOS) as dev.VocabularyScenario[]).map((scenario) =>
+                chip(dev.VOCABULARY_SCENARIOS[scenario], async () => {
+                  const questId = await dev.applyVocabularyScenario(context, scenario);
+                  router.replace({ pathname: '/quest/[questId]', params: { questId } });
+                }),
+              )}
+            </Section>
 
-        <Section title="Grammar quest · Day 89">
-          {(Object.keys(dev.GRAMMAR_SCENARIOS) as dev.GrammarScenario[]).map((scenario) =>
-            chip(dev.GRAMMAR_SCENARIOS[scenario], async () => {
-              const questId = await dev.applyGrammarScenario(context, scenario);
-              router.replace({ pathname: '/quest/[questId]', params: { questId } });
-            }),
-          )}
-        </Section>
+            <Section title="Grammar quest · Day 89">
+              {(Object.keys(dev.GRAMMAR_SCENARIOS) as dev.GrammarScenario[]).map((scenario) =>
+                chip(dev.GRAMMAR_SCENARIOS[scenario], async () => {
+                  const questId = await dev.applyGrammarScenario(context, scenario);
+                  router.replace({ pathname: '/quest/[questId]', params: { questId } });
+                }),
+              )}
+            </Section>
 
-        <Section title="Reading quest · Day 89">
-          {(Object.keys(dev.READING_SCENARIOS) as dev.ReadingScenario[]).map((scenario) =>
-            chip(dev.READING_SCENARIOS[scenario], async () => {
-              const { questId, devWord } = await dev.applyReadingScenario(context, scenario);
-              router.replace({
-                pathname: '/quest/[questId]',
-                params: devWord ? { questId, devWord } : { questId },
-              });
-            }),
-          )}
-        </Section>
+            <Section title="Reading quest · Day 89">
+              {(Object.keys(dev.READING_SCENARIOS) as dev.ReadingScenario[]).map((scenario) =>
+                chip(dev.READING_SCENARIOS[scenario], async () => {
+                  const { questId, devWord } = await dev.applyReadingScenario(context, scenario);
+                  router.replace({
+                    pathname: '/quest/[questId]',
+                    params: devWord ? { questId, devWord } : { questId },
+                  });
+                }),
+              )}
+            </Section>
 
-        <Section title="Review quest · Day 89">
-          {(Object.keys(dev.REVIEW_SCENARIOS) as dev.ReviewScenario[]).map((scenario) =>
-            chip(dev.REVIEW_SCENARIOS[scenario], async () => {
-              const questId = await dev.applyReviewScenario(context, scenario);
-              router.replace({ pathname: '/quest/[questId]', params: { questId } });
-            }),
-          )}
-        </Section>
+            <Section title="Review quest · Day 89">
+              {(Object.keys(dev.REVIEW_SCENARIOS) as dev.ReviewScenario[]).map((scenario) =>
+                chip(dev.REVIEW_SCENARIOS[scenario], async () => {
+                  const questId = await dev.applyReviewScenario(context, scenario);
+                  router.replace({ pathname: '/quest/[questId]', params: { questId } });
+                }),
+              )}
+            </Section>
 
-        <Section title="Weekly exam · Day 84">
-          {(Object.keys(dev.EXAM_SCENARIOS) as dev.ExamScenario[]).map((scenario) =>
-            chip(dev.EXAM_SCENARIOS[scenario].label, async () => {
-              const { questId, open } = await dev.applyExamScenario(context, scenario);
-              if (open === 'journey') {
-                router.dismissTo('/journey');
-              } else {
-                router.replace({
-                  pathname: '/quest/[questId]',
-                  params: open === 'exam' ? { questId } : { questId, devStage: open },
-                });
-              }
-            }),
-          )}
-          {chip('Submit ×2', async () => {
-            const report = await dev.submitExamTwice(context);
-            Alert.alert('Submit exam twice', report);
-          })}
-        </Section>
+            <Section title="Weekly exam · Day 84">
+              {(Object.keys(dev.EXAM_SCENARIOS) as dev.ExamScenario[]).map((scenario) =>
+                chip(dev.EXAM_SCENARIOS[scenario].label, async () => {
+                  const { questId, open } = await dev.applyExamScenario(context, scenario);
+                  if (open === 'journey') {
+                    router.dismissTo('/journey');
+                  } else {
+                    router.replace({
+                      pathname: '/quest/[questId]',
+                      params: open === 'exam' ? { questId } : { questId, devStage: open },
+                    });
+                  }
+                }),
+              )}
+              {chip('Submit ×2', async () => {
+                const report = await dev.submitExamTwice(context);
+                Alert.alert('Submit exam twice', report);
+              })}
+            </Section>
 
-        <Section title="Final Battle · Day 90">
-          {(Object.keys(dev.FINAL_SCENARIOS) as dev.FinalScenario[]).map((scenario) =>
-            chip(dev.FINAL_SCENARIOS[scenario].label, async () => {
-              const { questId, open } = await dev.applyFinalScenario(context, scenario);
-              if (open === 'journey') router.dismissTo('/journey');
-              else if (open === 'home') router.dismissTo('/');
-              else if (open === 'summit') router.replace('/summit');
-              else {
-                router.replace({
-                  pathname: '/quest/[questId]',
-                  params: open === 'question' ? { questId, devStage: 'question' } : { questId },
-                });
-              }
-            }),
-          )}
-        </Section>
+            <Section title="Final Battle · Day 90">
+              {(Object.keys(dev.FINAL_SCENARIOS) as dev.FinalScenario[]).map((scenario) =>
+                chip(dev.FINAL_SCENARIOS[scenario].label, async () => {
+                  const { questId, open } = await dev.applyFinalScenario(context, scenario);
+                  if (open === 'journey') router.dismissTo('/journey');
+                  else if (open === 'home') router.dismissTo('/');
+                  else if (open === 'summit') router.replace('/summit');
+                  else {
+                    router.replace({
+                      pathname: '/quest/[questId]',
+                      params: open === 'question' ? { questId, devStage: 'question' } : { questId },
+                    });
+                  }
+                }),
+              )}
+            </Section>
 
-        <Section title="Day complete · Day 89">
-          {(Object.keys(dev.DAY_SCENARIOS) as dev.DayScenario[]).map((scenario) =>
-            chip(dev.DAY_SCENARIOS[scenario].label, async () => {
-              const day = await dev.applyDayScenario(context, scenario);
-              if (dev.DAY_SCENARIOS[scenario].open === 'summary') {
-                router.replace({ pathname: '/day-complete/[day]', params: { day: String(day) } });
-              } else {
-                router.back();
-              }
-            }),
-          )}
-          {chip('Finish day ×2', async () => {
-            const report = await dev.finishDayTwice(context);
-            Alert.alert('Finish day twice', report);
-          })}
-        </Section>
+            <Section title="Day complete · Day 89">
+              {(Object.keys(dev.DAY_SCENARIOS) as dev.DayScenario[]).map((scenario) =>
+                chip(dev.DAY_SCENARIOS[scenario].label, async () => {
+                  const day = await dev.applyDayScenario(context, scenario);
+                  if (dev.DAY_SCENARIOS[scenario].open === 'summary') {
+                    router.replace({
+                      pathname: '/day-complete/[day]',
+                      params: { day: String(day) },
+                    });
+                  } else {
+                    router.back();
+                  }
+                }),
+              )}
+              {chip('Finish day ×2', async () => {
+                const report = await dev.finishDayTwice(context);
+                Alert.alert('Finish day twice', report);
+              })}
+            </Section>
 
-        <Section title="Current day">
-          {chip('−1 day', () => dev.shiftCurrentDay(context, -1))}
-          {chip('+1 day', () => dev.shiftCurrentDay(context, 1))}
-          {DAY_SHORTCUTS.map((day) => chip(`Day ${day}`, () => dev.setCurrentDay(context, day)))}
-        </Section>
+            <Section title="Current day">
+              {chip('−1 day', () => dev.shiftCurrentDay(context, -1))}
+              {chip('+1 day', () => dev.shiftCurrentDay(context, 1))}
+              {DAY_SHORTCUTS.map((day) =>
+                chip(`Day ${day}`, () => dev.setCurrentDay(context, day)),
+              )}
+            </Section>
 
-        <Section title="Quests">
-          {chip('Complete next quest', () => dev.completeNextQuest(context))}
-          {chip('Complete today', () => dev.completeToday(context))}
-          {chip('Perfect quiz', () => dev.completeNextQuest(context, { perfect: true }))}
-          {chip('Reset today', () => dev.resetToday(context))}
-        </Section>
+            <Section title="Quests">
+              {chip('Complete next quest', () => dev.completeNextQuest(context))}
+              {chip('Complete today', () => dev.completeToday(context))}
+              {chip('Perfect quiz', () => dev.completeNextQuest(context, { perfect: true }))}
+              {chip('Reset today', () => dev.resetToday(context))}
+            </Section>
 
-        <Section title="Streak">
-          {STREAKS.map((streak) => chip(`${streak} days`, () => dev.setStreak(context, streak)))}
-        </Section>
+            <Section title="Streak">
+              {STREAKS.map((streak) =>
+                chip(`${streak} days`, () => dev.setStreak(context, streak)),
+              )}
+            </Section>
 
-        <Section title="XP">
-          {chip('+50 XP', () => dev.addXp(context, 50))}
-          {chip('+250 XP', () => dev.addXp(context, 250))}
-          {chip('+1000 XP', () => dev.addXp(context, 1000))}
-        </Section>
+            <Section title="XP">
+              {chip('+50 XP', () => dev.addXp(context, 50))}
+              {chip('+250 XP', () => dev.addXp(context, 250))}
+              {chip('+1000 XP', () => dev.addXp(context, 1000))}
+            </Section>
 
-        <Section title="Simulate">
-          {chip('Weekly exam pass', () => dev.simulateWeeklyExam(context))}
-          {chip('Day 90 summit', () => dev.simulateSummit(context))}
-        </Section>
+            <Section title="Simulate">
+              {chip('Weekly exam pass', () => dev.simulateWeeklyExam(context))}
+              {chip('Day 90 summit', () => dev.simulateSummit(context))}
+            </Section>
 
-        <Section title="Achievements">
-          {(Object.keys(dev.ACHIEVEMENT_SCENARIOS) as dev.AchievementScenario[]).map((scenario) =>
-            chip(dev.ACHIEVEMENT_SCENARIOS[scenario].label, async () => {
-              await dev.applyAchievementScenario(context, scenario);
-              if (dev.ACHIEVEMENT_SCENARIOS[scenario].open === 'achievements') {
-                router.replace('/achievements');
-              } else {
-                router.dismissTo('/');
-              }
-            }),
-          )}
-          {chip('Reset achievements', () => dev.resetAchievements(context))}
-        </Section>
+            <Section title="Achievements">
+              {(Object.keys(dev.ACHIEVEMENT_SCENARIOS) as dev.AchievementScenario[]).map(
+                (scenario) =>
+                  chip(dev.ACHIEVEMENT_SCENARIOS[scenario].label, async () => {
+                    await dev.applyAchievementScenario(context, scenario);
+                    if (dev.ACHIEVEMENT_SCENARIOS[scenario].open === 'achievements') {
+                      router.replace('/achievements');
+                    } else {
+                      router.dismissTo('/');
+                    }
+                  }),
+              )}
+              {chip('Reset achievements', () => dev.resetAchievements(context))}
+            </Section>
 
-        <Section title="Team · Day 89">
-          {(Object.keys(dev.TEAM_SCENARIOS) as dev.TeamScenario[]).map((scenario) =>
-            chip(dev.TEAM_SCENARIOS[scenario].label, async () => {
-              await dev.applyTeamScenario(context, scenario);
-              router.dismissTo('/friends');
-            }),
-          )}
-          {chip('Friend joins', async () => {
-            await dev.simulateFriendJoined(context);
-            router.dismissTo('/friends');
-          })}
-          {chip('Finish my day', async () => {
-            await dev.finishMyDay(context);
-            router.dismissTo('/friends');
-          })}
-        </Section>
+            <Section title="Team · Day 89">
+              {(Object.keys(dev.TEAM_SCENARIOS) as dev.TeamScenario[]).map((scenario) =>
+                chip(dev.TEAM_SCENARIOS[scenario].label, async () => {
+                  await dev.applyTeamScenario(context, scenario);
+                  router.dismissTo('/friends');
+                }),
+              )}
+              {chip('Friend joins', async () => {
+                await dev.simulateFriendJoined(context);
+                router.dismissTo('/friends');
+              })}
+              {chip('Finish my day', async () => {
+                await dev.finishMyDay(context);
+                router.dismissTo('/friends');
+              })}
+            </Section>
+          </>
+        ) : null}
         <View style={styles.toggleRow}>
           <AppText variant="bodyMedium">Simulate offline</AppText>
           <Switch
@@ -380,32 +411,36 @@ export function DevToolsScreen() {
           </Section>
         ) : null}
 
-        <Divider />
+        {localProgress ? (
+          <>
+            <Divider />
 
-        <Section title="Danger zone">
-          {chip('Reset progress', () => dev.resetProgress(context))}
-          <Button
-            label="Reset all local data"
-            size="sm"
-            variant="danger"
-            haptic={null}
-            disabled={busy}
-            onPress={() =>
-              Alert.alert(
-                'Reset all local data?',
-                'Deletes the database: profile, progress, achievements and team.',
-                [
-                  { text: 'Cancel', style: 'cancel' },
-                  {
-                    text: 'Reset',
-                    style: 'destructive',
-                    onPress: run(() => dev.resetAllLocalData(context)),
-                  },
-                ],
-              )
-            }
-          />
-        </Section>
+            <Section title="Danger zone">
+              {chip('Reset progress', () => dev.resetProgress(context))}
+              <Button
+                label="Reset all local data"
+                size="sm"
+                variant="danger"
+                haptic={null}
+                disabled={busy}
+                onPress={() =>
+                  Alert.alert(
+                    'Reset all local data?',
+                    'Deletes the database: profile, progress, achievements and team.',
+                    [
+                      { text: 'Cancel', style: 'cancel' },
+                      {
+                        text: 'Reset',
+                        style: 'destructive',
+                        onPress: run(() => dev.resetAllLocalData(context)),
+                      },
+                    ],
+                  )
+                }
+              />
+            </Section>
+          </>
+        ) : null}
       </View>
     </Screen>
   );

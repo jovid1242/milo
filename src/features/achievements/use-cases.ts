@@ -24,10 +24,14 @@ export async function loadAchievementFacts(
     repositories.progress.countLearnedWords(),
   ]);
   const currentDay = getChallengeDay(user.challengeStartDate, now);
-  const teamStreak = await loadTeamStreakFacts(repositories, {
-    completedDays: findCompletedDays(plans, completions),
-    currentDay,
-  });
+  // With an account, badges are the server's to grant, and the server has no
+  // teams yet: the team badge waits for them, here as there.
+  const teamStreak = repositories.sync
+    ? null
+    : await loadTeamStreakFacts(repositories, {
+        completedDays: findCompletedDays(plans, completions),
+        currentDay,
+      });
   return buildAchievementFacts({
     plans,
     completions,

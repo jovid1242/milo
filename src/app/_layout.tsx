@@ -16,7 +16,6 @@ import { ReminderSync } from '@/features/reminders/components/ReminderSync';
 import { useUser } from '@/features/profile/queries';
 import { useAppBootstrap } from '@/hooks/use-app-bootstrap';
 import { AppProviders } from '@/providers/app-providers';
-import type { User } from '@/schemas';
 import { useAuthStore } from '@/stores/auth-store';
 import { colors, layout } from '@/theme';
 import { fontSources } from '@/theme/fonts';
@@ -33,10 +32,14 @@ void SplashScreen.preventAutoHideAsync();
  * and onboarding is gone for good, beyond the reach of any back gesture. In
  * local mode the device is always signed in.
  */
-function AppNavigator({ initialUser }: { initialUser: User }) {
-  const user = useUser();
-  const signedIn = useAuthStore((state) => state.status === 'authenticated');
-  const onboarded = !needsOnboarding(user.data ?? initialUser);
+function AppNavigator() {
+  const session = useAuthStore((state) => state.session);
+  const signedIn = session !== null;
+  // Signed out there is no profile to read; signed in, the session's first
+  // reading routes the very first frame.
+  const user = useUser({ enabled: signedIn });
+  const profile = user.data ?? session?.initialUser ?? null;
+  const onboarded = profile !== null && !needsOnboarding(profile);
   const inChallenge = signedIn && onboarded;
 
   return (
@@ -116,7 +119,7 @@ export default function RootLayout() {
         <AppProviders>
           <ThemeProvider value={navigationTheme}>
             <StatusBar style="dark" />
-            {bootstrap.status === 'error' || bootstrap.user === null ? (
+            {bootstrap.status === 'error' ? (
               <View style={styles.startupError}>
                 <ErrorState
                   title="Milo could not start"
@@ -126,7 +129,7 @@ export default function RootLayout() {
                 />
               </View>
             ) : (
-              <AppNavigator initialUser={bootstrap.user} />
+              <AppNavigator />
             )}
           </ThemeProvider>
         </AppProviders>

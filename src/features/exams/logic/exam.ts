@@ -83,6 +83,20 @@ export function scoreExam(exam: Exam, answers: readonly ExamAnswer[]): ExamScore
   };
 }
 
+/**
+ * Answers as a submission may carry them: each to a question of the exam,
+ * once, with one of its options. Unanswered questions are simply missing.
+ */
+export function examAnswersFit(exam: Exam, answers: readonly ExamAnswer[]): boolean {
+  const seen = new Set<string>();
+  return answers.every((answer) => {
+    const question = exam.questions.find((item) => item.id === answer.questionId);
+    if (!question || seen.has(question.id)) return false;
+    seen.add(question.id);
+    return question.options.some((option) => option.id === answer.optionId);
+  });
+}
+
 /** Right answers needed to pass, e.g. 11 of 15 at 70%. */
 export function passMark(exam: Exam): number {
   return Math.ceil(exam.passingScore * exam.questions.length - EPSILON);

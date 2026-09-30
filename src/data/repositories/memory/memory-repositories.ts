@@ -12,6 +12,7 @@ import {
   type ChallengeCompletion,
   type DayCompletion,
   type DayNumber,
+  type Goal,
   type LearnedWord,
   type LocalDate,
   type QuestCompletion,
@@ -65,10 +66,10 @@ export type MemoryStore = {
   activity: TeamActivity[];
 };
 
-/** Quest XP and exam pass rewards are unique per ref — like the SQLite indexes. */
+/** Quest, exam pass and badge rewards are unique per ref — like the SQLite index. */
 function isDuplicateQuestXp(events: readonly XpEvent[], event: XpEvent): boolean {
   return (
-    (event.reason === 'quest' || event.reason === 'examPass') &&
+    (event.reason === 'quest' || event.reason === 'examPass' || event.reason === 'achievement') &&
     events.some((existing) => existing.reason === event.reason && existing.refId === event.refId)
   );
 }
@@ -313,6 +314,15 @@ class MemoryUserRepository implements UserRepository {
     return this.store.user;
   }
 
+  async adoptAccountProfile(profile: { displayName: string | null; goal: Goal | null }) {
+    this.store.user = {
+      ...this.store.user,
+      displayName: profile.displayName ?? this.store.user.displayName,
+      goal: profile.goal ?? this.store.user.goal,
+    };
+    return this.store.user;
+  }
+
   async updateChallengeStartDate(date: LocalDate) {
     this.store.user = { ...this.store.user, challengeStartDate: date };
     return this.store.user;
@@ -500,6 +510,7 @@ export function createMemoryRepositories(
     achievements: new MemoryAchievementRepository(store),
     exams: new MemoryExamRepository(store),
     friends: new MemoryFriendsRepository(store),
+    sync: null,
     dev: new MemoryDevRepository(store, progress),
   };
 }

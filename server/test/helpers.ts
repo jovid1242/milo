@@ -7,6 +7,7 @@ import request from 'supertest';
 
 import { AuthSessionSchema, type AuthSession } from '@/schemas';
 
+import type { Clock } from '../src/common/clock';
 import { loadConfig, type AppConfig } from '../src/config/env';
 import { createApp } from '../src/create-app';
 import { PrismaService } from '../src/prisma/prisma.service';
@@ -31,6 +32,8 @@ export type StartOptions = {
   listen?: boolean;
   /** Collects the log lines. */
   logDestination?: DestinationStream;
+  /** The server's time (default: the system clock). */
+  clock?: Clock;
 };
 
 export async function startApp(options: StartOptions = {}): Promise<TestApp> {
@@ -38,6 +41,7 @@ export async function startApp(options: StartOptions = {}): Promise<TestApp> {
   const app = await createApp(config, {
     course: options.course,
     logDestination: options.logDestination,
+    clock: options.clock,
   });
   let baseUrl = '';
   if (options.listen) {
@@ -60,9 +64,31 @@ export async function startApp(options: StartOptions = {}): Promise<TestApp> {
 /** Deletes every row. Refuses to touch anything but the test database. */
 export async function resetDatabase(prisma: PrismaService): Promise<void> {
   assertTestDatabase(TEST_DATABASE_URL);
+  // Everything else hangs off users, and goes with them (CASCADE).
   await prisma.$executeRawUnsafe(
     'TRUNCATE TABLE "refresh_tokens", "refresh_sessions", "users" RESTART IDENTITY CASCADE',
   );
+}
+
+/** A clock the test moves: the server's "now". */
+export class TestClock implements Clock {
+  constructor(private current: Date) {}
+
+  now(): Date {
+    return new Date(this.current);
+  }
+
+  set(iso: string): void {
+    this.current = new Date(iso);
+  }
+
+  advanceDays(days: number): void {
+    this.current = new Date(this.current.getTime() + days * 24 * 60 * 60 * 1000);
+  }
+
+  advanceMinutes(minutes: number): void {
+    this.current = new Date(this.current.getTime() + minutes * 60 * 1000);
+  }
 }
 
 export const PASSWORD = 'correct-horse-7';

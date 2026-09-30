@@ -302,7 +302,23 @@ export async function submitExam(
         }
       : null;
 
+  // With an account, the server scores the answers again and decides the rest.
+  const mutation =
+    repositories.sync?.mutation(
+      'submitExam',
+      {
+        courseId: (await repositories.course.getCourse()).id,
+        courseVersion: attempt.courseVersion,
+        questId: quest.id,
+        attemptId: attempt.id,
+        answers: attempt.answers,
+        submittedAt,
+      },
+      now,
+    ) ?? null;
+
   const outcome = await repositories.exams.submitAttempt({
+    mutation,
     attempt: {
       id: attempt.id,
       answers: attempt.answers,
@@ -335,6 +351,7 @@ export async function submitExam(
   }
 
   const newAchievements = await syncAchievements(repositories, now);
+  repositories.sync?.requestSync('mutation');
   return {
     attempt: {
       ...attempt,

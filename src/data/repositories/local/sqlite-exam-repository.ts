@@ -1,4 +1,4 @@
-import { getDatabase, writeDatabase } from '@/data/db/database';
+import type { LocalStore } from '@/data/db/local-store';
 import type {
   ExamRepository,
   ExamSubmissionOutcome,
@@ -6,6 +6,7 @@ import type {
 } from '@/data/repositories/types';
 import { ExamAttemptSchema, type ExamAttempt } from '@/schemas';
 
+import { enqueueMutation } from './outbox';
 import {
   writeAnswers,
   writeChallengeCompletion,
@@ -48,33 +49,41 @@ const mapAttempt = (row: AttemptRow): ExamAttempt =>
     passed: row.passed === null ? null : row.passed === 1,
   });
 
+/** One owner's exam attempts. */
 export class SqliteExamRepository implements ExamRepository {
+  constructor(
+    private readonly store: LocalStore,
+    private readonly owner: string,
+  ) {}
+
   async getAttempts(examId: string): Promise<ExamAttempt[]> {
-    const db = await getDatabase();
+    const db = await this.store.read();
     const rows = await db.getAllAsync<AttemptRow>(
-      'SELECT * FROM exam_attempts WHERE exam_id = ? ORDER BY number ASC',
-      [examId],
+      'SELECT * FROM exam_attempts WHERE owner_id = ? AND exam_id = ? ORDER BY number ASC',
+      [this.owner, examId],
     );
     return rows.map(mapAttempt);
   }
 
   async getAllAttempts(): Promise<ExamAttempt[]> {
-    const db = await getDatabase();
+    const db = await this.store.read();
     const rows = await db.getAllAsync<AttemptRow>(
-      'SELECT * FROM exam_attempts ORDER BY exam_id ASC, number ASC',
+      'SELECT * FROM exam_attempts WHERE owner_id = ? ORDER BY exam_id ASC, number ASC',
+      [this.owner],
     );
     return rows.map(mapAttempt);
   }
 
   async openAttempt(attempt: ExamAttempt): Promise<ExamAttempt> {
-    return writeDatabase(async (db) => {
+    return this.store.write(async (db) => {
       // The unique "open attempt" index turns a second open into a no-op.
       await db.runAsync(
         `INSERT OR IGNORE INTO exam_attempts
-           (id, exam_id, quest_id, course_version, number, started_at, updated_at, current_index,
-            answers_json, submitted_at, correct_count, total_count, score, passed)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, NULL, ?, NULL, NULL)`,
+           (owner_id, id, exam_id, quest_id, course_version, number, started_at, updated_at,
+            current_index, answers_json, submitted_at, correct_count, total_count, score, passed)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, NULL, ?, NULL, NULL)`,
         [
+          this.owner,
           attempt.id,
           attempt.examId,
           attempt.questId,
@@ -88,8 +97,8 @@ export class SqliteExamRepository implements ExamRepository {
         ],
       );
       const open = await db.getFirstAsync<AttemptRow>(
-        'SELECT * FROM exam_attempts WHERE exam_id = ? AND submitted_at IS NULL',
-        [attempt.examId],
+        'SELECT * FROM exam_attempts WHERE owner_id = ? AND exam_id = ? AND submitted_at IS NULL',
+        [this.owner, attempt.examId],
       );
       if (!open) throw new Error(`Could not open an attempt at ${attempt.examId}`);
       return mapAttempt(open);
@@ -99,11 +108,17 @@ export class SqliteExamRepository implements ExamRepository {
   async saveAttempt(
     attempt: Pick<ExamAttempt, 'id' | 'currentIndex' | 'answers' | 'updatedAt'>,
   ): Promise<boolean> {
-    const result = await writeDatabase((db) =>
+    const result = await this.store.write((db) =>
       db.runAsync(
         `UPDATE exam_attempts SET current_index = ?, answers_json = ?, updated_at = ?
-         WHERE id = ? AND submitted_at IS NULL`,
-        [attempt.currentIndex, JSON.stringify(attempt.answers), attempt.updatedAt, attempt.id],
+         WHERE owner_id = ? AND id = ? AND submitted_at IS NULL`,
+        [
+          attempt.currentIndex,
+          JSON.stringify(attempt.answers),
+          attempt.updatedAt,
+          this.owner,
+          attempt.id,
+        ],
       ),
     );
     return result.changes > 0;
@@ -116,7 +131,10 @@ export class SqliteExamRepository implements ExamRepository {
     reward,
     day,
     challenge,
+    mutation = null,
   }: ExamSubmissionWrite): Promise<ExamSubmissionOutcome> {
+    const { owner } = this;
+    const tag = mutation?.id ?? null;
     let outcome: ExamSubmissionOutcome = {
       submitted: false,
       rewardGranted: false,
@@ -125,16 +143,16 @@ export class SqliteExamRepository implements ExamRepository {
       challengeRecorded: false,
     };
     // One exclusive transaction: submitting, paying, completing the quest, its
-    // day and the challenge land together or not at all — a force close can
-    // never split them.
-    await writeDatabase((db) =>
+    // day and the challenge — and the outbox entry that tells the server —
+    // land together or not at all: a force close can never split them.
+    await this.store.write((db) =>
       db.withExclusiveTransactionAsync(async (txn) => {
         // Only the update that finds it still open changes a row: submitting twice is a no-op.
         const submitted = await txn.runAsync(
           `UPDATE exam_attempts
              SET answers_json = ?, submitted_at = ?, updated_at = ?, correct_count = ?, score = ?,
-                 passed = ?
-           WHERE id = ? AND submitted_at IS NULL`,
+                 passed = ?, pending_mutation_id = ?
+           WHERE owner_id = ? AND id = ? AND submitted_at IS NULL`,
           [
             JSON.stringify(attempt.answers),
             attempt.submittedAt,
@@ -142,16 +160,21 @@ export class SqliteExamRepository implements ExamRepository {
             attempt.correctCount,
             attempt.score,
             attempt.passed === null ? null : attempt.passed ? 1 : 0,
+            tag,
+            owner,
             attempt.id,
           ],
         );
         if (submitted.changes === 0) return;
+        if (mutation) await enqueueMutation(txn, owner, mutation);
 
-        // The unique index on (ref_id) for 'examPass' keeps the reward to one per exam.
+        // The unique index on (owner, reason, ref) keeps the reward to one per exam.
         const paid = reward
           ? await txn.runAsync(
-              'INSERT OR IGNORE INTO xp_events (amount, reason, ref_id, created_at) VALUES (?, ?, ?, ?)',
-              [reward.amount, reward.reason, reward.refId, reward.createdAt],
+              `INSERT OR IGNORE INTO xp_events
+                 (owner_id, amount, reason, ref_id, created_at, pending_mutation_id)
+               VALUES (?, ?, ?, ?, ?, ?)`,
+              [owner, reward.amount, reward.reason, reward.refId, reward.createdAt, tag],
             )
           : null;
         const rewardGranted = (paid?.changes ?? 0) > 0;
@@ -159,13 +182,14 @@ export class SqliteExamRepository implements ExamRepository {
 
         // The attempt is over: Home no longer shows it in progress.
         await txn.runAsync(
-          'DELETE FROM quest_sessions WHERE quest_id = (SELECT quest_id FROM exam_attempts WHERE id = ?)',
-          [attempt.id],
+          `DELETE FROM quest_sessions WHERE owner_id = ? AND quest_id =
+             (SELECT quest_id FROM exam_attempts WHERE owner_id = ? AND id = ?)`,
+          [owner, owner, attempt.id],
         );
         const existing = completion
           ? await txn.getFirstAsync<{ quest_id: string }>(
-              'SELECT quest_id FROM quest_completions WHERE quest_id = ?',
-              [completion.questId],
+              'SELECT quest_id FROM quest_completions WHERE owner_id = ? AND quest_id = ?',
+              [owner, completion.questId],
             )
           : null;
         let firstCompletion = false;
@@ -175,20 +199,22 @@ export class SqliteExamRepository implements ExamRepository {
           // A retake: the quest keeps its first result; a first pass adds its reward.
           if (earned > 0) {
             await txn.runAsync(
-              'UPDATE quest_completions SET xp_earned = xp_earned + ? WHERE quest_id = ?',
-              [earned, completion.questId],
+              'UPDATE quest_completions SET xp_earned = xp_earned + ? WHERE owner_id = ? AND quest_id = ?',
+              [earned, owner, completion.questId],
             );
           }
         } else if (completion) {
-          await writeCompletion(txn, { ...completion, xpEarned: earned });
-          await writeAnswers(txn, completion.questId, answers);
+          await writeCompletion(txn, owner, { ...completion, xpEarned: earned }, tag);
+          await writeAnswers(txn, owner, completion.questId, answers);
           firstCompletion = true;
-          if (day) dayRecorded = await writeDayCompletion(txn, day);
+          if (day) dayRecorded = await writeDayCompletion(txn, owner, day, tag);
           if (challenge) {
-            challengeRecorded = await writeChallengeCompletion(txn, {
-              ...challenge,
-              xpEarned: earned,
-            });
+            challengeRecorded = await writeChallengeCompletion(
+              txn,
+              owner,
+              { ...challenge, xpEarned: earned },
+              tag,
+            );
           }
         }
         outcome = {

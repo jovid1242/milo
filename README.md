@@ -83,17 +83,23 @@ scripts/                asset pipeline + asset registry generator; content/ runs
 ## Data layer
 
 - **Repositories** (`src/data/repositories`) are interfaces; the local implementations read bundled
-  content and SQLite. `createAppRepositories` (`data/repositories/index.ts`) picks the
-  implementations from the build's backend config: local only, or `ApiAuthRepository` and
-  `ApiCourseRepository` on top of the same SQLite progress — no screen knows the difference.
+  content and SQLite. `createDeviceServices` (`data/repositories/index.ts`) picks what a launch has
+  once from the build's backend config — local only, or `ApiAuthRepository`, `ApiCourseRepository`
+  and the progress API — and `repositoriesFor(device, owner)` opens one **owner's** progress: the
+  device's own in local mode, an account's otherwise. No screen knows the difference.
+- **Progress** belongs to an owner in SQLite (`owner_id` in every table) and, with an account, to
+  the server: the phone keeps a projection and an outbox, synced by `ProgressSyncEngine` — see
+  [Progress sync](#progress-sync).
 - **TanStack Query** owns all data access; `Zustand` only holds global client preferences
   (sound/haptics) and dev switches.
 - **Zod** validates content, database rows and persisted settings; all domain types are `z.infer`.
 - **Use cases** (`features/progress/use-cases.ts`) compose repositories: completing a quest awards
   XP once, evaluates achievements and returns everything a reward moment needs.
-- **Writes are serialized** (`writeDatabase` in `data/db/database.ts`): exclusive transactions run
-  on their own connection and SQLite rejects a second writer, so every write waits its turn —
-  a double tap never fails with "database is locked", it finds the work already done.
+- **Writes are serialized** (`LocalStore.write`; `writeDatabase` in `data/db/database.ts`):
+  exclusive transactions run on their own connection and SQLite rejects a second writer, so every
+  write waits its turn — a double tap never fails with "database is locked", it finds the work
+  already done. Repositories take the store as a `LocalStore`, so the same code runs on Node's
+  SQLite in tests (`data/db/__fixtures__/node-sqlite-store.ts`).
 - `queries.ts` inside each feature exposes the hooks; keys live in `data/query-keys.ts`.
 
 ## Backend (Milo API)
@@ -174,6 +180,8 @@ course bundled (content work without a server round trip).
 | `GET /users/me`, `PATCH /users/me`         | the account; PATCH accepts only `displayName` and `goal`                                    |
 | `GET /course/current`                      | the manifest: `courseId`, `version`, `schemaVersion`, `contentHash`, `documentPath`         |
 | `GET /courses/:courseId/versions/:version` | the course document (ETag = its SHA-256, gzip, 304)                                         |
+| `GET /progress`                            | the account's progress and its revision (Bearer)                                            |
+| `POST /progress/sync`                      | offline mutations (≤ 50, in order) → one result each + the progress when it changed         |
 | `GET /health` (outside `/api/v1`)          | alive; `{ status, database: "up" \| "down" }`                                               |
 | `GET /ready` (outside `/api/v1`)           | 200 when the database and the course are up, else 503                                       |
 
@@ -181,7 +189,8 @@ A session is `{ user, accessToken, accessTokenExpiresAt, refreshToken, refreshTo
 Every error is `{ code, message, details? }` with a stable `code` (`VALIDATION_ERROR`,
 `EMAIL_TAKEN`, `INVALID_CREDENTIALS`, `UNAUTHORIZED`, `REFRESH_TOKEN_INVALID`,
 `REFRESH_TOKEN_REUSED`, `NOT_FOUND`, `PAYLOAD_TOO_LARGE`, `RATE_LIMITED`, `COURSE_UNAVAILABLE`,
-`INTERNAL_ERROR`) — never a stack trace. Validation errors list `details: [{ path, message }]`.
+`COURSE_MISMATCH`, `COURSE_VERSION_UNSUPPORTED`, `ACCOUNT_MISMATCH`, `INTERNAL_ERROR`) — never a
+stack trace. Validation errors list `details: [{ path, message }]`.
 
 **Swagger** (development and staging): http://localhost:3000/api/docs, JSON at
 `/api/docs/openapi.json`. It is generated from the same Zod schemas the API validates with, so it
@@ -209,7 +218,8 @@ cannot drift from the real DTOs.
 
 ### Security and logging
 
-Helmet headers, CORS closed unless origins are listed, JSON bodies limited to 100 kB (413), every
+Helmet headers, CORS closed unless origins are listed, JSON bodies limited to 100 kB (413; 1 MB
+for progress sync, which may carry a phone's history once), every
 request validated by the shared Zod schemas (unknown fields are refused), production-safe errors.
 Logs are one JSON line per request (pino): request id (`X-Request-Id`, echoed back), method, path,
 route pattern, status and duration. Headers and bodies are never logged — no passwords, no
@@ -224,9 +234,16 @@ refresh rotation, replays, the grace retry, racing refreshes, logout, revoked an
 `/me`, profile updates (unknown fields refused), rate limiting, the course manifest, document,
 ETag/304 and gzip, an invalid course never served, health and readiness, the error format
 (404, malformed JSON, 413, 500 without internals), security headers, logs without secrets, the
-config validation and argon2id. `test/app-client.test.ts` drives the app's own
-`ApiCourseRepository` and auth client over real HTTP against the API. Set `TEST_DATABASE_URL` to
-use another database.
+config validation and argon2id. `test/progress.test.ts` covers progress on the server: fresh
+progress, the challenge's start, scoring from answers, rewards and the perfect bonus once, retries
+(`duplicate`), the same quest from another mutation, reused ids, unknown quests, locks, the
+sync window and time zones, days, streaks, exams and the Final Battle, badges once, revisions,
+batches, refused requests (course version, another account, invalid, too large), a transaction
+rolled back whole, the sync log, database constraints, two phones syncing at once and legacy
+imports. `test/app-client.test.ts` drives the app's own `ApiCourseRepository` and auth client over
+real HTTP, and `test/progress-app.test.ts` the app's own progress stack — SQLite repositories,
+account sessions, sync engine — against the API: the A → B → A account switch, offline play
+through a restart, two phones, legacy claims. Set `TEST_DATABASE_URL` to use another database.
 
 ## Accounts in the app (API mode)
 
@@ -253,11 +270,14 @@ use another database.
   only for email and password (+ confirmation); the name and the goal stay in onboarding, which
   comes next — never asked twice. Signing in on a new phone prefills onboarding from the account.
   When onboarding finishes, the name and goal go to the account (best effort).
-- **Existing local users:** nothing on the device is deleted by signing up, in or out. A user who
-  took the challenge before accounts signs up and lands straight back in their challenge; their
-  name and goal fill in the new account. Progress is still per device until it syncs.
-- **Logging out** (Settings → Account): revokes the session on the server (best effort — it also
-  works offline), clears the Keychain and the account's cached queries. SQLite progress stays.
+- **Existing local users:** nothing on the device is deleted by signing up, in or out. The
+  progress a phone has from before accounts goes, once, to the first account signed in there if
+  that account has no progress anywhere — it lands straight back in its challenge, sent to the
+  server as its history (see [Progress sync](#progress-sync)); an account that already has progress
+  never gets another history merged in.
+- **Logging out** (Settings → Account): stops the account's sync, revokes the session on the server
+  (best effort — it also works offline), clears the Keychain and drops the account's screens and
+  cache. The account's progress stays on the phone, out of sight, until it signs in again.
 
 ### The course from the API
 
@@ -270,6 +290,26 @@ bundled course. In the background the app checks the small manifest; a new `vers
 be the course the manifest announced — then it is saved and used from the next launch, never
 under a running game. Broken JSON, an invalid course or an unsupported `schemaVersion` are refused
 with a logged warning, and the last known good course stays exactly as it was.
+
+## Progress sync
+
+Progress is the account's, and the server owns it; the phone keeps a projection and an outbox
+(architecture, rules and limits: [`docs/progress-sync.md`](docs/progress-sync.md)).
+
+- **Actions, not results:** starting the challenge, a quest's answers, an exam's answers go to the
+  server as mutations (`src/schemas/progress-sync.ts`); the server scores them against the course
+  and derives XP (an append-only ledger), days, streaks and badges with the app's own rules.
+- **Offline first:** a quest counts on the phone at once — its progress and its outbox entry are
+  one SQLite transaction — and survives restarts. `ProgressSyncEngine` sends the outbox when the
+  account opens, a change is stored, the app returns to the foreground or the connection comes
+  back: single-flight, 50 per request, in order, exponential backoff, no polling.
+- **Idempotent:** every mutation has a UUID; the server records each outcome with its effects, so a
+  retry is a `duplicate` and changes nothing; rewards, days and badges are unique in PostgreSQL.
+- **Accounts on one phone:** every progress table is scoped by owner; each account gets its own
+  repositories, query cache and sync; another account never sees a row of it, and its outbox is
+  only ever sent as that account.
+- **Revision:** the server's revision goes up with every change; the phone sends the one it has and
+  gets the progress back only when it moved.
 
 ## Assets
 
@@ -604,7 +644,10 @@ a time the user picks — no push, no server, no account.
 
 Profile → Developer tools (visible only in `__DEV__`, and reachable from onboarding too):
 the backend in use (API URL, who is signed in, where the course came from — the API cache with
-its version and hash, or the bundle — and a "check for a course update" button), first-launch controls (reset onboarding, open any step, start a fresh Day 1, wipe user and
+its version and hash, or the bundle — and a "check for a course update" button), the progress sync
+(account id, server revision, changes waiting and refused, sync state, last sync, last error,
+**Sync now**, **Inspect outbox** — nothing there writes progress; with an account the shortcuts
+below that write progress are hidden: the server decides it), first-launch controls (reset onboarding, open any step, start a fresh Day 1, wipe user and
 challenge), daily reminders (a test notification in 5 s, cancel it, inspect what the system has
 scheduled, sync now), ready-made Home states (Day 12 at 0–4 of 4,
 streak 0 / 12, Day 1 / 30 / 60 / 89 / 90, a quest in progress), the Journey map on every chapter

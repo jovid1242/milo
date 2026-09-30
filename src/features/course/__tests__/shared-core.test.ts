@@ -13,9 +13,10 @@ const { dirname, join, relative } = require('path') as {
 };
 
 /**
- * The Milo API compiles the app's own course code instead of a copy of it
+ * The Milo API compiles the app's own code instead of a copy of it
  * (server/tsconfig.json maps `@/…` to `src/`): the schemas, the course, its
- * validator, and the clients the server's tests drive. That only works while
+ * validator, the rules of progress, and the clients the server's tests drive —
+ * down to the app's sync and its SQLite repositories. That only works while
  * this code needs nothing but `zod` — no React Native, no Expo. This keeps it so.
  */
 const SRC = join(__dirname, '../../..');
@@ -31,6 +32,21 @@ const SHARED_ENTRIES = [
   'services/api/api-client.ts',
   'services/auth/auth-session.ts',
   'services/auth/stored-session.ts',
+  // Progress: the rules the server applies, and the app's side of sync that
+  // the server's tests run against it.
+  'data/repositories/course/course-reader.ts',
+  'data/content/achievements.ts',
+  'features/progress/logic/quest-scoring.ts',
+  'features/achievements/logic/evaluate-achievements.ts',
+  'features/exams/logic/exam.ts',
+  'features/challenge/logic/calendar.ts',
+  'lib/time-zone.ts',
+  'features/progress/use-cases.ts',
+  'features/onboarding/use-cases.ts',
+  'data/repositories/owner-repositories.ts',
+  'data/repositories/api/progress-api.ts',
+  'services/session/owner-session.ts',
+  'services/sync/progress-sync-engine.ts',
 ];
 
 const importsOf = (code: string) =>

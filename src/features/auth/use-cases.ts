@@ -1,10 +1,8 @@
-import type { QueryClient } from '@tanstack/react-query';
-
-import { queryKeys } from '@/data/query-keys';
 import type { Account, AuthRepository } from '@/data/repositories/types';
 import { needsOnboarding } from '@/features/onboarding/use-cases';
 import { logger } from '@/lib/logger';
 import type { Goal, OnboardingDraft, UpdateProfileRequest, User } from '@/schemas';
+import type { OwnerSession } from '@/services/session/owner-session';
 
 export type RestoredAuth =
   { status: 'authenticated'; account: Account | null } | { status: 'unauthenticated' };
@@ -26,13 +24,14 @@ export async function restoreAuth(auth: AuthRepository): Promise<RestoredAuth> {
 }
 
 /**
- * Signing out: the session ends here and on the server, and whatever was
- * cached for the account goes with it. Progress stays: until it syncs to
- * accounts, it belongs to the device, not to the account.
+ * Signing out: the account's sync stops first — nothing more is sent — then
+ * the session ends here and on the server. The account's progress stays on
+ * the device, its own, out of sight until the account signs in again (and
+ * whatever still waits in its outbox is sent then, never as anyone else).
  */
-export async function signOut(auth: AuthRepository, queryClient: QueryClient): Promise<void> {
+export async function signOut(auth: AuthRepository, session: OwnerSession | null): Promise<void> {
+  session?.engine?.stop();
   await auth.logout();
-  queryClient.removeQueries({ queryKey: queryKeys.account.all });
 }
 
 /** The name and goal onboarding just set, sent to the account. */

@@ -1,7 +1,7 @@
 import { NestFactory } from '@nestjs/core';
 import type { NestExpressApplication } from '@nestjs/platform-express';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
-import type { NextFunction, Request, Response } from 'express';
+import { json, type NextFunction, type Request, type Response } from 'express';
 import helmet from 'helmet';
 import { Logger } from 'nestjs-pino';
 
@@ -12,6 +12,11 @@ import type { AppConfig } from './config/env';
 export const API_PREFIX = 'api/v1';
 /** JSON bodies larger than this are refused (413) before any handler runs. */
 export const BODY_LIMIT = '100kb';
+/**
+ * Progress sync carries a batch of offline actions — and, once, a device's
+ * whole history from before accounts: it gets more room, and only it.
+ */
+export const SYNC_BODY_LIMIT = '1mb';
 
 /** The API, configured the same way for the server and for tests. */
 export async function createApp(
@@ -40,6 +45,8 @@ export async function createApp(
     allowedHeaders: ['Authorization', 'Content-Type', 'If-None-Match', 'X-Request-Id'],
     exposedHeaders: ['ETag', 'X-Request-Id', 'Retry-After'],
   });
+  // Parsed here first, the sync body is left alone by the general parser below.
+  app.use(`/${API_PREFIX}/progress/sync`, json({ limit: SYNC_BODY_LIMIT }));
   app.useBodyParser('json', { limit: BODY_LIMIT });
   app.setGlobalPrefix(API_PREFIX, { exclude: ['health', 'ready'] });
   app.useGlobalFilters(new ApiExceptionFilter());
@@ -50,7 +57,7 @@ export async function createApp(
       new DocumentBuilder()
         .setTitle('Milo API')
         .setDescription(
-          'Auth, the account and the course. Every error is `{ code, message, details? }`.',
+          'Auth, the account, the course and progress sync. Every error is `{ code, message, details? }`.',
         )
         .setVersion('1')
         .addBearerAuth()

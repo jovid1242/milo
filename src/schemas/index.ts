@@ -11,6 +11,7 @@ export * from './lesson';
 export * from './onboarding';
 export * from './practice';
 export * from './progress';
+export * from './progress-sync';
 export * from './quest';
 export * from './quiz';
 export * from './reading';

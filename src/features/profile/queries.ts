@@ -5,11 +5,13 @@ import { useRepositories } from '@/data/repository-provider';
 import { logger } from '@/lib/logger';
 import { useAuthStore } from '@/stores/auth-store';
 
-export function useUser() {
+/** The owner's profile. `enabled: false` while nobody is signed in: there is no profile then. */
+export function useUser({ enabled = true }: { enabled?: boolean } = {}) {
   const repositories = useRepositories();
   return useQuery({
     queryKey: queryKeys.user,
     queryFn: () => repositories.user.getUser(),
+    enabled,
   });
 }
 

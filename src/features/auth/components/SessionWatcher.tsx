@@ -1,9 +1,8 @@
-import { useQueryClient } from '@tanstack/react-query';
 import { useEffect } from 'react';
 
-import { queryKeys } from '@/data/query-keys';
 import { useRepositories } from '@/data/repository-provider';
 import { useAuthStore } from '@/stores/auth-store';
+import { useOnboardingStore } from '@/stores/onboarding-store';
 
 /**
  * When the server ends the session by itself — expired, revoked, a replayed
@@ -11,15 +10,14 @@ import { useAuthStore } from '@/stores/auth-store';
  */
 export function SessionWatcher() {
   const repositories = useRepositories();
-  const queryClient = useQueryClient();
 
   useEffect(
     () =>
       repositories.auth.onSessionEnded(() => {
-        queryClient.removeQueries({ queryKey: queryKeys.account.all });
+        useOnboardingStore.getState().clear();
         useAuthStore.getState().signedOut();
       }),
-    [repositories, queryClient],
+    [repositories],
   );
 
   return null;

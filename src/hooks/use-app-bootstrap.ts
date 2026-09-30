@@ -1,12 +1,16 @@
 import { useCallback, useEffect, useState } from 'react';
 
 import { getDatabase } from '@/data/db/database';
-import type { Repositories } from '@/data/repositories/types';
+import type { CourseUpdates } from '@/data/repositories/types';
 import { restoreAuth } from '@/features/auth/use-cases';
 import { logger } from '@/lib/logger';
-import { appRepositories } from '@/providers/app-providers';
-import type { User } from '@/schemas';
+import { deviceServices, openAppSession } from '@/providers/app-session';
 import { soundManager } from '@/services/audio/sound-manager';
+import {
+  needsFirstSync,
+  prepareAccount,
+  settleLegacyProgress,
+} from '@/services/session/owner-session';
 import { useAuthStore } from '@/stores/auth-store';
 
 export type BootstrapStatus = 'loading' | 'ready' | 'error';
@@ -16,8 +20,8 @@ export type BootstrapStatus = 'loading' | 'ready' | 'error';
  * it, validated, for the next launch. In the background — the course in use
  * is already chosen, from the cache or the bundle, and never waits for it.
  */
-function checkForCourseUpdate(repositories: Repositories) {
-  repositories.courseUpdates
+function checkForCourseUpdate(courseUpdates: CourseUpdates | null) {
+  courseUpdates
     ?.check()
     .then((result) => logger.debug(`course update check: ${result.status}`, result))
     .catch((error: unknown) => logger.warn('the course update check failed', error));
@@ -25,16 +29,15 @@ function checkForCourseUpdate(repositories: Repositories) {
 
 /**
  * Startup work that must finish before the first screen: open and migrate the
- * database, make sure a local profile exists, and read the saved session from
- * the Keychain. Both come back before the splash screen goes — the very first
+ * database, read the saved session from the Keychain and open its owner's
+ * progress — the account's, or the device's own in local mode. The very first
  * routing decision (sign in, onboarding or the challenge) depends on them and
- * cannot wait for a query. Sound preloading and the course update check
- * happen in the background — they must never delay the UI.
+ * cannot wait for a query. The account's sync, sound preloading and the course
+ * update check happen in the background — they must never delay the UI.
  */
 export function useAppBootstrap() {
   const [status, setStatus] = useState<BootstrapStatus>('loading');
   const [error, setError] = useState<unknown>(null);
-  const [user, setUser] = useState<User | null>(null);
   const [attempt, setAttempt] = useState(0);
 
   useEffect(() => {
@@ -43,19 +46,31 @@ export function useAppBootstrap() {
     const bootstrap = async () => {
       try {
         await getDatabase();
-        const [profile, auth] = await Promise.all([
-          appRepositories.user.getUser(),
-          restoreAuth(appRepositories.auth),
-        ]);
-        if (cancelled) return;
-        if (auth.status === 'authenticated') useAuthStore.getState().signedIn(auth.account);
+        const auth = await restoreAuth(deviceServices.auth);
+        let session = auth.status === 'authenticated' ? await openAppSession(auth.account) : null;
+        // An account this phone never synced, with nothing to show: the splash
+        // waits briefly for the server rather than show onboarding by mistake.
+        const first = session !== null && (await needsFirstSync(session));
+        if (session && first) session = await prepareAccount(session, { waitMs: 5_000 });
+        if (cancelled) {
+          session?.dispose();
+          return;
+        }
+        if (session) useAuthStore.getState().signedIn(session);
         else useAuthStore.getState().signedOut();
-        setUser(profile);
         setStatus('ready');
+        // Offline, this simply waits for the connection.
+        const opened = session;
+        if (opened && !first) {
+          opened.engine
+            ?.requestSync('launch')
+            .then(() => settleLegacyProgress(opened))
+            .catch((syncError: unknown) => logger.warn('the launch sync failed', syncError));
+        }
         soundManager.preload().catch((soundError: unknown) => {
           logger.warn('sound preload failed', soundError);
         });
-        checkForCourseUpdate(appRepositories);
+        checkForCourseUpdate(deviceServices.courseUpdates);
       } catch (bootError: unknown) {
         logger.error('app bootstrap failed', bootError);
         if (cancelled) return;
@@ -76,5 +91,5 @@ export function useAppBootstrap() {
     setAttempt((value) => value + 1);
   }, []);
 
-  return { status, error, user, retry };
+  return { status, error, retry };
 }

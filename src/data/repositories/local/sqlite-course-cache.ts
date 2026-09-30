@@ -1,4 +1,4 @@
-import { getDatabase, writeDatabase } from '@/data/db/database';
+import type { LocalStore } from '@/data/db/local-store';
 
 import type { CachedCourse, CourseCache } from '../api/api-course-repository';
 
@@ -17,8 +17,10 @@ type Row = {
  * launches alike.
  */
 export class SqliteCourseCache implements CourseCache {
+  constructor(private readonly store: LocalStore) {}
+
   async read(): Promise<CachedCourse | null> {
-    const db = await getDatabase();
+    const db = await this.store.read();
     const row = await db.getFirstAsync<Row>(
       'SELECT course_id, version, schema_version, content_hash, document, saved_at FROM course_cache WHERE slot = 1',
     );
@@ -34,7 +36,7 @@ export class SqliteCourseCache implements CourseCache {
   }
 
   write(course: CachedCourse): Promise<void> {
-    return writeDatabase(async (db) => {
+    return this.store.write(async (db) => {
       await db.runAsync(
         `INSERT OR REPLACE INTO course_cache
            (slot, course_id, version, schema_version, content_hash, document, saved_at)

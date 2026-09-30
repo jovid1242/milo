@@ -1,4 +1,4 @@
-import { resetDatabase, writeDatabase } from '@/data/db/database';
+import type { LocalStore } from '@/data/db/local-store';
 import type { DevRepository } from '@/data/repositories/types';
 import type {
   ChallengeCompletion,
@@ -25,8 +25,17 @@ import {
   writeXpEvent,
 } from './sqlite-progress-repository';
 
-/** Local-only escape hatches used by the in-app development tools. */
+/**
+ * Local-only escape hatches used by the in-app development tools — on the
+ * device's own progress only: an account's progress is the server's, and
+ * nothing here writes it.
+ */
 export class LocalDevRepository implements DevRepository {
+  constructor(
+    private readonly store: LocalStore,
+    private readonly owner: string,
+  ) {}
+
   async seedHistory(
     completions: readonly QuestCompletion[],
     xpEvents: readonly XpEvent[],
@@ -34,13 +43,14 @@ export class LocalDevRepository implements DevRepository {
     words: readonly LearnedWord[],
     challenge: ChallengeCompletion | null = null,
   ): Promise<void> {
-    await writeDatabase((db) =>
+    const { owner } = this;
+    await this.store.write((db) =>
       db.withExclusiveTransactionAsync(async (txn) => {
-        for (const completion of completions) await writeCompletion(txn, completion);
-        for (const event of xpEvents) await writeXpEvent(txn, event);
-        for (const day of days) await writeDayCompletion(txn, day);
-        await writeLearnedWords(txn, words);
-        if (challenge) await writeChallengeCompletion(txn, challenge);
+        for (const completion of completions) await writeCompletion(txn, owner, completion, null);
+        for (const event of xpEvents) await writeXpEvent(txn, owner, event, null);
+        for (const day of days) await writeDayCompletion(txn, owner, day, null);
+        await writeLearnedWords(txn, owner, words, null);
+        if (challenge) await writeChallengeCompletion(txn, owner, challenge, null);
       }),
     );
   }
@@ -50,38 +60,56 @@ export class LocalDevRepository implements DevRepository {
     members: readonly TeamMember[],
     activity: readonly TeamActivity[],
   ): Promise<void> {
-    await writeDatabase((db) =>
+    const { owner } = this;
+    await this.store.write((db) =>
       db.withExclusiveTransactionAsync(async (txn) => {
-        await clearTeam(txn);
+        await clearTeam(txn, owner);
         if (!team) return;
-        await writeTeam(txn, team);
+        await writeTeam(txn, owner, team);
         for (const [position, member] of members.entries()) {
-          await writeTeamMember(txn, member, position);
+          await writeTeamMember(txn, owner, member, position);
         }
-        await writeTeamActivity(txn, activity);
+        await writeTeamActivity(txn, owner, activity);
       }),
     );
   }
 
   async addTeamMember(member: TeamMember, activity: readonly TeamActivity[]): Promise<void> {
-    await writeDatabase((db) =>
+    const { owner } = this;
+    await this.store.write((db) =>
       db.withExclusiveTransactionAsync(async (txn) => {
         const last = await txn.getFirstAsync<{ position: number | null }>(
-          'SELECT MAX(position) AS position FROM team_members',
+          'SELECT MAX(position) AS position FROM team_members WHERE owner_id = ?',
+          [owner],
         );
-        await writeTeamMember(txn, member, (last?.position ?? -1) + 1);
-        await writeTeamActivity(txn, activity);
+        await writeTeamMember(txn, owner, member, (last?.position ?? -1) + 1);
+        await writeTeamActivity(txn, owner, activity);
       }),
     );
   }
 
   async resetOnboarding(): Promise<void> {
-    await writeDatabase((db) =>
-      db.runAsync('UPDATE user_profile SET onboarded_at = NULL, goal = NULL'),
+    await this.store.write((db) =>
+      db.runAsync('UPDATE user_profile SET onboarded_at = NULL, goal = NULL WHERE owner_id = ?', [
+        this.owner,
+      ]),
     );
   }
 
+  /**
+   * Drops all local data: the device looks freshly installed, down to the
+   * profile being created again on the next read. The rows go, not the file —
+   * SQLite refuses to delete a database a running app holds open — and the
+   * schema stays at its version.
+   */
   async resetAllLocalData(): Promise<void> {
-    await resetDatabase();
+    await this.store.write(async (db) => {
+      const tables = await db.getAllAsync<{ name: string }>(
+        "SELECT name FROM sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite_%'",
+      );
+      await db.withExclusiveTransactionAsync(async (txn) => {
+        for (const { name } of tables) await txn.execAsync(`DELETE FROM "${name}"`);
+      });
+    });
   }
 }

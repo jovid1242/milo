@@ -4,10 +4,12 @@ import { gzipSync } from 'node:zlib';
 import { Inject, Injectable, Logger, type OnModuleInit } from '@nestjs/common';
 
 import { CHALLENGE } from '@/constants/challenge';
+import { CourseReader } from '@/data/repositories/course/course-reader';
 import { formatIssue, validateCourse } from '@/features/course/logic/validate';
 import { COURSE_SCHEMA_VERSION, type CourseManifest } from '@/schemas';
 
 import { ApiException } from '../common/api-exception';
+import { CourseContent } from '../progress/challenge-work';
 
 /** The course document to publish: the app's version-controlled course unless a test swaps it. */
 export const COURSE_SOURCE = Symbol('COURSE_SOURCE');
@@ -34,6 +36,7 @@ const unavailable = () =>
 export class CourseService implements OnModuleInit {
   private readonly logger = new Logger(CourseService.name);
   private published: PublishedCourse | null = null;
+  private contents: CourseContent | null = null;
 
   constructor(@Inject(COURSE_SOURCE) private readonly source: unknown) {}
 
@@ -66,6 +69,7 @@ export class CourseService implements OnModuleInit {
       json,
       gzip: gzipSync(json),
     };
+    this.contents = new CourseContent(course.id, course.version, new CourseReader(course));
     this.logger.log(
       {
         courseId: course.id,
@@ -79,6 +83,12 @@ export class CourseService implements OnModuleInit {
 
   get available(): boolean {
     return this.published !== null;
+  }
+
+  /** The published course's content: what progress is checked against. */
+  content(): CourseContent {
+    if (!this.contents) throw unavailable();
+    return this.contents;
   }
 
   manifest(): CourseManifest {
