@@ -20,7 +20,7 @@ export interface AccessTokens {
 }
 
 export type ApiRequest<T> = {
-  method?: 'GET' | 'POST' | 'PATCH' | 'DELETE';
+  method?: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
   /** Relative to the API root: `/auth/login`. */
   path: string;
   body?: unknown;

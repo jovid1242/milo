@@ -9,6 +9,7 @@ import type { AchievementFacts } from '@/features/achievements/logic/evaluate-ac
 import { challengeDayOn } from '@/features/challenge/logic/calendar';
 import { findCompletedDays } from '@/features/progress/logic/day-completion';
 import { computeStreak } from '@/features/progress/logic/streak';
+import { addDays } from '@/lib/dates';
 import { localDateIn } from '@/lib/time-zone';
 import {
   AchievementIdSchema,
@@ -29,6 +30,7 @@ import { CLOCK, type Clock } from '../common/clock';
 import { CourseService } from '../course/course.service';
 import { Prisma } from '../generated/prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
+import { TeamNews } from '../push/team-news';
 import { loadRoster, rosterStreak } from '../teams/team-progress';
 import {
   ChallengeWork,
@@ -304,6 +306,7 @@ export class ProgressService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly course: CourseService,
+    private readonly news: TeamNews,
     @Inject(CLOCK) private readonly clock: Clock,
   ) {}
 
@@ -396,7 +399,9 @@ export class ProgressService {
     const payloadHash = createHash('sha256').update(JSON.stringify(mutation)).digest('hex');
     return this.prisma.$transaction(async (tx): Promise<MutationResult> => {
       // Every progress write of this user waits here for the one before it.
-      await tx.$queryRaw`SELECT 1 FROM "users" WHERE "id" = ${userId}::uuid FOR UPDATE`;
+      // NO KEY UPDATE: writes of this user still take turns, while others may
+      // still point at the row — a teammate's progress queuing news for them.
+      await tx.$queryRaw`SELECT 1 FROM "users" WHERE "id" = ${userId}::uuid FOR NO KEY UPDATE`;
 
       const processed = await tx.processedMutation.findUnique({
         where: { userId_mutationId: { userId, mutationId: mutation.id } },
@@ -427,6 +432,7 @@ export class ProgressService {
         work.settleAchievements(at, await this.teamStreak(tx, userId, content, work));
         if (work.changed) {
           revision = await this.write(tx, userId, state.challenge, work.writes, mutation.id);
+          await this.announceToday(tx, userId, content, work, mutation, now);
         }
       }
       await tx.processedMutation.create({
@@ -444,6 +450,30 @@ export class ProgressService {
         ? { mutationId: mutation.id, status: 'rejected', ...rejection }
         : { mutationId: mutation.id, status: 'accepted' };
     }, TRANSACTION);
+  }
+
+  /**
+   * Today's challenge day finished with this mutation — played, not imported:
+   * the team hears of it, in this transaction (the push outbox). A day
+   * finished late, after time offline, is old news and stays quiet.
+   */
+  private async announceToday(
+    tx: Tx,
+    userId: string,
+    content: CourseContent,
+    work: ChallengeWork,
+    mutation: ProgressMutation,
+    now: Date,
+  ): Promise<void> {
+    if (mutation.type !== 'completeQuest' && mutation.type !== 'submitExam') return;
+    const today = work.today();
+    const startDate = work.startDate();
+    if (!today || !startDate) return;
+    const finishedToday = work.writes.days.some(
+      (record) => addDays(startDate, record.day - 1) === today,
+    );
+    if (!finishedToday) return;
+    await this.news.dayCompleted(tx, { userId, courseId: content.id, date: today, now });
   }
 
   /**
@@ -496,7 +526,7 @@ export class ProgressService {
     const today = localDateIn(own.timeZone, this.clock.now());
     if (rosterStreak(roster, today).longest < TEAM_BADGE.days) return;
     await this.prisma.$transaction(async (tx) => {
-      await tx.$queryRaw`SELECT 1 FROM "users" WHERE "id" = ${userId}::uuid FOR UPDATE`;
+      await tx.$queryRaw`SELECT 1 FROM "users" WHERE "id" = ${userId}::uuid FOR NO KEY UPDATE`;
       const stored = await tx.userChallenge.findUnique({
         where: { userId_courseId: { userId, courseId: content.id } },
         include: WITH_RECORDS,

@@ -439,6 +439,11 @@ export class ChallengeWork {
     return new Set(this.days.keys());
   }
 
+  /** Day 1 of the challenge; `null` before it starts. */
+  startDate(): LocalDate | null {
+    return this.challenge?.startDate ?? null;
+  }
+
   /** Today's date in the challenge's time zone; `null` before it starts. */
   today(): LocalDate | null {
     return this.challenge ? localDateIn(this.challenge.timeZone, this.now) : null;

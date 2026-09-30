@@ -22,6 +22,11 @@ export const TEST_ENV: Record<string, string> = {
   SWAGGER_ENABLED: 'false',
   TRUST_PROXY: 'false',
   LOG_LEVEL: 'silent',
+  // Notifications are queued as in production; tests run the worker by hand,
+  // with a fake Expo — a test never sends a real push.
+  PUSH_ENABLED: 'true',
+  PUSH_WORKER_ENABLED: 'false',
+  EXPO_ACCESS_TOKEN: '',
 };
 
 /** Refuses anything but a `…_test` database: tests delete every row they find. */

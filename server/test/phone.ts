@@ -3,6 +3,7 @@ import { randomUUID } from 'node:crypto';
 import { NodeSqliteStore } from '@/data/db/__fixtures__/node-sqlite-store';
 import { ApiAuthRepository } from '@/data/repositories/api/api-auth-repository';
 import { HttpProgressApi } from '@/data/repositories/api/progress-api';
+import { HttpPushApi } from '@/data/repositories/api/push-api';
 import { HttpTeamApi } from '@/data/repositories/api/team-api';
 import { LocalAuthRepository } from '@/data/repositories/local/local-auth-repository';
 import { LocalCourseRepository } from '@/data/repositories/local/local-course-repository';
@@ -21,7 +22,7 @@ import { PASSWORD } from './helpers';
 
 /**
  * The app on a phone — its SQLite schema and repositories, its sessions, its
- * sync engine and team client, over real HTTP — for tests that run the app's
+ * sync engine, team and push clients, over real HTTP — for tests that run the app's
  * own code against this server. Only the SQLite is Node's instead of iOS's.
  */
 
@@ -68,6 +69,7 @@ export class Phone {
       courseUpdates: null,
       progressApi: new HttpProgressApi(client),
       teamApi: new HttpTeamApi(client),
+      pushApi: new HttpPushApi(client),
       currentAccountId: () => this.session.user?.id ?? null,
       store: this.store,
       newId: () => randomUUID(),
@@ -122,6 +124,7 @@ export class Phone {
         auth: new LocalAuthRepository(),
         progressApi: null,
         teamApi: null,
+        pushApi: null,
       },
       owner: LOCAL_OWNER,
       account: null,

@@ -45,6 +45,16 @@ const EnvSchema = z
     LOG_LEVEL: z
       .enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace', 'silent'])
       .default('info'),
+    /** Team notifications: queued with the changes they are about, then sent. On unless turned off. */
+    PUSH_ENABLED: Flag,
+    /** Whether this process sends them (the push worker); off with PUSH_ENABLED. */
+    PUSH_WORKER_ENABLED: Flag,
+    /** For Expo projects with enhanced push security on. A secret: never logged. */
+    EXPO_ACCESS_TOKEN: z
+      .string()
+      .trim()
+      .optional()
+      .transform((value) => value || undefined),
   })
   .superRefine((env, ctx) => {
     if (env.JWT_ACCESS_SECRET === env.REFRESH_TOKEN_SECRET) {
@@ -74,6 +84,14 @@ export type AppConfig = {
   swaggerEnabled: boolean;
   trustProxy: boolean;
   logLevel: 'fatal' | 'error' | 'warn' | 'info' | 'debug' | 'trace' | 'silent';
+  push: {
+    /** Team notifications are queued with the changes they are about. */
+    enabled: boolean;
+    /** This process sends what is queued. */
+    workerEnabled: boolean;
+    /** Bearer token for Expo's push API, when the project requires one. */
+    expoAccessToken: string | null;
+  };
 };
 
 export class ConfigError extends Error {
@@ -116,6 +134,11 @@ export function loadConfig(source: Record<string, string | undefined>): AppConfi
     swaggerEnabled: env.SWAGGER_ENABLED ?? env.NODE_ENV !== 'production',
     trustProxy: env.TRUST_PROXY ?? false,
     logLevel: env.LOG_LEVEL,
+    push: {
+      enabled: env.PUSH_ENABLED ?? true,
+      workerEnabled: (env.PUSH_ENABLED ?? true) && (env.PUSH_WORKER_ENABLED ?? true),
+      expoAccessToken: env.EXPO_ACCESS_TOKEN ?? null,
+    },
   };
 }
 

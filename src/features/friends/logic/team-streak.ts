@@ -32,10 +32,10 @@ export type TeamStreakMember = {
 const later = (a: LocalDate, b: LocalDate) => (a > b ? a : b);
 
 /** The first date a member counts on: the day they joined, or their Day 1 if that is later. */
-const countsFrom = (member: TeamStreakMember) => later(member.joinedOn, member.startDate);
+export const countsFrom = (member: TeamStreakMember) => later(member.joinedOn, member.startDate);
 
 /** Whether the member finished their challenge day that falls on `date`. */
-function finishedOn(member: TeamStreakMember, date: LocalDate): boolean {
+export function finishedOn(member: TeamStreakMember, date: LocalDate): boolean {
   const day = diffInCalendarDays(member.startDate, date) + 1;
   return day >= 1 && day <= CHALLENGE.totalDays && member.completedDays.has(day);
 }

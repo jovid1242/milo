@@ -8,6 +8,7 @@ import request from 'supertest';
 import { AuthSessionSchema, type AuthSession } from '@/schemas';
 
 import type { Clock } from '../src/common/clock';
+import type { PushTransport } from '../src/push/expo-push.transport';
 import { loadConfig, type AppConfig } from '../src/config/env';
 import { createApp } from '../src/create-app';
 import { PrismaService } from '../src/prisma/prisma.service';
@@ -34,6 +35,8 @@ export type StartOptions = {
   logDestination?: DestinationStream;
   /** The server's time (default: the system clock). */
   clock?: Clock;
+  /** Where push notifications go (default: nowhere — sending fails in tests). */
+  pushTransport?: PushTransport;
 };
 
 export async function startApp(options: StartOptions = {}): Promise<TestApp> {
@@ -42,6 +45,7 @@ export async function startApp(options: StartOptions = {}): Promise<TestApp> {
     course: options.course,
     logDestination: options.logDestination,
     clock: options.clock,
+    pushTransport: options.pushTransport,
   });
   let baseUrl = '';
   if (options.listen) {

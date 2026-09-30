@@ -13,6 +13,7 @@ import { AccountProfileSync } from '@/features/auth/components/AccountProfileSyn
 import { SessionWatcher } from '@/features/auth/components/SessionWatcher';
 import { PendingInviteWatcher } from '@/features/friends/components/PendingInviteWatcher';
 import { needsOnboarding } from '@/features/onboarding/use-cases';
+import { PushSync } from '@/features/push/components/PushSync';
 import { ReminderSync } from '@/features/reminders/components/ReminderSync';
 import { useUser } from '@/features/profile/queries';
 import { useAppBootstrap } from '@/hooks/use-app-bootstrap';
@@ -100,6 +101,8 @@ function AppNavigator() {
       {inChallenge ? <AchievementCelebrationHost /> : null}
       {/* Daily reminders follow the preferences and the challenge, from here. */}
       <ReminderSync onboarded={inChallenge} />
+      {/* Team notifications (sent by the server) follow the switch and the account — apart. */}
+      <PushSync owner={session?.owner ?? null} inChallenge={inChallenge} />
       <SessionWatcher />
       <PendingInviteWatcher inChallenge={inChallenge} />
       {signedIn ? <AccountProfileSync /> : null}

@@ -17,6 +17,7 @@ import { CLOCK, type Clock } from '../common/clock';
 import { CourseService } from '../course/course.service';
 import { Prisma } from '../generated/prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
+import { TeamNews } from '../push/team-news';
 import { InviteCodes } from './invite-codes';
 import { loadRoster, nameOf, teamName, teamSnapshot } from './team-progress';
 
@@ -50,9 +51,13 @@ const alreadyInTeam = () =>
 const challengeNotStarted = () =>
   new ApiException(409, 'CHALLENGE_NOT_STARTED', 'Teams are for a challenge that has started.');
 
-/** Every team change of a user waits here for the one before it (and for their progress writes). */
+/**
+ * Every team change of a user waits here for the one before it (and for their
+ * progress writes, which take the same lock). NO KEY UPDATE leaves the row
+ * free to be pointed at meanwhile: news queued for this user by a teammate.
+ */
 const lockUser = (tx: Tx, userId: string) =>
-  tx.$queryRaw`SELECT 1 FROM "users" WHERE "id" = ${userId}::uuid FOR UPDATE`;
+  tx.$queryRaw`SELECT 1 FROM "users" WHERE "id" = ${userId}::uuid FOR NO KEY UPDATE`;
 
 /** Every change of a team's membership waits here: joins take turns, so a fourth never fits. */
 async function lockTeam(tx: Tx, teamId: string) {
@@ -87,6 +92,7 @@ export class TeamsService {
     private readonly prisma: PrismaService,
     private readonly course: CourseService,
     private readonly codes: InviteCodes,
+    private readonly news: TeamNews,
     @Inject(CLOCK) private readonly clock: Clock,
   ) {}
 
@@ -276,6 +282,12 @@ export class TeamsService {
         await tx.teamInvite.update({
           where: { id: invite.id },
           data: { useCount: { increment: 1 }, lastUsedAt: now },
+        });
+        await this.news.memberJoined(tx, {
+          teamId: team.id,
+          courseId: team.courseId,
+          userId,
+          now,
         });
         this.logger.log(
           {

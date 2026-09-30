@@ -82,6 +82,19 @@ export async function loadRoster(
   });
 }
 
+/** A member as the team streak counts them; `null` without a challenge. */
+export function streakMemberOf(
+  member: RosterMember,
+  completedDays?: ReadonlySet<DayNumber>,
+): TeamStreakMember | null {
+  if (!member.challenge) return null;
+  return {
+    startDate: member.challenge.startDate,
+    joinedOn: localDateIn(member.challenge.timeZone, member.joinedAt),
+    completedDays: completedDays ?? member.challenge.completedDays,
+  };
+}
+
 /**
  * The team streak on `today` (the viewer's date). `own` stands in for one
  * member's finished days — a mutation's, decided but not written yet.
@@ -91,18 +104,13 @@ export function rosterStreak(
   today: LocalDate,
   own?: { userId: string; completedDays: ReadonlySet<DayNumber> },
 ): TeamStreak {
-  const members: TeamStreakMember[] = roster.flatMap((member) =>
-    member.challenge
-      ? [
-          {
-            startDate: member.challenge.startDate,
-            joinedOn: localDateIn(member.challenge.timeZone, member.joinedAt),
-            completedDays:
-              own?.userId === member.userId ? own.completedDays : member.challenge.completedDays,
-          },
-        ]
-      : [],
-  );
+  const members = roster.flatMap((member) => {
+    const counted = streakMemberOf(
+      member,
+      own?.userId === member.userId ? own.completedDays : undefined,
+    );
+    return counted ? [counted] : [];
+  });
   return teamStreakOf(members, today);
 }
 

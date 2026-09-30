@@ -20,12 +20,15 @@ import { resetProgress } from '@/features/dev-tools/dev-actions';
 import { LinkRow } from '@/features/profile/components/LinkRow';
 import { useUser } from '@/features/profile/queries';
 import { useProgressState } from '@/features/progress/queries';
+import { TeamNotificationSettings } from '@/features/push/components/TeamNotificationSettings';
+import { teamNotifications } from '@/features/push/instance';
 import { ReminderSettings } from '@/features/reminders/components/ReminderSettings';
 import { useSystemReduceMotion } from '@/hooks/use-system-reduce-motion';
 import { parseLocalDate } from '@/lib/dates';
 import { logger } from '@/lib/logger';
 import { playFeedback } from '@/services/feedback';
 import { triggerHaptic } from '@/services/haptics/haptics';
+import { useAuthStore } from '@/stores/auth-store';
 import { useSettingsStore } from '@/stores/settings-store';
 import { colors, radius, spacing } from '@/theme';
 
@@ -69,6 +72,7 @@ export function SettingsScreen() {
   const setSoundEnabled = useSettingsStore((state) => state.setSoundEnabled);
   const setHapticsEnabled = useSettingsStore((state) => state.setHapticsEnabled);
   const [confirmingReset, setConfirmingReset] = useState(false);
+  const owner = useAuthStore((state) => state.session?.owner ?? null);
   const version = Constants.expoConfig?.version;
 
   const sections: Record<SettingsSection, ReactNode> = {
@@ -108,6 +112,11 @@ export function SettingsScreen() {
         <ReminderSettings />
       </Group>
     ),
+    team: owner ? (
+      <Group title="Team" key="team">
+        <TeamNotificationSettings owner={owner} />
+      </Group>
+    ) : null,
     motion: (
       <Group title="Motion" key="motion">
         <View style={styles.motionRow}>
@@ -214,6 +223,7 @@ export function SettingsScreen() {
         {visibleSettingsSections({
           devBuild: __DEV__,
           account: repositories.auth.mode === 'remote',
+          teamNotifications: teamNotifications.available,
         }).map((section) => sections[section])}
       </View>
       {__DEV__ ? (

@@ -35,6 +35,14 @@ npm-debug.*
 # local env files
 .env*.local
 
+# Firebase. The Android build's config: local only, served to EAS Build as a
+# file variable (GOOGLE_SERVICES_JSON) — never committed.
+google-services.json
+# Service-account keys never live in this repository, under any name.
+*firebase-adminsdk*.json
+*service-account*.json
+*service_account*.json
+
 # typescript
 *.tsbuildinfo
 

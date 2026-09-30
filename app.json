@@ -2,6 +2,7 @@
   "expo": {
     "name": "Milo",
     "slug": "milo",
+    "owner": "frankfrudo",
     "version": "1.0.0",
     "orientation": "portrait",
     "scheme": "milo",
@@ -11,6 +12,7 @@
       "supportsTablet": false
     },
     "android": {
+      "package": "com.jovid.milo",
       "predictiveBackGestureEnabled": false
     },
     "plugins": [
@@ -34,11 +36,23 @@
       ],
       "expo-asset",
       "@react-native-community/datetimepicker",
-      "expo-secure-store"
+      "expo-secure-store",
+      [
+        "expo-notifications",
+        {
+          "color": "#2F6B46",
+          "defaultChannel": "team-updates"
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true,
       "reactCompiler": true
+    },
+    "extra": {
+      "eas": {
+        "projectId": "99ac1d65-8359-436a-a8a7-342b76710337"
+      }
     }
   }
 }

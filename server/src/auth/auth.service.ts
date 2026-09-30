@@ -79,17 +79,23 @@ export class AuthService {
     return this.sessionFor(outcome.issued, now);
   }
 
-  /** Ends the device's session. Idempotent: an unknown or ended session is already logged out. */
+  /**
+   * Ends the device's session — and its team notifications with it. Idempotent:
+   * an unknown or ended session is already logged out.
+   */
   async logout(refreshToken: string, now = new Date()): Promise<void> {
     const token = await this.prisma.refreshToken.findUnique({
       where: { tokenHash: this.tokens.hashRefreshToken(refreshToken) },
       select: { sessionId: true },
     });
     if (!token) return;
-    await this.prisma.refreshSession.updateMany({
-      where: { id: token.sessionId, revokedAt: null },
-      data: { revokedAt: now, revokedReason: 'logout' },
-    });
+    await this.prisma.$transaction([
+      this.prisma.refreshSession.updateMany({
+        where: { id: token.sessionId, revokedAt: null },
+        data: { revokedAt: now, revokedReason: 'logout' },
+      }),
+      this.prisma.pushDevice.deleteMany({ where: { sessionId: token.sessionId } }),
+    ]);
   }
 
   private async rotate(tx: Tx, tokenHash: string, now: Date): Promise<Rotation> {
@@ -143,6 +149,8 @@ export class AuthService {
       where: { id: sessionId, revokedAt: null },
       data: { revokedAt: now, revokedReason: 'reuse' },
     });
+    // Whoever holds the copy gets no team news either.
+    await tx.pushDevice.deleteMany({ where: { sessionId } });
     return { kind: 'reused' };
   }
 

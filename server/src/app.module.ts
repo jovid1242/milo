@@ -12,6 +12,8 @@ import { CourseModule } from './course/course.module';
 import { HealthController } from './health/health.controller';
 import { PrismaModule } from './prisma/prisma.module';
 import { ProgressModule } from './progress/progress.module';
+import type { PushTransport } from './push/expo-push.transport';
+import { PushModule } from './push/push.module';
 import { TeamsModule } from './teams/teams.module';
 import { UsersModule } from './users/users.module';
 
@@ -22,6 +24,8 @@ export type AppOptions = {
   logDestination?: DestinationStream;
   /** The time the server works with instead of the system clock (tests). */
   clock?: Clock;
+  /** Where push notifications go instead of Expo (tests: a fake — never Expo). */
+  pushTransport?: PushTransport;
 };
 
 @Module({})
@@ -35,6 +39,7 @@ export class AppModule {
         LoggerModule.forRoot(loggerParams(config, options.logDestination)),
         PrismaModule,
         RateLimitModule,
+        PushModule.forRoot(options.pushTransport),
         AuthModule,
         UsersModule,
         CourseModule.forRoot(options.course),

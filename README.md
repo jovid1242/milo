@@ -9,8 +9,9 @@ for offline play. Progress stays in SQLite either way — it does not sync yet.
 ## Commands
 
 ```bash
-npm start                 # Expo dev server
-npm run ios               # dev server + iOS Simulator
+npm start                 # Expo dev server — for development builds (expo-dev-client)
+npx expo start --go       # the same, for Expo Go
+npm run ios               # dev server + iOS Simulator, in Expo Go
 npm run typecheck         # tsc --noEmit
 npm run lint              # expo lint (ESLint 9, eslint-config-expo)
 npm test                  # jest-expo unit tests (domain logic + content validation)
@@ -148,6 +149,9 @@ unsafe value stops the API with a list of every problem):
 | `CORS_ORIGINS`                  | empty                         | comma-separated browser origins; the mobile app needs none                |
 | `SWAGGER_ENABLED`               | on outside production         | `true` in staging                                                         |
 | `TRUST_PROXY`                   | `false`                       | behind a reverse proxy: client IP for rate limits and logs                |
+| `PUSH_ENABLED`                  | `true`                        | team notifications queued and sent ([docs](docs/push-notifications.md))   |
+| `PUSH_WORKER_ENABLED`           | `true`                        | this process runs the push worker (off with `PUSH_ENABLED=false`)         |
+| `EXPO_ACCESS_TOKEN`             | empty                         | only with Expo's Enhanced Push Security on; server-only secret            |
 | `PORT`, `NODE_ENV`, `LOG_LEVEL` | `3000`, `development`, `info` |                                                                           |
 
 In production the example secrets are refused. Real secrets never go into git (`server/.env` is
@@ -173,25 +177,27 @@ course bundled (content work without a server round trip).
 
 ### API (`/api/v1`)
 
-|                                            |                                                                                                    |
-| ------------------------------------------ | -------------------------------------------------------------------------------------------------- |
-| `POST /auth/register`                      | `{ email, password }` → session (201). Credentials only: name and goal come from onboarding        |
-| `POST /auth/login`                         | `{ email, password }` → session. Unknown email and wrong password answer alike                     |
-| `POST /auth/refresh`                       | `{ refreshToken }` → the next session (the token rotates)                                          |
-| `POST /auth/logout`                        | `{ refreshToken }` → 204; revokes that device's session. Idempotent                                |
-| `GET /auth/me`                             | the account (Bearer)                                                                               |
-| `GET /users/me`, `PATCH /users/me`         | the account; PATCH accepts only `displayName` and `goal`                                           |
-| `GET /course/current`                      | the manifest: `courseId`, `version`, `schemaVersion`, `contentHash`, `documentPath`                |
-| `GET /courses/:courseId/versions/:version` | the course document (ETag = its SHA-256, gzip, 304)                                                |
-| `GET /progress`                            | the account's progress and its revision (Bearer)                                                   |
-| `POST /progress/sync`                      | offline mutations (≤ 50, in order) → one result each + the progress when it changed                |
-| `GET /teams/me`, `POST /teams`             | the user's team (or `null`); make one — see [docs/teams-and-invites.md](docs/teams-and-invites.md) |
-| `POST /teams/:teamId/invites`              | the team's open invite (members only)                                                              |
-| `DELETE /team-invites/:inviteId`           | turn an invite off (its maker or the owner)                                                        |
-| `POST /team-invites/preview`, `…/join`     | `{ code }` → the team before joining / join it (rate-limited per account)                          |
-| `POST /teams/:teamId/leave`                | leave; ownership passes on, the last member deletes the team                                       |
-| `GET /health` (outside `/api/v1`)          | alive; `{ status, database: "up" \| "down" }`                                                      |
-| `GET /ready` (outside `/api/v1`)           | 200 when the database and the course are up, else 503                                              |
+|                                            |                                                                                                              |
+| ------------------------------------------ | ------------------------------------------------------------------------------------------------------------ |
+| `POST /auth/register`                      | `{ email, password }` → session (201). Credentials only: name and goal come from onboarding                  |
+| `POST /auth/login`                         | `{ email, password }` → session. Unknown email and wrong password answer alike                               |
+| `POST /auth/refresh`                       | `{ refreshToken }` → the next session (the token rotates)                                                    |
+| `POST /auth/logout`                        | `{ refreshToken }` → 204; revokes that device's session. Idempotent                                          |
+| `GET /auth/me`                             | the account (Bearer)                                                                                         |
+| `GET /users/me`, `PATCH /users/me`         | the account; PATCH accepts only `displayName` and `goal`                                                     |
+| `GET /course/current`                      | the manifest: `courseId`, `version`, `schemaVersion`, `contentHash`, `documentPath`                          |
+| `GET /courses/:courseId/versions/:version` | the course document (ETag = its SHA-256, gzip, 304)                                                          |
+| `GET /progress`                            | the account's progress and its revision (Bearer)                                                             |
+| `POST /progress/sync`                      | offline mutations (≤ 50, in order) → one result each + the progress when it changed                          |
+| `GET /teams/me`, `POST /teams`             | the user's team (or `null`); make one — see [docs/teams-and-invites.md](docs/teams-and-invites.md)           |
+| `POST /teams/:teamId/invites`              | the team's open invite (members only)                                                                        |
+| `DELETE /team-invites/:inviteId`           | turn an invite off (its maker or the owner)                                                                  |
+| `POST /team-invites/preview`, `…/join`     | `{ code }` → the team before joining / join it (rate-limited per account)                                    |
+| `POST /teams/:teamId/leave`                | leave; ownership passes on, the last member deletes the team                                                 |
+| `PUT`, `DELETE /push/devices/current`      | team notifications on (`{ token, platform }`) / off for this device — see [docs](docs/push-notifications.md) |
+| `POST /push/devices/unregister`            | `{ token }` → 204: a signed-out phone forgets its token (no account; rate-limited)                           |
+| `GET /health` (outside `/api/v1`)          | alive; `{ status, database: "up" \| "down" }`                                                                |
+| `GET /ready` (outside `/api/v1`)           | 200 when the database and the course are up, else 503                                                        |
 
 A session is `{ user, accessToken, accessTokenExpiresAt, refreshToken, refreshTokenExpiresAt }`.
 Every error is `{ code, message, details? }` with a stable `code` (`VALIDATION_ERROR`,
@@ -260,7 +266,11 @@ the database's own limits, leaving and ownership, the last member, privacy of th
 the team's progress and streak from real play, XP no phone can claim, the Team Streak badge (once
 per member, by sync) and the invite rate limit; `test/teams-app.test.ts` runs the app's own team
 client and cache against it (three phones, a fourth finding the team full, offline, two accounts
-on one phone, the badge celebrated once). Set `TEST_DATABASE_URL` to use another database.
+on one phone, the badge celebrated once). `test/push-*.test.ts` cover team notifications: device
+registration (rotation, several devices, logout, the account switch), who hears which event — once,
+one per person per action, the team day exactly once under concurrency, the streak milestones —
+and the worker (batches, retries and backoff, receipts, two workers, pruning, no token in the logs),
+against a fake Expo: no test ever sends a push. Set `TEST_DATABASE_URL` to use another database.
 
 ## Accounts in the app (API mode)
 
@@ -614,6 +624,9 @@ in [`docs/teams-and-invites.md`](docs/teams-and-invites.md).
   It unlocks the Team Streak badge (7 in a row) on the server, once per member.
 - Member statuses ("Done", "Almost there"…) and the words ("One more to go") are derived on the
   phone, never stored; the team is named, never a person.
+- **Team notifications** (Android): a teammate joins or finishes today, your turn, the team day
+  complete, streak milestones — sent by the server through Expo and FCM, one per person per action.
+  See [`docs/push-notifications.md`](docs/push-notifications.md).
 
 ## Profile & Settings
 
@@ -625,7 +638,9 @@ in [`docs/teams-and-invites.md`](docs/teams-and-invites.md).
   its default), the system Reduce Motion state (the app follows it; no duplicate toggle), the
   display name, the challenge start date, About with the version from `app.json`. The developer
   group (dev tools, reset with confirmation) exists only in `__DEV__` builds. With an account
-  (API mode), an Account group comes first: who is signed in, and Log out.
+  (API mode), an Account group comes first: who is signed in, and Log out — and, on Android builds
+  of Milo, a Team group: **Team notifications** (`features/push`), on only after the permission
+  flow and the server's registration.
 - `SoundManager.play` and `triggerHaptic` read the preferences centrally — no screen checks them.
 
 ## Daily reminders
@@ -659,8 +674,10 @@ a time the user picks — no push, no server, no account.
   checkpoint days and Day 90 get their own.
 - **Tap** opens Today (`/`) — the completed Home after the summit. While the app is open, a daily
   reminder stays silent.
-- Expo Go runs local notifications on iOS; the `expo-notifications` config plugin is not added
-  on purpose (it configures push entitlements, which local notifications do not need).
+- The daily reminder is **local** and stays that way: no server, no push token, no network. Team
+  notifications are server pushes, apart (`features/push`, [docs](docs/push-notifications.md));
+  the two share only the permission. The `expo-notifications` plugin in `app.json` sets the
+  Android notification color and the push channel; Expo Go still runs the reminder on iOS.
 
 ## Development tools
 
@@ -690,5 +707,7 @@ every feedback event and haptic pattern, reset local data.
 
 - No hardcoded colors, spacing or typography — use `@/theme` tokens.
 - Screens stay thin: data via queries, logic in `logic/` or `use-cases.ts`.
-- Expo Go compatible: no custom native code, no prebuild config beyond `app.json` plugins.
+- No custom native code: configuration only through `app.json` / `app.config.ts` plugins. The app
+  runs in Expo Go (`npx expo start --go`) except team notifications, which need a development
+  build (`eas build -p android --profile development`).
 - Expo SDK 57 changed a lot: check https://docs.expo.dev/versions/v57.0.0/ before using an API.

@@ -67,6 +67,9 @@ export function loggerParams(config: AppConfig, destination?: DestinationStream)
         '*.passwordHash',
         '*.accessToken',
         '*.refreshToken',
+        // Expo push tokens (never logged on purpose: this is a second line of defence).
+        '*.token',
+        '*.pushToken',
         '*.authorization',
         '*.headers.authorization',
         '*.headers.cookie',

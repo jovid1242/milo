@@ -66,6 +66,7 @@ export class TestDevice {
       courseUpdates: null,
       progressApi: server.api(() => this.signedIn),
       teamApi: server.teamApi?.(() => this.signedIn) ?? null,
+      pushApi: null,
       currentAccountId: () => this.signedIn,
       store: this.store,
       newId: () => uuid((this.ids += 1)),

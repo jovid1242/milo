@@ -30,6 +30,8 @@ model User {
   teamMembership     TeamMember?
   teamsCreated       Team[]              @relation("TeamCreator")
   invitesCreated     TeamInvite[]
+  pushDevices        PushDevice[]
+  pushJobs           PushJob[]
 
   @@map("users")
 }
@@ -48,6 +50,8 @@ model RefreshSession {
   revokedReason String?
   userAgent     String?
   tokens        RefreshToken[]
+  /// The device's push registration, while it wants team notifications.
+  pushDevice    PushDevice?
 
   @@index([userId])
   @@map("refresh_sessions")
@@ -289,6 +293,7 @@ model Team {
   updatedAt   DateTime     @updatedAt @db.Timestamptz(3)
   members     TeamMember[]
   invites     TeamInvite[]
+  pushJobs    PushJob[]
 
   @@map("teams")
 }
@@ -337,4 +342,112 @@ model TeamInvite {
 
   @@index([teamId])
   @@map("team_invites")
+}
+
+// ---------------------------------------------------------------------------
+// Push notifications: team news, sent through Expo's push service (Firebase
+// Cloud Messaging on Android). A notification is a job in an outbox, written
+// in the same transaction as the change it is about and sent after the commit
+// by the push worker — so a change is never lost for want of a notification,
+// and a notification never goes out for a change that did not happen.
+// ---------------------------------------------------------------------------
+
+enum PushPlatform {
+  android
+  ios
+}
+
+/// A signed-in device that turned Team Notifications on: one per session.
+/// The token is the session's alone — registered by another session, it moves
+/// there — and it ends with the session: signing out deletes it.
+model PushDevice {
+  id        String         @id @default(uuid()) @db.Uuid
+  userId    String         @db.Uuid
+  user      User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  sessionId String         @unique @db.Uuid
+  session   RefreshSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  /// The Expo push token (`ExponentPushToken[…]`). Never logged whole.
+  token     String         @unique
+  platform  PushPlatform
+  createdAt DateTime       @default(now()) @db.Timestamptz(3)
+  /// The last time the device confirmed it.
+  updatedAt DateTime       @updatedAt @db.Timestamptz(3)
+  tickets   PushTicket[]
+
+  @@index([userId])
+  @@map("push_devices")
+}
+
+enum PushKind {
+  TEAM_MEMBER_JOINED
+  TEAM_MEMBER_COMPLETED_DAY
+  TEAM_YOUR_TURN
+  TEAM_DAY_COMPLETE
+  TEAM_STREAK_MILESTONE
+}
+
+enum PushJobStatus {
+  /// Waiting for the worker (again, after a failed try).
+  pending
+  /// Claimed by a worker until `lockedUntil`.
+  sending
+  /// Expo accepted it — which is not yet delivery.
+  sent
+  /// Given up on (see `reason`).
+  failed
+  /// Not sent, and never will be (see `reason`).
+  cancelled
+}
+
+/// A notification for one person: one per recipient and event. `dedupeKey`
+/// names the event for its recipient, so the same news is never queued twice
+/// — however often the change behind it is retried or synced again.
+model PushJob {
+  id          String        @id @default(uuid()) @db.Uuid
+  dedupeKey   String        @unique
+  /// The recipient.
+  userId      String        @db.Uuid
+  user        User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  kind        PushKind
+  /// Which of a day's team news wins for its recipient: news still waiting
+  /// gives way to more important news about the same team and day.
+  priority    Int           @db.SmallInt
+  teamId      String        @db.Uuid
+  team        Team          @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  /// The team day the news is about; null for a new teammate.
+  eventDate   DateTime?     @db.Date
+  title       String
+  body        String
+  /// The payload for the app — `{ kind, teamId, dayNumber? }` and nothing more.
+  data        Json
+  status      PushJobStatus @default(pending)
+  /// Why it was cancelled (superseded · expired · noDevice · notMember) or failed.
+  reason      String?
+  attempts    Int           @default(0)
+  /// Not before then: retries back off.
+  runAt       DateTime      @db.Timestamptz(3)
+  /// A worker's claim: once it has passed, another worker may take the job.
+  lockedUntil DateTime?     @db.Timestamptz(3)
+  /// Old news is not sent.
+  expiresAt   DateTime      @db.Timestamptz(3)
+  createdAt   DateTime      @db.Timestamptz(3)
+  sentAt      DateTime?     @db.Timestamptz(3)
+
+  @@index([status, runAt])
+  @@index([userId, teamId, eventDate])
+  @@index([createdAt])
+  @@map("push_jobs")
+}
+
+/// Expo's ticket for one message sent to a device, kept until its receipt is
+/// checked (about 15 minutes later) — only to learn whether the device is gone.
+model PushTicket {
+  /// Expo's ticket id, which is also its receipt id.
+  id        String     @id
+  deviceId  String     @db.Uuid
+  device    PushDevice @relation(fields: [deviceId], references: [id], onDelete: Cascade)
+  createdAt DateTime   @db.Timestamptz(3)
+
+  @@index([createdAt])
+  @@map("push_tickets")
 }

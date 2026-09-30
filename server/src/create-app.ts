@@ -41,7 +41,7 @@ export async function createApp(
   app.enableCors({
     // The mobile app needs no CORS; browsers get only the listed origins.
     origin: config.corsOrigins.length > 0 ? config.corsOrigins : false,
-    methods: ['GET', 'POST', 'PATCH', 'DELETE'],
+    methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'],
     allowedHeaders: ['Authorization', 'Content-Type', 'If-None-Match', 'X-Request-Id'],
     exposedHeaders: ['ETag', 'X-Request-Id', 'Retry-After'],
   });

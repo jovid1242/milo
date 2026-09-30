@@ -3,6 +3,7 @@ import type { LocalStore } from '@/data/db/local-store';
 import { AccountProgressSync } from './account-progress-sync';
 import { ApiFriendsRepository } from './api/api-friends-repository';
 import type { ProgressApi } from './api/progress-api';
+import type { PushApi } from './api/push-api';
 import type { TeamApi } from './api/team-api';
 import { LocalDevRepository } from './local/local-dev-repository';
 import { LocalFriendsRepository } from './local/local-friends-repository';
@@ -29,6 +30,8 @@ export type DeviceServices = {
   progressApi: ProgressApi | null;
   /** Teams on the API; `null` in local mode. */
   teamApi: TeamApi | null;
+  /** Team notifications on the API; `null` in local mode (there is no server to send them). */
+  pushApi: PushApi | null;
   /** The account the session on this device belongs to, right now. */
   currentAccountId: () => string | null;
   store: LocalStore;

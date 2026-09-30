@@ -13,6 +13,7 @@ import { ApiAuthRepository } from './api/api-auth-repository';
 import { ApiCourseRepository } from './api/api-course-repository';
 import { HttpCourseApi } from './api/course-api';
 import { HttpProgressApi } from './api/progress-api';
+import { HttpPushApi } from './api/push-api';
 import { HttpTeamApi } from './api/team-api';
 import { LocalAuthRepository } from './local/local-auth-repository';
 import { LocalCourseRepository } from './local/local-course-repository';
@@ -39,6 +40,7 @@ export function createDeviceServices(
       courseUpdates: null,
       progressApi: null,
       teamApi: null,
+      pushApi: null,
       currentAccountId: () => null,
       store,
       newId,
@@ -60,6 +62,7 @@ export function createDeviceServices(
     auth: new ApiAuthRepository(client, session),
     progressApi: new HttpProgressApi(client),
     teamApi: new HttpTeamApi(client),
+    pushApi: new HttpPushApi(client),
     currentAccountId: () => session.user?.id ?? null,
     store,
     newId,
