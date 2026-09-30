@@ -4,6 +4,8 @@ import { performance } from 'node:perf_hooks';
 import { Inject, Injectable, Logger } from '@nestjs/common';
 import { z } from 'zod';
 
+import { ACHIEVEMENTS } from '@/data/content/achievements';
+import type { AchievementFacts } from '@/features/achievements/logic/evaluate-achievements';
 import { challengeDayOn } from '@/features/challenge/logic/calendar';
 import { findCompletedDays } from '@/features/progress/logic/day-completion';
 import { computeStreak } from '@/features/progress/logic/streak';
@@ -27,6 +29,7 @@ import { CLOCK, type Clock } from '../common/clock';
 import { CourseService } from '../course/course.service';
 import { Prisma } from '../generated/prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
+import { loadRoster, rosterStreak } from '../teams/team-progress';
 import {
   ChallengeWork,
   emptyState,
@@ -59,6 +62,13 @@ const fromLocalDate = (date: string) => new Date(`${date}T00:00:00.000Z`);
 
 /** Transactions that may write a whole legacy history get room to. */
 const TRANSACTION = { maxWait: 10_000, timeout: 30_000 } as const;
+
+/** The badge a team earns together, and the team days in a row it takes. */
+const TEAM_BADGE = ACHIEVEMENTS.flatMap((achievement) =>
+  achievement.rule.type === 'teamStreak'
+    ? [{ id: achievement.id, days: achievement.rule.count }]
+    : [],
+)[0];
 
 function toState(stored: StoredChallenge | null): ChallengeState {
   if (!stored) return emptyState();
@@ -336,6 +346,7 @@ export class ProgressService {
     for (const mutation of request.mutations) {
       results.push(await this.apply(userId, mutation, content));
     }
+    await this.settleTeamBadge(userId, content);
     const { revision, progress } = await this.read(userId, content, request.knownRevision);
 
     const count = (status: MutationResult['status']) =>
@@ -413,7 +424,7 @@ export class ProgressService {
       if (!rejection) {
         const time = deviceTime(mutation);
         const at = time && new Date(time).getTime() < now.getTime() ? new Date(time) : now;
-        work.settleAchievements(at);
+        work.settleAchievements(at, await this.teamStreak(tx, userId, content, work));
         if (work.changed) {
           revision = await this.write(tx, userId, state.challenge, work.writes, mutation.id);
         }
@@ -435,13 +446,85 @@ export class ProgressService {
     }, TRANSACTION);
   }
 
-  /** Writes what a mutation added and moves the revision on; returns the new revision. */
+  /**
+   * The team streak facts for the badge: the user's team from the server's
+   * records, with the user's own finished days as this work has them (its
+   * newest day is not written yet). `null` without a team to share it with.
+   */
+  private async teamStreak(
+    tx: Tx,
+    userId: string,
+    content: CourseContent,
+    work: ChallengeWork,
+  ): Promise<AchievementFacts['teamStreak']> {
+    const today = work.today();
+    if (!today) return null;
+    const membership = await tx.teamMember.findUnique({
+      where: { userId },
+      select: { teamId: true },
+    });
+    if (!membership) return null;
+    const roster = await loadRoster(tx, membership.teamId, content.id);
+    if (roster.length < 2) return null;
+    const { current, longest } = rosterStreak(roster, today, {
+      userId,
+      completedDays: work.completedDays(),
+    });
+    return { current, longest };
+  }
+
+  /**
+   * The team badge can be earned by a teammate's day, not only by the user's
+   * own: every sync checks for it, so each member gets it — once — the next
+   * time their device syncs. Granted by the server itself, with no mutation.
+   */
+  private async settleTeamBadge(userId: string, content: CourseContent): Promise<void> {
+    if (!TEAM_BADGE) return;
+    const membership = await this.prisma.teamMember.findUnique({
+      where: { userId },
+      select: { teamId: true },
+    });
+    if (!membership) return;
+    const unlocked = await this.prisma.achievementUnlock.count({
+      where: { achievementId: TEAM_BADGE.id, challenge: { userId, courseId: content.id } },
+    });
+    if (unlocked > 0) return;
+    // Read first: only a run long enough is worth the locked write.
+    const roster = await loadRoster(this.prisma, membership.teamId, content.id);
+    const own = roster.find((member) => member.userId === userId)?.challenge;
+    if (roster.length < 2 || !own) return;
+    const today = localDateIn(own.timeZone, this.clock.now());
+    if (rosterStreak(roster, today).longest < TEAM_BADGE.days) return;
+    await this.prisma.$transaction(async (tx) => {
+      await tx.$queryRaw`SELECT 1 FROM "users" WHERE "id" = ${userId}::uuid FOR UPDATE`;
+      const stored = await tx.userChallenge.findUnique({
+        where: { userId_courseId: { userId, courseId: content.id } },
+        include: WITH_RECORDS,
+      });
+      if (!stored) return;
+      const state = toState(stored);
+      const now = this.clock.now();
+      const work = new ChallengeWork(state, content, now);
+      work.settleAchievements(now, await this.teamStreak(tx, userId, content, work));
+      if (!work.changed) return;
+      const revision = await this.write(tx, userId, state.challenge, work.writes, null);
+      this.logger.log(
+        { userId, unlocked: work.writes.unlocks.map((unlock) => unlock.achievementId), revision },
+        'Team badge',
+      );
+    }, TRANSACTION);
+  }
+
+  /**
+   * Writes what a mutation added and moves the revision on; returns the new
+   * revision. `mutationId` is `null` for what the server grants on its own.
+   */
   async write(
     tx: Tx,
     userId: string,
     existing: ChallengeRecord | null,
     writes: ChallengeWrites,
-    mutationId: string,
+    mutationId: string | null,
   ): Promise<number> {
     let challengeId: string;
     let revision: number;
@@ -485,13 +568,22 @@ export class ProgressService {
   }
 
   /** The records themselves. Unique keys make a second copy of any of them impossible. */
-  async writeRecords(tx: Tx, challengeId: string, writes: ChallengeWrites, mutationId: string) {
+  async writeRecords(
+    tx: Tx,
+    challengeId: string,
+    writes: ChallengeWrites,
+    mutationId: string | null,
+  ) {
+    const played = () => {
+      if (mutationId === null) throw new Error('Quests and exams are recorded by a mutation');
+      return mutationId;
+    };
     if (writes.completions.length > 0) {
       await tx.questCompletion.createMany({
         data: writes.completions.map(({ answers, ...completion }) => ({
           ...completion,
           challengeId,
-          mutationId,
+          mutationId: played(),
           answers: answers ?? Prisma.DbNull,
         })),
       });
@@ -514,7 +606,11 @@ export class ProgressService {
     }
     if (writes.attempts.length > 0) {
       await tx.examAttempt.createMany({
-        data: writes.attempts.map((attempt) => ({ ...attempt, challengeId, mutationId })),
+        data: writes.attempts.map((attempt) => ({
+          ...attempt,
+          challengeId,
+          mutationId: played(),
+        })),
       });
     }
     if (writes.ledger.length > 0) {

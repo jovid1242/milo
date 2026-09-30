@@ -1,4 +1,5 @@
 import { NodeSqliteStore } from '@/data/db/__fixtures__/node-sqlite-store';
+import type { TeamApi } from '@/data/repositories/api/team-api';
 import { LocalAuthRepository } from '@/data/repositories/local/local-auth-repository';
 import { LocalCourseRepository } from '@/data/repositories/local/local-course-repository';
 import { LOCAL_OWNER, type DeviceServices } from '@/data/repositories/owner-repositories';
@@ -49,7 +50,11 @@ export class TestDevice {
   private ids = 0;
 
   constructor(
-    readonly server: { api: FakeProgressServer['api'] },
+    readonly server: {
+      api: FakeProgressServer['api'];
+      /** Teams too, when the test has a team server. */
+      teamApi?: (signedIn: () => string | null) => TeamApi;
+    },
     path = ':memory:',
     id = 0,
   ) {
@@ -60,6 +65,7 @@ export class TestDevice {
       course: new LocalCourseRepository(),
       courseUpdates: null,
       progressApi: server.api(() => this.signedIn),
+      teamApi: server.teamApi?.(() => this.signedIn) ?? null,
       currentAccountId: () => this.signedIn,
       store: this.store,
       newId: () => uuid((this.ids += 1)),

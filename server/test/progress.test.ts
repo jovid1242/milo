@@ -602,7 +602,7 @@ describe('the sync request', () => {
           data: writes.completions.map(({ answers: _answers, ...completion }) => ({
             ...completion,
             challengeId,
-            mutationId,
+            mutationId: mutationId ?? quest.id,
           })),
         });
         throw new Error('connection lost');

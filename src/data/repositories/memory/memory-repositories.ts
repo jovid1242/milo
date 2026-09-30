@@ -1,7 +1,6 @@
 import { z } from 'zod';
 
 import { ACHIEVEMENTS } from '@/data/content/achievements';
-import { generateInviteCode, normalizeInviteCode } from '@/features/friends/logic/invite-code';
 import {
   AchievementSchema,
   DisplayNameSchema,
@@ -17,9 +16,7 @@ import {
   type LocalDate,
   type QuestCompletion,
   type QuestSession,
-  type Team,
-  type TeamActivity,
-  type TeamMember,
+  type TeamSnapshot,
   type Timestamp,
   type User,
   type ExamAttempt,
@@ -27,8 +24,12 @@ import {
   type XpEventReason,
 } from '@/schemas';
 
+import { ApiFriendsRepository } from '../api/api-friends-repository';
+import type { TeamApi } from '../api/team-api';
 import { LocalAuthRepository } from '../local/local-auth-repository';
 import { LocalCourseRepository } from '../local/local-course-repository';
+import { LocalFriendsRepository } from '../local/local-friends-repository';
+import { MemoryTeamCache } from '../local/sqlite-team-cache';
 import type {
   AchievementRepository,
   ChallengeStart,
@@ -36,7 +37,6 @@ import type {
   ExamRepository,
   ExamSubmissionOutcome,
   ExamSubmissionWrite,
-  FriendsRepository,
   ProgressRepository,
   Repositories,
   UserRepository,
@@ -61,9 +61,8 @@ export type MemoryStore = {
   /** Keyed by `word|quest`, like the SQLite primary key. */
   words: Map<string, LearnedWord>;
   unlocks: Map<AchievementId, AchievementUnlock>;
-  team: Team | null;
-  members: TeamMember[];
-  activity: TeamActivity[];
+  /** The last answer about the team. */
+  team: MemoryTeamCache;
 };
 
 /** Quest, exam pass and badge rewards are unique per ref — like the SQLite index. */
@@ -380,46 +379,6 @@ class MemoryAchievementRepository implements AchievementRepository {
   }
 }
 
-class MemoryFriendsRepository implements FriendsRepository {
-  constructor(private readonly store: MemoryStore) {}
-
-  async getMyTeam() {
-    return this.store.team;
-  }
-
-  async getTeamMembers() {
-    return this.store.members;
-  }
-
-  async getMemberDetails(memberId: string) {
-    return this.store.members.find((member) => member.id === memberId) ?? null;
-  }
-
-  async getTeamActivity(limit: number) {
-    return [...this.store.activity]
-      .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
-      .slice(0, limit);
-  }
-
-  async createInvite(now: string) {
-    this.store.team ??= {
-      id: `team-${Date.parse(now).toString(36)}`,
-      name: 'Our team',
-      inviteCode: generateInviteCode(),
-      createdAt: now,
-    };
-    const team = this.store.team;
-    return { teamId: team.id, code: team.inviteCode, createdAt: team.createdAt, joinable: false };
-  }
-
-  async joinTeam(code: string) {
-    const normalized = normalizeInviteCode(code);
-    if (!normalized) return { status: 'invalidCode' as const };
-    if (this.store.team?.inviteCode === normalized) return { status: 'alreadyMember' as const };
-    return { status: 'unavailable' as const };
-  }
-}
-
 class MemoryDevRepository implements DevRepository {
   constructor(
     private readonly store: MemoryStore,
@@ -441,19 +400,8 @@ class MemoryDevRepository implements DevRepository {
     if (challenge && !this.store.challenge) this.store.challenge = challenge;
   }
 
-  async replaceTeam(
-    team: Team | null,
-    members: readonly TeamMember[],
-    activity: readonly TeamActivity[],
-  ) {
-    this.store.team = team;
-    this.store.members = team ? [...members] : [];
-    this.store.activity = team ? [...activity] : [];
-  }
-
-  async addTeamMember(member: TeamMember, activity: readonly TeamActivity[]) {
-    this.store.members = [...this.store.members.filter((item) => item.id !== member.id), member];
-    this.store.activity = [...this.store.activity, ...activity];
+  async replaceTeam(team: TeamSnapshot | null) {
+    await this.store.team.write({ team, asOf: new Date().toISOString() });
   }
 
   async resetOnboarding() {
@@ -469,10 +417,12 @@ class MemoryDevRepository implements DevRepository {
 /**
  * `onboarded: false` gives a brand-new profile, as on a first launch; by
  * default the user is already on the way (most domain tests start there).
+ * With `team`, the team is on that API, as the account `team.selfId`;
+ * without, it is local mode's (a demo in the cache, no changes).
  */
 export function createMemoryRepositories(
   challengeStartDate: LocalDate,
-  { onboarded = true }: { onboarded?: boolean } = {},
+  { onboarded = true, team }: { onboarded?: boolean; team?: { api: TeamApi; selfId: string } } = {},
 ): Repositories & {
   store: MemoryStore;
 } {
@@ -495,9 +445,7 @@ export function createMemoryRepositories(
     challenge: null,
     words: new Map(),
     unlocks: new Map(),
-    team: null,
-    members: [],
-    activity: [],
+    team: new MemoryTeamCache(),
   };
   const progress = new MemoryProgressRepository(store);
   return {
@@ -509,7 +457,9 @@ export function createMemoryRepositories(
     progress,
     achievements: new MemoryAchievementRepository(store),
     exams: new MemoryExamRepository(store),
-    friends: new MemoryFriendsRepository(store),
+    friends: team
+      ? new ApiFriendsRepository(team.api, store.team, team.selfId)
+      : new LocalFriendsRepository(store.team),
     sync: null,
     dev: new MemoryDevRepository(store, progress),
   };

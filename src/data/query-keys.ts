@@ -49,8 +49,12 @@ export const queryKeys = {
   /** The team: it depends on the user's own progress too, so progress changes refresh it. */
   friends: {
     all: ['friends'] as const,
+    /** What this device shows: the last answer, with the user's own progress. */
     team: ['friends', 'team'] as const,
-    member: (memberId: string) => ['friends', 'member', memberId] as const,
-    activity: ['friends', 'activity'] as const,
+    /** Asking the server (its answer replaces the last one). */
+    server: ['friends', 'server'] as const,
+    member: (userId: string) => ['friends', 'member', userId] as const,
+    /** The team behind an invite code. */
+    invite: (code: string) => ['friends', 'invite', code] as const,
   },
 } as const;

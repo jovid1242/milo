@@ -29,9 +29,10 @@ export function useTeamMoments(view: TeamView | null): TeamMoments {
   // Compared while rendering, so new cards never flash in before their entrance.
   if (focused && view) {
     const next: Snapshot = {
-      memberIds: view.members.map((member) => member.id),
+      memberIds: view.members.map((member) => member.userId),
       complete: view.isTeamDayComplete,
-      day: view.currentDay,
+      // The user's own day: when it turns, yesterday's team is not news.
+      day: view.members.find((member) => member.isCurrentUser)?.currentDay ?? 0,
     };
     const changed =
       snapshot === null ||

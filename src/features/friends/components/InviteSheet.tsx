@@ -1,30 +1,49 @@
 import * as Clipboard from 'expo-clipboard';
-import { Copy, Share2 } from 'lucide-react-native';
+import { Copy, RefreshCw, Share2 } from 'lucide-react-native';
 import { useEffect, useEffectEvent, useState } from 'react';
 import { Share, StyleSheet, View } from 'react-native';
 
 import { AppText, Button, Sheet } from '@/components/ui';
 import { logger } from '@/lib/logger';
+import type { TeamInvite } from '@/schemas';
 import { triggerHaptic } from '@/services/haptics/haptics';
 import { colors, radius, spacing } from '@/theme';
 
-import { useCreateInvite } from '../queries';
+import type { TeamView } from '../logic/team';
+import { inviteExpiry, inviteShareMessage } from '../logic/team-copy';
+import { teamProblemOf } from '../logic/team-errors';
+import { useRenewInvite, useTeamInvite } from '../queries';
+import { TeamNotice } from './TeamNotice';
 
 /**
- * The invite, as it will work with a server: a code to share. Today it is a
- * local demo — the sheet says so instead of pretending a friend can join.
+ * The team's invite: a code to read out and a link that opens Milo on it,
+ * shared through the system share sheet. The server makes it (and checks it
+ * is still open each time the sheet opens); offline, the last known one is
+ * shown while it lasts.
  */
-export function InviteSheet({ visible, onClose }: { visible: boolean; onClose: () => void }) {
-  const createInvite = useCreateInvite();
+export function InviteSheet({
+  visible,
+  onClose,
+  view,
+}: {
+  visible: boolean;
+  onClose: () => void;
+  view: TeamView;
+}) {
+  const request = useTeamInvite();
+  const renew = useRenewInvite();
   const [copied, setCopied] = useState(false);
-  const invite = createInvite.data;
+  const invite: TeamInvite | null = renew.data ?? request.data ?? view.invite;
+  const me = view.members.find((member) => member.isCurrentUser);
+  const canRenew = invite !== null && (me?.isOwner === true || invite.createdBy === me?.userId);
+  const failure = renew.error ?? request.error;
 
-  // Asking for the invite creates the team the first time; later it is the same code.
-  const request = useEffectEvent(() => {
-    if (!createInvite.isPending) createInvite.mutate();
+  // Each time it opens: the open invite, or a new one when there is none.
+  const ask = useEffectEvent(() => {
+    if (!request.isPending) request.mutate(view.id);
   });
   useEffect(() => {
-    if (visible) request();
+    if (visible) ask();
   }, [visible]);
 
   // "Copied" belongs to one showing of the sheet.
@@ -42,9 +61,15 @@ export function InviteSheet({ visible, onClose }: { visible: boolean; onClose: (
 
   const share = () => {
     if (!invite) return;
-    Share.share({
-      message: `Join my 90-day English challenge on Milo. Our team code: ${invite.code}`,
-    }).catch((error: unknown) => logger.warn('could not open the share sheet', error));
+    Share.share({ message: inviteShareMessage(invite.code) }).catch((error: unknown) =>
+      logger.warn('could not open the share sheet', error),
+    );
+  };
+
+  const newCode = () => {
+    if (!invite) return;
+    setCopied(false);
+    renew.mutate({ teamId: view.id, inviteId: invite.id });
   };
 
   return (
@@ -52,27 +77,37 @@ export function InviteSheet({ visible, onClose }: { visible: boolean; onClose: (
       <View style={styles.body} testID="invite-sheet">
         <View style={styles.titles}>
           <AppText variant="overline" color="wood">
-            Invite friend
+            Invite friends
           </AppText>
           <AppText variant="title2" accessibilityRole="header">
-            Invite to your challenge
+            Invite to your team
           </AppText>
           <AppText variant="body" color="secondary">
-            Climb the same 90 days together: a team streak grows on the days everyone finishes.
+            A team is three friends on the same 90 days: the team streak grows on the days everyone
+            finishes.
           </AppText>
         </View>
 
         <View
           style={styles.code}
           accessible
-          accessibilityLabel={`Challenge code ${invite?.code.split('').join(' ') ?? 'loading'}`}>
+          accessibilityLabel={`Invite code ${invite?.code.split('').join(' ') ?? 'loading'}`}>
           <AppText variant="overline" color="tertiary">
-            Challenge code
+            Invite code
           </AppText>
-          <AppText variant="display" selectable style={styles.codeText}>
+          <AppText variant="title1" selectable style={styles.codeText} testID="invite-code">
             {invite?.code ?? '…'}
           </AppText>
+          {invite ? (
+            <AppText variant="caption" color="tertiary">
+              {inviteExpiry(invite.expiresAt)}
+            </AppText>
+          ) : null}
         </View>
+
+        {failure && !(invite && teamProblemOf(failure) === 'offline') ? (
+          <TeamNotice problem={teamProblemOf(failure)} />
+        ) : null}
 
         <View style={styles.actions}>
           <Button
@@ -84,12 +119,29 @@ export function InviteSheet({ visible, onClose }: { visible: boolean; onClose: (
             haptic={null}
             fullWidth
           />
-          <Button label="Share invite" icon={Share2} onPress={share} disabled={!invite} fullWidth />
+          <Button
+            label="Share invite"
+            icon={Share2}
+            onPress={share}
+            disabled={!invite}
+            fullWidth
+            testID="invite-share"
+          />
+          {canRenew ? (
+            <Button
+              label="New code"
+              icon={RefreshCw}
+              variant="ghost"
+              size="sm"
+              onPress={newCode}
+              loading={renew.isPending}
+              style={styles.renew}
+            />
+          ) : null}
         </View>
-
-        {invite && !invite.joinable ? (
-          <AppText variant="caption" color="secondary" align="center" style={styles.note}>
-            {`Demo for now: joining from another phone needs Milo's online sync, which isn't live yet. Your code stays the same for when it is.`}
+        {canRenew ? (
+          <AppText variant="caption" color="tertiary" align="center">
+            A new code turns this one off.
           </AppText>
         ) : null}
       </View>
@@ -112,5 +164,5 @@ const styles = StyleSheet.create({
   },
   codeText: { letterSpacing: 2 },
   actions: { gap: spacing[2] },
-  note: { paddingHorizontal: spacing[2] },
+  renew: { alignSelf: 'center' },
 });

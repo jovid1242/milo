@@ -5,18 +5,10 @@ import type {
   DayCompletion,
   LearnedWord,
   QuestCompletion,
-  Team,
-  TeamActivity,
-  TeamMember,
+  TeamSnapshot,
   XpEvent,
 } from '@/schemas';
 
-import {
-  clearTeam,
-  writeTeam,
-  writeTeamActivity,
-  writeTeamMember,
-} from './local-friends-repository';
 import {
   writeChallengeCompletion,
   writeCompletion,
@@ -24,6 +16,7 @@ import {
   writeLearnedWords,
   writeXpEvent,
 } from './sqlite-progress-repository';
+import { writeTeamCache } from './sqlite-team-cache';
 
 /**
  * Local-only escape hatches used by the in-app development tools — on the
@@ -55,36 +48,9 @@ export class LocalDevRepository implements DevRepository {
     );
   }
 
-  async replaceTeam(
-    team: Team | null,
-    members: readonly TeamMember[],
-    activity: readonly TeamActivity[],
-  ): Promise<void> {
-    const { owner } = this;
+  async replaceTeam(team: TeamSnapshot | null): Promise<void> {
     await this.store.write((db) =>
-      db.withExclusiveTransactionAsync(async (txn) => {
-        await clearTeam(txn, owner);
-        if (!team) return;
-        await writeTeam(txn, owner, team);
-        for (const [position, member] of members.entries()) {
-          await writeTeamMember(txn, owner, member, position);
-        }
-        await writeTeamActivity(txn, owner, activity);
-      }),
-    );
-  }
-
-  async addTeamMember(member: TeamMember, activity: readonly TeamActivity[]): Promise<void> {
-    const { owner } = this;
-    await this.store.write((db) =>
-      db.withExclusiveTransactionAsync(async (txn) => {
-        const last = await txn.getFirstAsync<{ position: number | null }>(
-          'SELECT MAX(position) AS position FROM team_members WHERE owner_id = ?',
-          [owner],
-        );
-        await writeTeamMember(txn, owner, member, (last?.position ?? -1) + 1);
-        await writeTeamActivity(txn, owner, activity);
-      }),
+      writeTeamCache(db, this.owner, { team, asOf: new Date().toISOString() }),
     );
   }
 

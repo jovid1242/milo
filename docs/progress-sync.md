@@ -92,7 +92,8 @@ Every write of progress the app had before this stage, and what it is now:
 
 Every table of progress got `owner_id` in its key: `user_profile`, `quest_completions`, `answers`,
 `quest_sessions`, `xp_events`, `achievement_unlocks`, `day_completions`, `learned_words`,
-`exam_attempts`, `challenge_completion`, and the team tables. Rows the server has not confirmed
+`exam_attempts`, `challenge_completion`, and the team tables (replaced by the per-account
+`team_cache` in migration 13 — see [teams-and-invites.md](teams-and-invites.md)). Rows the server has not confirmed
 carry `pending_mutation_id`. New tables: `outbox`, `sync_state` (the revision each account's copy
 reflects), `legacy_claim`. `course_cache` stays the device's. Tables were rebuilt (SQLite cannot
 change a primary key) inside the migration's transaction; every existing row became `local`'s.
@@ -184,9 +185,10 @@ more with revision 0 for the whole progress, to undo any optimistic change on a 
   the exercises each quest screen plays.
 - **Day completion, streak:** `buildDayCompletion` and `computeStreak`, unchanged. The streak is
   derived from completed days and today; a missed day breaks it.
-- **Achievements:** `buildAchievementFacts` + `findNewlyEarned`, unchanged. The team badge needs
-  Friends, which the server does not have yet: it stays locked (the app does the same with an
-  account).
+- **Achievements:** `buildAchievementFacts` + `findNewlyEarned`, unchanged. The team badge looks
+  at the user's team on the server: every accepted mutation and every sync checks it, so each
+  member gets it once, even when a teammate's day completed the run — see
+  [teams-and-invites.md](teams-and-invites.md). A phone never unlocks it with an account.
 - **Time:** the server's clock decides availability; device timestamps are kept for display only
   (never later than the server's receipt) and never used for XP or streaks.
 

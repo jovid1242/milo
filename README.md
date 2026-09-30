@@ -90,6 +90,8 @@ scripts/                asset pipeline + asset registry generator; content/ runs
 - **Progress** belongs to an owner in SQLite (`owner_id` in every table) and, with an account, to
   the server: the phone keeps a projection and an outbox, synced by `ProgressSyncEngine` — see
   [Progress sync](#progress-sync).
+- **The team** is the server's too (`ApiFriendsRepository`): the phone keeps its last answer per
+  account (`team_cache`) for offline — see [Friends](#friends-team-challenge).
 - **TanStack Query** owns all data access; `Zustand` only holds global client preferences
   (sound/haptics) and dev switches.
 - **Zod** validates content, database rows and persisted settings; all domain types are `z.infer`.
@@ -133,19 +135,20 @@ data survives restarts), a `pg_isready` healthcheck and port `5432` (`MILO_DB_PO
 **Environment** (`server/.env`, validated at startup by `server/src/config/env.ts` — a missing or
 unsafe value stops the API with a list of every problem):
 
-| Variable                        | Default                       |                                                             |
-| ------------------------------- | ----------------------------- | ----------------------------------------------------------- |
-| `DATABASE_URL`                  | — (required)                  | `postgresql://milo:milo@localhost:5432/milo?schema=public`  |
-| `JWT_ACCESS_SECRET`             | — (required)                  | ≥ 32 characters                                             |
-| `REFRESH_TOKEN_SECRET`          | — (required)                  | ≥ 32 characters, different from the access secret           |
-| `JWT_ACCESS_TTL`                | `15m`                         | access token lifetime                                       |
-| `REFRESH_TOKEN_TTL`             | `30d`                         | refresh session lifetime, sliding with use                  |
-| `REFRESH_TOKEN_REUSE_GRACE`     | `30s`                         | window in which a used refresh token counts as a retry      |
-| `AUTH_RATE_LIMIT`               | `20`                          | sign-up / sign-in attempts per address and route per minute |
-| `CORS_ORIGINS`                  | empty                         | comma-separated browser origins; the mobile app needs none  |
-| `SWAGGER_ENABLED`               | on outside production         | `true` in staging                                           |
-| `TRUST_PROXY`                   | `false`                       | behind a reverse proxy: client IP for rate limits and logs  |
-| `PORT`, `NODE_ENV`, `LOG_LEVEL` | `3000`, `development`, `info` |                                                             |
+| Variable                        | Default                       |                                                                           |
+| ------------------------------- | ----------------------------- | ------------------------------------------------------------------------- |
+| `DATABASE_URL`                  | — (required)                  | `postgresql://milo:milo@localhost:5432/milo?schema=public`                |
+| `JWT_ACCESS_SECRET`             | — (required)                  | ≥ 32 characters                                                           |
+| `REFRESH_TOKEN_SECRET`          | — (required)                  | ≥ 32 characters, different from the access secret; also keys invite codes |
+| `JWT_ACCESS_TTL`                | `15m`                         | access token lifetime                                                     |
+| `REFRESH_TOKEN_TTL`             | `30d`                         | refresh session lifetime, sliding with use                                |
+| `REFRESH_TOKEN_REUSE_GRACE`     | `30s`                         | window in which a used refresh token counts as a retry                    |
+| `AUTH_RATE_LIMIT`               | `20`                          | sign-up / sign-in attempts per address and route per minute               |
+| `INVITE_RATE_LIMIT`             | `10`                          | team invite previews and joins per account per minute                     |
+| `CORS_ORIGINS`                  | empty                         | comma-separated browser origins; the mobile app needs none                |
+| `SWAGGER_ENABLED`               | on outside production         | `true` in staging                                                         |
+| `TRUST_PROXY`                   | `false`                       | behind a reverse proxy: client IP for rate limits and logs                |
+| `PORT`, `NODE_ENV`, `LOG_LEVEL` | `3000`, `development`, `info` |                                                                           |
 
 In production the example secrets are refused. Real secrets never go into git (`server/.env` is
 ignored; only `.env.example` is committed).
@@ -170,27 +173,33 @@ course bundled (content work without a server round trip).
 
 ### API (`/api/v1`)
 
-|                                            |                                                                                             |
-| ------------------------------------------ | ------------------------------------------------------------------------------------------- |
-| `POST /auth/register`                      | `{ email, password }` → session (201). Credentials only: name and goal come from onboarding |
-| `POST /auth/login`                         | `{ email, password }` → session. Unknown email and wrong password answer alike              |
-| `POST /auth/refresh`                       | `{ refreshToken }` → the next session (the token rotates)                                   |
-| `POST /auth/logout`                        | `{ refreshToken }` → 204; revokes that device's session. Idempotent                         |
-| `GET /auth/me`                             | the account (Bearer)                                                                        |
-| `GET /users/me`, `PATCH /users/me`         | the account; PATCH accepts only `displayName` and `goal`                                    |
-| `GET /course/current`                      | the manifest: `courseId`, `version`, `schemaVersion`, `contentHash`, `documentPath`         |
-| `GET /courses/:courseId/versions/:version` | the course document (ETag = its SHA-256, gzip, 304)                                         |
-| `GET /progress`                            | the account's progress and its revision (Bearer)                                            |
-| `POST /progress/sync`                      | offline mutations (≤ 50, in order) → one result each + the progress when it changed         |
-| `GET /health` (outside `/api/v1`)          | alive; `{ status, database: "up" \| "down" }`                                               |
-| `GET /ready` (outside `/api/v1`)           | 200 when the database and the course are up, else 503                                       |
+|                                            |                                                                                                    |
+| ------------------------------------------ | -------------------------------------------------------------------------------------------------- |
+| `POST /auth/register`                      | `{ email, password }` → session (201). Credentials only: name and goal come from onboarding        |
+| `POST /auth/login`                         | `{ email, password }` → session. Unknown email and wrong password answer alike                     |
+| `POST /auth/refresh`                       | `{ refreshToken }` → the next session (the token rotates)                                          |
+| `POST /auth/logout`                        | `{ refreshToken }` → 204; revokes that device's session. Idempotent                                |
+| `GET /auth/me`                             | the account (Bearer)                                                                               |
+| `GET /users/me`, `PATCH /users/me`         | the account; PATCH accepts only `displayName` and `goal`                                           |
+| `GET /course/current`                      | the manifest: `courseId`, `version`, `schemaVersion`, `contentHash`, `documentPath`                |
+| `GET /courses/:courseId/versions/:version` | the course document (ETag = its SHA-256, gzip, 304)                                                |
+| `GET /progress`                            | the account's progress and its revision (Bearer)                                                   |
+| `POST /progress/sync`                      | offline mutations (≤ 50, in order) → one result each + the progress when it changed                |
+| `GET /teams/me`, `POST /teams`             | the user's team (or `null`); make one — see [docs/teams-and-invites.md](docs/teams-and-invites.md) |
+| `POST /teams/:teamId/invites`              | the team's open invite (members only)                                                              |
+| `DELETE /team-invites/:inviteId`           | turn an invite off (its maker or the owner)                                                        |
+| `POST /team-invites/preview`, `…/join`     | `{ code }` → the team before joining / join it (rate-limited per account)                          |
+| `POST /teams/:teamId/leave`                | leave; ownership passes on, the last member deletes the team                                       |
+| `GET /health` (outside `/api/v1`)          | alive; `{ status, database: "up" \| "down" }`                                                      |
+| `GET /ready` (outside `/api/v1`)           | 200 when the database and the course are up, else 503                                              |
 
 A session is `{ user, accessToken, accessTokenExpiresAt, refreshToken, refreshTokenExpiresAt }`.
 Every error is `{ code, message, details? }` with a stable `code` (`VALIDATION_ERROR`,
 `EMAIL_TAKEN`, `INVALID_CREDENTIALS`, `UNAUTHORIZED`, `REFRESH_TOKEN_INVALID`,
 `REFRESH_TOKEN_REUSED`, `NOT_FOUND`, `PAYLOAD_TOO_LARGE`, `RATE_LIMITED`, `COURSE_UNAVAILABLE`,
-`COURSE_MISMATCH`, `COURSE_VERSION_UNSUPPORTED`, `ACCOUNT_MISMATCH`, `INTERNAL_ERROR`) — never a
-stack trace. Validation errors list `details: [{ path, message }]`.
+`COURSE_MISMATCH`, `COURSE_VERSION_UNSUPPORTED`, `ACCOUNT_MISMATCH`, `FORBIDDEN`,
+`CHALLENGE_NOT_STARTED`, `ALREADY_IN_TEAM`, `ALREADY_MEMBER`, `TEAM_FULL`, `TEAM_NOT_FOUND`,
+`INVITE_INVALID`, `INVITE_EXPIRED`, `INVITE_REVOKED`, `INTERNAL_ERROR`) — never a stack trace. Validation errors list `details: [{ path, message }]`.
 
 **Swagger** (development and staging): http://localhost:3000/api/docs, JSON at
 `/api/docs/openapi.json`. It is generated from the same Zod schemas the API validates with, so it
@@ -213,8 +222,9 @@ cannot drift from the real DTOs.
   `REFRESH_TOKEN_REUSE_GRACE` while nothing issued for it has been used (a response lost on a bad
   network) gets a successor of its own; whichever successor is used first retires the others.
   Refreshes of one session are serialized with a row lock, so races cannot fork a session.
-- **Rate limits:** sign-up and sign-in, per client address and route (429 with `Retry-After`).
-  Refresh and logout take an unguessable token: nothing to guess there.
+- **Rate limits:** sign-up and sign-in, per client address and route (429 with `Retry-After`,
+  `AUTH_RATE_LIMIT`); team invite previews and joins, per account (`INVITE_RATE_LIMIT`). Refresh
+  and logout take an unguessable token: nothing to guess there.
 
 ### Security and logging
 
@@ -243,7 +253,14 @@ rolled back whole, the sync log, database constraints, two phones syncing at onc
 imports. `test/app-client.test.ts` drives the app's own `ApiCourseRepository` and auth client over
 real HTTP, and `test/progress-app.test.ts` the app's own progress stack — SQLite repositories,
 account sessions, sync engine — against the API: the A → B → A account switch, offline play
-through a restart, two phones, legacy claims. Set `TEST_DATABASE_URL` to use another database.
+through a restart, two phones, legacy claims. `test/teams.test.ts` covers teams: making one,
+invites (one open per team, never stored or logged in clear, expired, turned off, wrong), the
+preview, joining, a full team, joining the last place at once (exactly one of two, two of ten),
+the database's own limits, leaving and ownership, the last member, privacy of the member summary,
+the team's progress and streak from real play, XP no phone can claim, the Team Streak badge (once
+per member, by sync) and the invite rate limit; `test/teams-app.test.ts` runs the app's own team
+client and cache against it (three phones, a fourth finding the team full, offline, two accounts
+on one phone, the badge celebrated once). Set `TEST_DATABASE_URL` to use another database.
 
 ## Accounts in the app (API mode)
 
@@ -563,7 +580,8 @@ the Final Battle mixes the whole challenge, and passing it settles everything at
 `src/features/achievements`: the 12 badges (`data/content/achievements.ts`), each with one rule
 (`schemas/achievement.ts`) — First Day (1 completed day), 3/7/14/30/50-day streaks (days in a row),
 90 Days (all 90), 100/500 words (unique word ids in `learned_words`, migration v5), Perfect Quiz
-(a scored quest without a mistake), Perfect Week (7 perfect days in a row), Team Streak.
+(a scored quest without a mistake), Perfect Week (7 perfect days in a row), Team Streak (7 team
+days in a row — granted by the server only, see [docs/teams-and-invites.md](docs/teams-and-invites.md)).
 
 - `buildAchievementFacts` derives what the rules need from stored progress; `evaluateAchievements`
   turns facts + unlocks into `locked` (with real progress) / `unlocked` / `notAvailable`.
@@ -577,21 +595,25 @@ the Final Battle mixes the whole challenge, and passing it settles everything at
 
 ## Friends (team challenge)
 
-`src/features/friends`: a small team (2–5 people) taking the same challenge — not a social network.
+`src/features/friends`: a team of up to three friends taking the same challenge — not a social
+network. The Milo API keeps it; rules, invites, the team streak, privacy and offline behaviour are
+in [`docs/teams-and-invites.md`](docs/teams-and-invites.md).
 
-- Models (`schemas/team.ts`): `Team` (name, invite code), `TeamMember` (what a teammate shares:
-  their finished days always; today's quests, XP, badges, last activity may be `null`),
-  `TeamActivity` (structured events — the UI writes the words), `TeamInvite`, `JoinTeamResult`.
-- `FriendsRepository` is the future API contract: `getMyTeam`, `getTeamMembers`,
-  `getMemberDetails`, `getTeamActivity`, `createInvite`, `joinTeam`. `LocalFriendsRepository`
-  (SQLite, migration v6) serves it today; the user's own data stays local and is merged in by
-  `loadTeamView`. An `ApiFriendsRepository` can replace it without UI changes.
-- Team streak (`logic/team.ts`): a day counts when the team had at least two members that day
-  and every one of them finished it; the streak is those days in a row. It feeds the Team Streak
-  badge (7 in a row) through the achievement engine.
-- Invite is a local demo: the code is real and stable, copy/share work, but `joinable: false` —
-  joining from another phone needs a server, and the sheet says so. Member statuses ("Done",
-  "Almost there"…) are derived, never stored; missing stats are hidden, never shown as 0.
+- Models (`schemas/team.ts`): `TeamSnapshot` (members as `TeamMemberSummary` — day, today, streak,
+  XP, never email, answers or history — the team streak, the open invite), `InvitePreview`,
+  `TEAM_CAPACITY` (3), invite codes (`7K2PX-9QDMA`, 50 bits) and links (`milo://invite/<code>`).
+- `FriendsRepository`: `ApiFriendsRepository` with an account (the server's answers, kept per
+  account in `team_cache`), `LocalFriendsRepository` in local mode (no server: the dev tools' demo
+  team, changes refused). The user's own card is their local progress, so it moves at once.
+- Friends tab: no team (Create team / Join with a code), 1/3 with the code to share, 2/3, 3/3
+  (full), the last team offline with a note, **Internet connection required** for every change.
+  The invite page (`app/invite/[code].tsx`) shows the team before joining; an invite opened
+  signed out or before onboarding waits and opens afterwards (`PendingInviteWatcher`).
+- Team streak: computed by the server from its day records (`logic/team-streak.ts`, shared) — a
+  date counts when every member who had joined by then finished their day, two or more members.
+  It unlocks the Team Streak badge (7 in a row) on the server, once per member.
+- Member statuses ("Done", "Almost there"…) and the words ("One more to go") are derived on the
+  phone, never stored; the team is named, never a person.
 
 ## Profile & Settings
 
@@ -659,9 +681,9 @@ resume, completed), Day 89 around its end (Home 3/4 and 4/4, Day Complete first 
 perfect and non-perfect day, "Finish day ×2" — two completions racing on the real database, with a
 report), every state of the Day 84 weekly exam and the Day 90 Final Battle (intro, questions, resume,
 unanswered, fail, pass, submitted twice, the summit, the completed Home),
-change the current day, complete or reset quests, set the streak, add XP, simulate a weekly exam or Day 90, team states on Day 89 (no team, 1–3 members, 0–3 of 3 done
-today, team streak 0 / 6 / 7, Team Streak unlock, missing stats, a friend joining, finishing your
-day), simulate offline, play
+change the current day, complete or reset quests, set the streak, add XP, simulate a weekly exam or Day 90, demo team states on Day 89 in local mode (no team, 1–3 of 3, 0–3 of 3 done
+today, team streak 0 / 6 / 7, Team Streak unlock, a friend joining, finishing your
+day — put in the team cache; with an account the team is the server's), simulate offline, play
 every feedback event and haptic pattern, reset local data.
 
 ## Conventions

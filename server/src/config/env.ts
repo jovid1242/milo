@@ -37,6 +37,8 @@ const EnvSchema = z
     REFRESH_TOKEN_REUSE_GRACE: Duration.prefault('30s'),
     /** Sign-up, sign-in, refresh and logout per client IP per minute. */
     AUTH_RATE_LIMIT: z.coerce.number().int().min(1).default(20),
+    /** Invite previews and joins per account per minute: codes are not to be guessed. */
+    INVITE_RATE_LIMIT: z.coerce.number().int().min(1).default(10),
     CORS_ORIGINS: z.string().default(''),
     SWAGGER_ENABLED: Flag,
     TRUST_PROXY: Flag,
@@ -67,6 +69,7 @@ export type AppConfig = {
   accessToken: { secret: string; ttlMs: number };
   refreshToken: { secret: string; ttlMs: number; reuseGraceMs: number };
   authRateLimitPerMinute: number;
+  inviteRateLimitPerMinute: number;
   corsOrigins: string[];
   swaggerEnabled: boolean;
   trustProxy: boolean;
@@ -106,6 +109,7 @@ export function loadConfig(source: Record<string, string | undefined>): AppConfi
       reuseGraceMs: env.REFRESH_TOKEN_REUSE_GRACE,
     },
     authRateLimitPerMinute: env.AUTH_RATE_LIMIT,
+    inviteRateLimitPerMinute: env.INVITE_RATE_LIMIT,
     corsOrigins: env.CORS_ORIGINS.split(',')
       .map((origin) => origin.trim())
       .filter(Boolean),

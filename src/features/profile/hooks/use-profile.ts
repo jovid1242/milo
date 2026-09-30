@@ -16,7 +16,8 @@ export function useProfile() {
   const progress = useProgressState();
   const chapters = useChapters();
   const achievements = useAchievements();
-  const team = useTeam();
+  // The team as last heard of: the Profile never waits for the server.
+  const team = useTeam().local;
   const queries = [user, progress, chapters, achievements, team] as const;
 
   const view =
@@ -30,7 +31,7 @@ export function useProfile() {
           progress: progress.data,
           chapters: chapters.data,
           achievements: achievements.data,
-          team: team.data,
+          team: team.data.kind === 'team' ? team.data.view : null,
           totalDays: CHALLENGE.totalDays,
         })
       : null;

@@ -27,6 +27,9 @@ model User {
   sessions           RefreshSession[]
   challenges         UserChallenge[]
   processedMutations ProcessedMutation[]
+  teamMembership     TeamMember?
+  teamsCreated       Team[]              @relation("TeamCreator")
+  invitesCreated     TeamInvite[]
 
   @@map("users")
 }
@@ -218,7 +221,8 @@ model XpLedgerEntry {
   /// When what it pays for happened (the device's time, never later than `recordedAt`).
   createdAt   DateTime      @db.Timestamptz(3)
   recordedAt  DateTime      @default(now()) @db.Timestamptz(3)
-  mutationId  String        @db.Uuid
+  /// Null for a reward the server paid on its own (the team badge).
+  mutationId  String?       @db.Uuid
 
   @@unique([challengeId, reason, refId])
   @@map("xp_ledger")
@@ -230,7 +234,9 @@ model AchievementUnlock {
   challenge     UserChallenge @relation(fields: [challengeId], references: [id], onDelete: Cascade)
   achievementId String
   unlockedAt    DateTime      @db.Timestamptz(3)
-  mutationId    String        @db.Uuid
+  /// The mutation that earned it; null when the server granted it on its own —
+  /// the team badge, earned by a teammate's day.
+  mutationId    String?       @db.Uuid
 
   @@id([challengeId, achievementId])
   @@map("achievement_unlocks")
@@ -259,4 +265,76 @@ model ProcessedMutation {
 
   @@id([userId, mutationId])
   @@map("processed_mutations")
+}
+
+// ---------------------------------------------------------------------------
+// Teams. Up to three friends taking the same course together. Membership is
+// the server's alone: the database itself never holds a fourth member or a
+// user in two teams. Nothing about the team streak is stored — it is derived
+// from the members' day completions whenever it is needed.
+// ---------------------------------------------------------------------------
+
+/// A challenge team. It exists while it has members: the last one to leave
+/// deletes it, with its invites.
+model Team {
+  id          String       @id @default(uuid()) @db.Uuid
+  /// The course the team takes (its members' challenges are in it).
+  courseId    String
+  /// Null: the team goes by its owner's name ("Ada's team").
+  name        String?
+  /// Who made it; null once that account is gone. Ownership is a member's `role`.
+  createdById String?      @db.Uuid
+  createdBy   User?        @relation("TeamCreator", fields: [createdById], references: [id], onDelete: SetNull)
+  createdAt   DateTime     @default(now()) @db.Timestamptz(3)
+  updatedAt   DateTime     @updatedAt @db.Timestamptz(3)
+  members     TeamMember[]
+  invites     TeamInvite[]
+
+  @@map("teams")
+}
+
+enum TeamRole {
+  owner
+  member
+}
+
+/// A place in a team. `slot` is 1–3 and unique within the team, so no team
+/// ever has a fourth member; `userId` is unique, so nobody is in two teams.
+/// One member per team is its owner (a partial unique index).
+model TeamMember {
+  teamId   String   @db.Uuid
+  team     Team     @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  userId   String   @unique @db.Uuid
+  user     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  slot     Int      @db.SmallInt
+  role     TeamRole
+  joinedAt DateTime @default(now()) @db.Timestamptz(3)
+
+  @@id([teamId, userId])
+  @@unique([teamId, slot])
+  @@map("team_members")
+}
+
+/// An invite into a team. Its code is never stored: the server derives it
+/// from the invite's id with a key of its own, and finds the invite by the
+/// code's keyed hash. It works until it expires or is revoked — for as many
+/// people as the team has room for.
+model TeamInvite {
+  id            String    @id @db.Uuid
+  teamId        String    @db.Uuid
+  team          Team      @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  createdById   String    @db.Uuid
+  createdBy     User      @relation(fields: [createdById], references: [id], onDelete: Cascade)
+  codeHash      String    @unique
+  createdAt     DateTime  @default(now()) @db.Timestamptz(3)
+  expiresAt     DateTime  @db.Timestamptz(3)
+  revokedAt     DateTime? @db.Timestamptz(3)
+  /// revoked (by a member) · creatorLeft (its creator left the team)
+  revokedReason String?
+  /// People who joined with it.
+  useCount      Int       @default(0)
+  lastUsedAt    DateTime? @db.Timestamptz(3)
+
+  @@index([teamId])
+  @@map("team_invites")
 }

@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react';
 import { StyleSheet, View } from 'react-native';
 
 import { emptyStates, type EmptyStateKey } from '@/constants/assets';
@@ -11,10 +12,21 @@ export type EmptyStateProps = {
   variant: EmptyStateKey;
   title: string;
   description?: string;
-  action?: { label: string; onPress: () => void };
+  action?: { label: string; onPress: () => void; loading?: boolean; testID?: string };
+  /** A second, quieter way on (under the first). */
+  secondaryAction?: { label: string; onPress: () => void; testID?: string };
+  /** Under the actions: a note, or why one did not work. */
+  footer?: ReactNode;
 };
 
-export function EmptyState({ variant, title, description, action }: EmptyStateProps) {
+export function EmptyState({
+  variant,
+  title,
+  description,
+  action,
+  secondaryAction,
+  footer,
+}: EmptyStateProps) {
   return (
     <View style={styles.container}>
       <AssetImage asset={emptyStates[variant]} width={220} />
@@ -32,11 +44,24 @@ export function EmptyState({ variant, title, description, action }: EmptyStatePr
         <Button
           label={action.label}
           onPress={action.onPress}
+          loading={action.loading}
           size="md"
-          variant="secondary"
+          variant={secondaryAction ? 'primary' : 'secondary'}
           style={styles.action}
+          testID={action.testID}
         />
       ) : null}
+      {secondaryAction ? (
+        <Button
+          label={secondaryAction.label}
+          onPress={secondaryAction.onPress}
+          size="md"
+          variant="ghost"
+          style={styles.secondary}
+          testID={secondaryAction.testID}
+        />
+      ) : null}
+      {footer}
     </View>
   );
 }
@@ -51,4 +76,5 @@ const styles = StyleSheet.create({
   },
   text: { gap: spacing[2], alignItems: 'center', maxWidth: 320 },
   action: { alignSelf: 'center' },
+  secondary: { alignSelf: 'center', marginTop: -spacing[3] },
 });

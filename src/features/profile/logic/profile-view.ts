@@ -28,7 +28,7 @@ export type ProfileView = {
     recent: AchievementStatus[];
   };
   /** `null` without a team. */
-  team: { members: number; teamStreak: number; finishedToday: number } | null;
+  team: { members: number; capacity: number; teamStreak: number; finishedToday: number } | null;
 };
 
 export const RECENT_BADGES = 4;
@@ -76,6 +76,7 @@ export function buildProfileView(input: {
     team: team
       ? {
           members: team.members.length,
+          capacity: team.capacity,
           teamStreak: team.teamStreak,
           finishedToday: team.finishedToday,
         }

@@ -47,6 +47,14 @@ const SHARED_ENTRIES = [
   'data/repositories/api/progress-api.ts',
   'services/session/owner-session.ts',
   'services/sync/progress-sync-engine.ts',
+  // Teams: the rule the server derives the team streak with, the invite
+  // codes both sides read, and the app's team client its tests drive.
+  'features/friends/logic/team-streak.ts',
+  'features/friends/logic/invite-code.ts',
+  'features/friends/logic/team-errors.ts',
+  'features/friends/use-cases.ts',
+  'data/repositories/api/team-api.ts',
+  'data/repositories/api/api-friends-repository.ts',
 ];
 
 const importsOf = (code: string) =>

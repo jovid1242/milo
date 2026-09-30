@@ -27,8 +27,8 @@ import { useMemberDetails } from './queries';
 const enter = (index: number) => FadeInDown.duration(durations.normal).delay(80 + index * 60);
 
 /**
- * A teammate's challenge at a glance — not a social profile. Stats a member
- * does not share are left out, never shown as 0.
+ * A teammate's challenge at a glance — not a social profile: their day, today,
+ * the journey and a few numbers, as the server summed them up.
  */
 export function FriendDetailScreen() {
   const router = useRouter();
@@ -65,15 +65,14 @@ export function FriendDetailScreen() {
     );
   }
 
-  const { member, team } = query.data;
+  const { member } = query.data;
   const done = member.status === 'done';
-  const questsDone = done ? team.questCount : (member.todayQuestsDone ?? null);
-  const stats: Stat[] = [{ label: 'day streak', value: `${member.streak}` }];
-  if (member.totalXp !== null) stats.push({ label: 'XP', value: formatNumber(member.totalXp) });
-  if (member.achievementsUnlocked !== null) {
-    stats.push({ label: 'badges', value: `${member.achievementsUnlocked}/${ACHIEVEMENTS.length}` });
-  }
-  const hidden = member.totalXp === null || member.achievementsUnlocked === null;
+  const questsDone = done ? member.questCount : member.todayQuestsDone;
+  const stats: Stat[] = [
+    { label: 'day streak', value: `${member.streak}` },
+    { label: 'XP', value: formatNumber(member.totalXp) },
+    { label: 'badges', value: `${member.achievementsUnlocked}/${ACHIEVEMENTS.length}` },
+  ];
 
   return (
     <Screen scroll background="warm" testID="member-screen">
@@ -85,7 +84,7 @@ export function FriendDetailScreen() {
             {memberName(member)}
           </AppText>
           <AppText variant="label" color="secondary">
-            {`Day ${team.currentDay} of ${CHALLENGE.totalDays}`}
+            {`Day ${member.currentDay} of ${CHALLENGE.totalDays}`}
             {member.lastActivityAt ? ` · Active ${relativeTime(member.lastActivityAt)}` : ''}
           </AppText>
         </Animated.View>
@@ -97,37 +96,28 @@ export function FriendDetailScreen() {
             </AppText>
             <StatusPill status={member.status} />
           </View>
-          {questsDone !== null ? (
+          {member.questCount > 0 ? (
             <>
-              <AppText variant="title3">{`${questsDone} / ${team.questCount} quests`}</AppText>
-              <SegmentedProgress groups={[team.questCount]} done={questsDone} />
+              <AppText variant="title3">{`${questsDone} / ${member.questCount} quests`}</AppText>
+              <SegmentedProgress groups={[member.questCount]} done={questsDone} />
             </>
-          ) : (
-            <AppText variant="body" color="secondary">
-              {`${memberName(member)} doesn't share today's quests.`}
-            </AppText>
-          )}
+          ) : null}
         </Animated.View>
 
         <Animated.View entering={enter(2)} style={styles.card}>
           <AppText variant="overline" color="wood">
             Journey
           </AppText>
-          <AppText variant="title3">{`${member.journeyDays} / ${CHALLENGE.totalDays} days completed`}</AppText>
+          <AppText variant="title3">{`${member.daysCompleted} / ${CHALLENGE.totalDays} days completed`}</AppText>
           <ProgressBar
-            progress={member.journeyDays / CHALLENGE.totalDays}
+            progress={member.daysCompleted / CHALLENGE.totalDays}
             height={6}
-            accessibilityLabel={`${member.journeyDays} of ${CHALLENGE.totalDays} days completed`}
+            accessibilityLabel={`${member.daysCompleted} of ${CHALLENGE.totalDays} days completed`}
           />
         </Animated.View>
 
         <Animated.View entering={enter(3)} style={styles.card}>
           <StatsRow stats={stats} />
-          {hidden ? (
-            <AppText variant="caption" color="tertiary" align="center">
-              Some stats are private.
-            </AppText>
-          ) : null}
         </Animated.View>
       </View>
     </Screen>

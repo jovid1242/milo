@@ -11,6 +11,7 @@ import { ErrorState } from '@/components/ErrorState';
 import { AchievementCelebrationHost } from '@/features/achievements/components/AchievementCelebrationHost';
 import { AccountProfileSync } from '@/features/auth/components/AccountProfileSync';
 import { SessionWatcher } from '@/features/auth/components/SessionWatcher';
+import { PendingInviteWatcher } from '@/features/friends/components/PendingInviteWatcher';
 import { needsOnboarding } from '@/features/onboarding/use-cases';
 import { ReminderSync } from '@/features/reminders/components/ReminderSync';
 import { useUser } from '@/features/profile/queries';
@@ -88,6 +89,9 @@ function AppNavigator() {
           <Stack.Screen name="sign-in" options={{ animation: 'fade', gestureEnabled: false }} />
           <Stack.Screen name="sign-up" />
         </Stack.Protected>
+        {/* An invite link opens from any state: signed out or new, the invite
+          waits for sign-in and the challenge (see PendingInviteWatcher). */}
+        <Stack.Screen name="invite/[code]" options={{ presentation: 'modal' }} />
         {/* Reachable from both sides — onboarding is a state to develop against
           too. The route itself redirects when `__DEV__` is false. */}
         <Stack.Screen name="dev-tools" options={{ presentation: 'modal' }} />
@@ -97,6 +101,7 @@ function AppNavigator() {
       {/* Daily reminders follow the preferences and the challenge, from here. */}
       <ReminderSync onboarded={inChallenge} />
       <SessionWatcher />
+      <PendingInviteWatcher inChallenge={inChallenge} />
       {signedIn ? <AccountProfileSync /> : null}
     </>
   );

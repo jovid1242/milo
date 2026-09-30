@@ -64,7 +64,7 @@ export function TeamSummary({
           {view.members.map((member) => {
             const done = member.status === 'done';
             return (
-              <View key={member.id} style={styles.person}>
+              <View key={member.userId} style={styles.person}>
                 <Avatar
                   name={member.displayName}
                   uri={member.avatarUrl}

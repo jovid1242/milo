@@ -17,6 +17,7 @@ export const TEST_ENV: Record<string, string> = {
   REFRESH_TOKEN_REUSE_GRACE: '30s',
   // Tests sign in far more often than a person; the limit has its own test.
   AUTH_RATE_LIMIT: '1000',
+  INVITE_RATE_LIMIT: '1000',
   CORS_ORIGINS: '',
   SWAGGER_ENABLED: 'false',
   TRUST_PROXY: 'false',

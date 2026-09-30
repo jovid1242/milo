@@ -1,204 +1,144 @@
-import type { Repositories } from '@/data/repositories/types';
+import type { CachedTeam, Repositories } from '@/data/repositories/types';
 import { getChallengeDay } from '@/features/challenge/logic/calendar';
 import { findCompletedDays } from '@/features/progress/logic/day-completion';
-import type {
-  AchievementUnlock,
-  CourseDay,
-  DayCompletion,
-  DayNumber,
-  JoinTeamResult,
-  QuestCompletion,
-  TeamActivity,
-  TeamInvite,
-} from '@/schemas';
+import { computeStreak } from '@/features/progress/logic/streak';
+import type { InviteCode, InvitePreview, TeamInvite, Timestamp } from '@/schemas';
 
 import {
   buildTeamView,
-  fromTeamMember,
-  teamStreakOf,
-  type MemberProgress,
+  teamStreakFacts,
   type MemberView,
+  type MyProgress,
   type TeamView,
 } from './logic/team';
 
-/** The current user's own id in the team; their data always comes from local progress. */
-export const ME = 'me';
+/**
+ * The Friends tab as the device can show it right now — from the last answer
+ * the server gave (kept per account) and the user's own progress. Asking the
+ * server again is separate (`refreshTeam`), so the tab never waits for a
+ * network to show what it knows.
+ */
+export type FriendsState =
+  /** No answer yet on this device: the first one is on its way (or needs a connection). */
+  | { kind: 'unknown'; serverBacked: boolean }
+  | { kind: 'noTeam'; serverBacked: boolean; asOf: Timestamp }
+  | { kind: 'team'; serverBacked: boolean; view: TeamView };
 
-const STREAK_MILESTONES = new Set([3, 7, 14, 30, 50, 90]);
-
-/** The current user as a team member, built from their local progress. */
-function myProgress(input: {
-  displayName: string;
-  plans: readonly CourseDay[];
-  completions: readonly QuestCompletion[];
-  totalXp: number;
-  achievementsUnlocked: number;
-  currentDay: DayNumber;
-}): MemberProgress {
-  const today = input.plans.find((plan) => plan.day === input.currentDay);
-  const done = new Set(input.completions.map((completion) => completion.questId));
-  const last = input.completions
-    .map((completion) => completion.completedAt)
-    .sort()
-    .at(-1);
-  return {
-    id: ME,
-    displayName: input.displayName,
-    avatarUrl: null,
-    isCurrentUser: true,
-    joinedDay: 1,
-    completedDays: findCompletedDays(input.plans, input.completions),
-    todayQuestsDone: today?.quests.filter((quest) => done.has(quest.id)).length ?? 0,
-    totalXp: input.totalXp,
-    achievementsUnlocked: input.achievementsUnlocked,
-    lastActivityAt: last ?? null,
-  };
-}
-
-/** The team as the Friends screen shows it; `null` while the user has no team. */
-export async function loadTeamView(
-  repositories: Repositories,
-  now: Date = new Date(),
-): Promise<TeamView | null> {
-  const team = await repositories.friends.getMyTeam();
-  if (!team) return null;
-  const [user, plans, completions, totalXp, unlocks, others] = await Promise.all([
+/** The user's own progress, as this device has it. */
+async function myProgress(repositories: Repositories, now: Date): Promise<MyProgress> {
+  const [user, plans, completions, totalXp, unlocks] = await Promise.all([
     repositories.user.getUser(),
     repositories.course.getDays(),
     repositories.progress.getCompletions(),
     repositories.progress.getTotalXp(),
     repositories.achievements.getUnlocks(),
-    repositories.friends.getTeamMembers(),
   ]);
   const currentDay = getChallengeDay(user.challengeStartDate, now);
-  const questCount = plans.find((plan) => plan.day === currentDay)?.quests.length ?? 0;
-  return buildTeamView({
-    team,
+  const completedDays = findCompletedDays(plans, completions);
+  const today = completions.filter((completion) => completion.day === currentDay);
+  const last = completions
+    .map((completion) => completion.completedAt)
+    .sort()
+    .at(-1);
+  return {
     currentDay,
-    questCount,
-    me: myProgress({
-      displayName: user.displayName,
-      plans,
-      completions,
-      totalXp,
-      achievementsUnlocked: unlocks.length,
-      currentDay,
-    }),
-    others: others.map((member) => fromTeamMember(member, currentDay)),
-  });
+    completedDays,
+    todayQuestsDone: today.length,
+    streak: computeStreak(completedDays, currentDay),
+    totalXp,
+    achievementsUnlocked: unlocks.length,
+    lastActivityAt: last ?? null,
+  };
 }
 
-/** One member, as the team view sees them. */
+async function stateOf(
+  repositories: Repositories,
+  cached: CachedTeam | null,
+  now: Date,
+): Promise<FriendsState> {
+  const { serverBacked, selfId } = repositories.friends;
+  if (!cached) return { kind: 'unknown', serverBacked };
+  if (!cached.team) return { kind: 'noTeam', serverBacked, asOf: cached.asOf };
+  const [me, plans] = await Promise.all([
+    myProgress(repositories, now),
+    repositories.course.getDays(),
+  ]);
+  return {
+    kind: 'team',
+    serverBacked,
+    view: buildTeamView({ team: cached.team, asOf: cached.asOf, selfId, me, plans, now }),
+  };
+}
+
+/** What the Friends tab shows now, from this device alone. */
+export async function loadFriends(
+  repositories: Repositories,
+  now: Date = new Date(),
+): Promise<FriendsState> {
+  return stateOf(repositories, await repositories.friends.cached(), now);
+}
+
+/** One teammate, as the team view sees them. */
 export async function loadMemberDetails(
   repositories: Repositories,
-  memberId: string,
+  userId: string,
   now: Date = new Date(),
 ): Promise<{ member: MemberView; team: TeamView } | null> {
-  const team = await loadTeamView(repositories, now);
-  const member = team?.members.find((item) => item.id === memberId);
-  return team && member ? { member, team } : null;
+  const state = await loadFriends(repositories, now);
+  if (state.kind !== 'team') return null;
+  const member = state.view.members.find((item) => item.userId === userId);
+  return member ? { member, team: state.view } : null;
 }
 
 /**
- * Team streak facts for the achievement engine — from the same domain logic
- * the Friends screen uses. `null` without a team, or while the user is alone in it.
+ * The team streak for the badges' progress — the server's numbers. Only the
+ * server unlocks the badge; `null` without a team of two or more.
  */
 export async function loadTeamStreakFacts(
   repositories: Repositories,
-  input: { completedDays: ReadonlySet<DayNumber>; currentDay: DayNumber },
-): Promise<{ current: number; longest: number } | null> {
-  const team = await repositories.friends.getMyTeam();
-  if (!team) return null;
-  const others = await repositories.friends.getTeamMembers();
-  return teamStreakOf(
-    [
-      { joinedDay: 1, completedDays: input.completedDays },
-      ...others.map((member) => fromTeamMember(member, input.currentDay)),
-    ],
-    input.currentDay,
-  );
-}
-
-/** The user's own events, derived from their progress — nothing is stored twice. */
-function myActivity(
-  days: readonly DayCompletion[],
-  unlocks: readonly AchievementUnlock[],
-): TeamActivity[] {
-  const events: TeamActivity[] = [];
-  for (const record of days) {
-    events.push({
-      id: `me-day-${record.day}`,
-      memberId: ME,
-      type: 'dayCompleted',
-      metadata: { day: record.day },
-      createdAt: record.completedAt,
-    });
-    if (STREAK_MILESTONES.has(record.streakAfter)) {
-      events.push({
-        id: `me-streak-${record.streakAfter}-${record.day}`,
-        memberId: ME,
-        type: 'streakMilestone',
-        metadata: { days: record.streakAfter },
-        createdAt: record.completedAt,
-      });
-    }
-  }
-  for (const unlock of unlocks) {
-    events.push({
-      id: `me-badge-${unlock.achievementId}`,
-      memberId: ME,
-      type: 'achievementUnlocked',
-      metadata: { achievementId: unlock.achievementId },
-      createdAt: unlock.unlockedAt,
-    });
-  }
-  return events;
-}
-
-/**
- * A few recent moments of the team — not a feed. Newest first, at most
- * `perMember` from each person, so one busy member never fills the list.
- */
-export function pickTeamActivity(
-  events: readonly TeamActivity[],
-  { limit, perMember }: { limit: number; perMember: number },
-): TeamActivity[] {
-  const newest = [...events].sort((a, b) => b.createdAt.localeCompare(a.createdAt));
-  const taken = new Map<string, number>();
-  const picked: TeamActivity[] = [];
-  for (const event of newest) {
-    const count = taken.get(event.memberId) ?? 0;
-    if (count >= perMember) continue;
-    taken.set(event.memberId, count + 1);
-    picked.push(event);
-    if (picked.length === limit) break;
-  }
-  return picked;
-}
-
-export async function loadTeamActivity(
-  repositories: Repositories,
-  limit = 5,
-): Promise<TeamActivity[]> {
-  const team = await repositories.friends.getMyTeam();
-  if (!team) return [];
-  const [theirs, days, unlocks] = await Promise.all([
-    repositories.friends.getTeamActivity(limit * 4),
-    repositories.progress.getDayCompletions(),
-    repositories.achievements.getUnlocks(),
-  ]);
-  // Only what happened since the team exists: older history is not team news.
-  const mine = myActivity(days, unlocks).filter((event) => event.createdAt >= team.createdAt);
-  return pickTeamActivity([...mine, ...theirs], { limit, perMember: 2 });
-}
-
-export async function createInvite(
-  repositories: Repositories,
   now: Date = new Date(),
-): Promise<TeamInvite> {
-  return repositories.friends.createInvite(now.toISOString());
+): Promise<{ current: number; longest: number } | null> {
+  const state = await loadFriends(repositories, now);
+  return teamStreakFacts(state.kind === 'team' ? state.view : null);
 }
 
-export async function joinTeam(repositories: Repositories, code: string): Promise<JoinTeamResult> {
-  return repositories.friends.joinTeam(code);
+/** Asks the server for the team; the answer is kept for offline. */
+export async function refreshTeam(repositories: Repositories): Promise<CachedTeam> {
+  return repositories.friends.refresh();
+}
+
+/** A new team, with the user as its owner. Needs the server. */
+export async function createTeam(repositories: Repositories): Promise<CachedTeam> {
+  return repositories.friends.create();
+}
+
+/** The team's invite to share: the open one, or a new one. Needs the server. */
+export async function teamInvite(repositories: Repositories, teamId: string): Promise<TeamInvite> {
+  return repositories.friends.invite(teamId);
+}
+
+/** Turns the invite off and makes a new one: a code shared too widely stops working. */
+export async function renewInvite(
+  repositories: Repositories,
+  input: { teamId: string; inviteId: string },
+): Promise<TeamInvite> {
+  await repositories.friends.revokeInvite(input.inviteId);
+  return repositories.friends.invite(input.teamId);
+}
+
+/** The team behind a code — before joining it, and without anyone's progress. */
+export async function previewInvite(
+  repositories: Repositories,
+  code: InviteCode,
+): Promise<InvitePreview> {
+  return repositories.friends.preview(code);
+}
+
+/** Joins the team behind a code: only ever on the user's say-so. */
+export async function joinTeam(repositories: Repositories, code: InviteCode): Promise<CachedTeam> {
+  return repositories.friends.join(code);
+}
+
+export async function leaveTeam(repositories: Repositories, teamId: string): Promise<CachedTeam> {
+  return repositories.friends.leave(teamId);
 }

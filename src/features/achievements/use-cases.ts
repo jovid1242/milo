@@ -1,7 +1,6 @@
 import type { Repositories } from '@/data/repositories/types';
 import { getChallengeDay } from '@/features/challenge/logic/calendar';
 import { loadTeamStreakFacts } from '@/features/friends/use-cases';
-import { findCompletedDays } from '@/features/progress/logic/day-completion';
 import type { Achievement, AchievementId, AchievementStatus } from '@/schemas';
 
 import {
@@ -24,14 +23,8 @@ export async function loadAchievementFacts(
     repositories.progress.countLearnedWords(),
   ]);
   const currentDay = getChallengeDay(user.challengeStartDate, now);
-  // With an account, badges are the server's to grant, and the server has no
-  // teams yet: the team badge waits for them, here as there.
-  const teamStreak = repositories.sync
-    ? null
-    : await loadTeamStreakFacts(repositories, {
-        completedDays: findCompletedDays(plans, completions),
-        currentDay,
-      });
+  // The team's streak as the server last told it: progress toward the badge.
+  const teamStreak = await loadTeamStreakFacts(repositories, now);
   return buildAchievementFacts({
     plans,
     completions,
@@ -69,8 +62,13 @@ export async function syncAchievements(
     repositories.achievements.getUnlocks(),
     loadAchievementFacts(repositories, now),
   ]);
+  // With an account, the team badge is the server's alone to grant — it
+  // depends on teammates this device only hears about. It arrives by sync.
+  const unlockable = repositories.sync
+    ? definitions.filter((achievement) => achievement.rule.type !== 'teamStreak')
+    : definitions;
   const earned = findNewlyEarned(
-    definitions,
+    unlockable,
     facts,
     new Set(unlocks.map((unlock) => unlock.achievementId)),
   );

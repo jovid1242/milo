@@ -5,6 +5,7 @@ import type { CourseReader } from '@/data/repositories/course/course-reader';
 import {
   buildAchievementFacts,
   findNewlyEarned,
+  type AchievementFacts,
 } from '@/features/achievements/logic/evaluate-achievements';
 import { challengeDayOn } from '@/features/challenge/logic/calendar';
 import { examAnswersFit, scoreExam } from '@/features/exams/logic/exam';
@@ -411,10 +412,10 @@ export class ChallengeWork {
 
   /**
    * Unlocks every badge whose rule the progress now meets, and pays its XP —
-   * once each, with the app's own rules. The team badge needs Friends, which
-   * the server does not have yet: it stays locked.
+   * once each, with the app's own rules. The team badge looks at `teamStreak`:
+   * the user's team, derived from the server's records (`null` without one).
    */
-  settleAchievements(at: Date): void {
+  settleAchievements(at: Date, teamStreak: AchievementFacts['teamStreak'] = null): void {
     if (!this.challenge) return;
     const completions = this.completionList();
     const facts = buildAchievementFacts({
@@ -423,7 +424,7 @@ export class ChallengeWork {
       dayCompletions: this.dayList(),
       uniqueWords: this.words.size,
       currentDay: this.serverDay(),
-      teamStreak: null,
+      teamStreak,
     });
     for (const achievement of findNewlyEarned(DEFINITIONS, facts, this.unlocked)) {
       this.unlocked.add(achievement.id);
@@ -431,6 +432,16 @@ export class ChallengeWork {
       if (achievement.xpReward > 0)
         this.pay('achievement', achievement.id, achievement.xpReward, at);
     }
+  }
+
+  /** The challenge days recorded as finished — this work's included. */
+  completedDays(): ReadonlySet<DayNumber> {
+    return new Set(this.days.keys());
+  }
+
+  /** Today's date in the challenge's time zone; `null` before it starts. */
+  today(): LocalDate | null {
+    return this.challenge ? localDateIn(this.challenge.timeZone, this.now) : null;
   }
 
   /** The challenge day on the server's clock, in the challenge's time zone. */

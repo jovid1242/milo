@@ -5,12 +5,14 @@ import type { DestinationStream } from 'pino';
 import { AuthModule } from './auth/auth.module';
 import { ClockModule, type Clock } from './common/clock';
 import { loggerParams } from './common/logging';
+import { RateLimitModule } from './common/rate-limit.module';
 import { ConfigModule } from './config/config.module';
 import type { AppConfig } from './config/env';
 import { CourseModule } from './course/course.module';
 import { HealthController } from './health/health.controller';
 import { PrismaModule } from './prisma/prisma.module';
 import { ProgressModule } from './progress/progress.module';
+import { TeamsModule } from './teams/teams.module';
 import { UsersModule } from './users/users.module';
 
 export type AppOptions = {
@@ -32,10 +34,12 @@ export class AppModule {
         ClockModule.forRoot(options.clock),
         LoggerModule.forRoot(loggerParams(config, options.logDestination)),
         PrismaModule,
+        RateLimitModule,
         AuthModule,
         UsersModule,
         CourseModule.forRoot(options.course),
         ProgressModule,
+        TeamsModule,
       ],
       controllers: [HealthController],
     };

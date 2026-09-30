@@ -1,5 +1,7 @@
+import { FakeTeamServer } from '@/data/repositories/api/__fixtures__/fake-team-server';
 import { SqliteSyncRepository } from '@/data/repositories/local/sqlite-sync-repository';
 import { getStartDateForDay } from '@/features/challenge/logic/calendar';
+import { createTeam, loadFriends, refreshTeam } from '@/features/friends/use-cases';
 import { startChallenge } from '@/features/onboarding/use-cases';
 import { loadProgressState } from '@/features/progress/use-cases';
 import type { ProgressSnapshot } from '@/schemas';
@@ -15,11 +17,16 @@ import { prepareAccount, settleLegacyProgress } from '../owner-session';
  */
 
 let server: FakeProgressServer;
+let teams: FakeTeamServer;
 let phone: TestDevice;
 
 beforeEach(() => {
   server = new FakeProgressServer();
-  phone = new TestDevice(server);
+  teams = new FakeTeamServer();
+  phone = new TestDevice({
+    api: (signedIn) => server.api(signedIn),
+    teamApi: (signedIn) => teams.api(signedIn),
+  });
 });
 afterEach(() => phone.close());
 
@@ -106,7 +113,8 @@ describe('two accounts on one phone', () => {
       progress: 0.5,
       state: { phase: 'examples' },
     });
-    await a.repositories.friends.createInvite(new Date().toISOString());
+    await createTeam(a.repositories);
+    await expect(loadFriends(a.repositories)).resolves.toMatchObject({ kind: 'team' });
     signOut(a);
 
     const b = await signIn(ACCOUNT_B);
@@ -118,7 +126,11 @@ describe('two accounts on one phone', () => {
     await expect(r.progress.getDayCompletions()).resolves.toEqual([]);
     await expect(r.achievements.getUnlocks()).resolves.toEqual([]);
     await expect(r.exams.getAllAttempts()).resolves.toEqual([]);
-    await expect(r.friends.getMyTeam()).resolves.toBeNull();
+    // Not A's team — not even the last answer about it, not for a frame.
+    await expect(r.friends.cached()).resolves.toBeNull();
+    await expect(loadFriends(r)).resolves.toEqual({ kind: 'unknown', serverBacked: true });
+    await refreshTeam(r);
+    await expect(loadFriends(r)).resolves.toMatchObject({ kind: 'noTeam' });
     await expect(r.user.getUser()).resolves.toMatchObject({ displayName: 'Explorer', goal: null });
     await expect(r.sync!.repository.outbox()).resolves.toEqual([]);
   });

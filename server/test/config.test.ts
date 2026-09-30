@@ -27,6 +27,7 @@ describe('loadConfig', () => {
       accessToken: { ttlMs: 15 * 60_000 },
       refreshToken: { ttlMs: 30 * 24 * 60 * 60_000, reuseGraceMs: 30_000 },
       authRateLimitPerMinute: 20,
+      inviteRateLimitPerMinute: 10,
       corsOrigins: [],
       swaggerEnabled: true,
       trustProxy: false,

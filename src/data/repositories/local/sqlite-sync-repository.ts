@@ -1,5 +1,6 @@
 import { z } from 'zod';
 
+import { ACHIEVEMENTS } from '@/data/content/achievements';
 import { placeholders, type LocalStore, type SqlExecutor } from '@/data/db/local-store';
 import type {
   LegacyClaim,
@@ -27,6 +28,9 @@ import { enqueueMutation } from './outbox';
 
 /** The owner of progress from before accounts, and of everything in local mode. */
 export const LOCAL_OWNER = 'local';
+
+/** The badge a team earns together — granted by the server, often by a teammate's day. */
+const TEAM_BADGE = ACHIEVEMENTS.find((achievement) => achievement.rule.type === 'teamStreak')?.id;
 
 type OutboxRow = {
   mutation_id: string;
@@ -188,7 +192,11 @@ export class SqliteSyncRepository implements SyncRepository {
           }
         }
         if (response.progress) {
-          await this.reconcile(txn, response.progress, at);
+          // Whether this device already followed the account (a first sync brings history).
+          const following = await txn.getFirstAsync('SELECT 1 FROM sync_state WHERE owner_id = ?', [
+            this.owner,
+          ]);
+          await this.reconcile(txn, response.progress, at, { following: following !== null });
           changed = true;
         }
         if (await this.dropUnconfirmed(txn)) changed = true;
@@ -311,7 +319,12 @@ export class SqliteSyncRepository implements SyncRepository {
   }
 
   /** Makes the confirmed part of the projection exactly the server's progress. */
-  private async reconcile(txn: SqlExecutor, progress: ProgressSnapshot, at: Timestamp) {
+  private async reconcile(
+    txn: SqlExecutor,
+    progress: ProgressSnapshot,
+    at: Timestamp,
+    { following }: { following: boolean },
+  ) {
     const owner = this.owner;
 
     // The challenge: started (and when) as the server says.
@@ -471,15 +484,20 @@ export class SqliteSyncRepository implements SyncRepository {
       await txn.runAsync('DELETE FROM xp_events WHERE owner_id = ? AND id = ?', [owner, event.id]);
     }
 
-    // Badges. One new to this device arrives celebrated, like a day.
+    // Badges. One new to this device arrives celebrated, like a day — except
+    // the team badge on a device that follows the account: the server grants
+    // it when the team's day completes, often by a teammate's last quest, so
+    // no device of this user has celebrated it yet. It is celebrated here,
+    // once (a celebration is never reset by a later sync).
     for (const unlock of progress.achievementUnlocks) {
+      const news = following && unlock.achievementId === TEAM_BADGE;
       await txn.runAsync(
         `INSERT INTO achievement_unlocks
            (owner_id, achievement_id, unlocked_at, celebrated_at, pending_mutation_id)
          VALUES (?, ?, ?, ?, NULL)
          ON CONFLICT(owner_id, achievement_id) DO UPDATE SET
            unlocked_at = excluded.unlocked_at, pending_mutation_id = NULL`,
-        [owner, unlock.achievementId, unlock.unlockedAt, at],
+        [owner, unlock.achievementId, unlock.unlockedAt, news ? null : at],
       );
     }
     await deleteConfirmedExcept(

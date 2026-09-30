@@ -15,18 +15,25 @@ describe('migrations', () => {
     expect(MIGRATIONS.map((migration) => migration.version)).toEqual(
       MIGRATIONS.map((_, index) => index + 1),
     );
-    expect(MIGRATIONS.at(-1)?.name).toBe('account-scoped progress, sync outbox');
+    expect(MIGRATIONS.at(-1)?.name).toBe('teams on the server');
   });
 });
 
-/** A database as an app at version 11 left it: real rows in every table. */
-async function version11(db: SqlDatabase) {
-  for (const migration of MIGRATIONS.filter((item) => item.version <= 11)) {
+/** Runs the migrations up to `version`, as an app of that version did. */
+async function migrateTo(db: SqlDatabase, version: number) {
+  const row = await db.getFirstAsync<{ user_version: number }>('PRAGMA user_version');
+  for (const migration of MIGRATIONS) {
+    if (migration.version <= (row?.user_version ?? 0) || migration.version > version) continue;
     await db.withExclusiveTransactionAsync(async (txn) => {
       await migration.up(txn);
       await txn.execAsync(`PRAGMA user_version = ${migration.version}`);
     });
   }
+}
+
+/** A database as an app at version 11 left it: real rows in every table. */
+async function version11(db: SqlDatabase) {
+  await migrateTo(db, 11);
   await db.execAsync(`
     INSERT INTO user_profile (id, display_name, challenge_start_date, created_at, goal, onboarded_at)
       VALUES ('local-user', 'Ada', '2026-08-01', '2026-08-01T08:00:00.000Z', 'habit', '2026-08-01T08:00:00.000Z');
@@ -88,7 +95,7 @@ describe('account-scoped progress (migration 12)', () => {
     store = new NodeSqliteStore(':memory:', { migrate: false });
     db = await store.read();
     await version11(db);
-    await runMigrations(db);
+    await migrateTo(db, 12);
   });
   afterEach(() => store.close());
 
@@ -173,10 +180,59 @@ describe('account-scoped progress (migration 12)', () => {
 
   it('runs once: a second launch changes nothing', async () => {
     await runMigrations(db);
-    await expect(db.getFirstAsync('PRAGMA user_version')).resolves.toEqual({ user_version: 12 });
+    await runMigrations(db);
+    await expect(db.getFirstAsync('PRAGMA user_version')).resolves.toEqual({
+      user_version: MIGRATIONS.length,
+    });
     await expect(db.getFirstAsync('SELECT COUNT(*) AS n FROM quest_completions')).resolves.toEqual({
       n: 2,
     });
+  });
+});
+
+describe('teams on the server (migration 13)', () => {
+  let store: NodeSqliteStore;
+  let db: SqlDatabase;
+
+  beforeEach(async () => {
+    store = new NodeSqliteStore(':memory:', { migrate: false });
+    db = await store.read();
+    await version11(db);
+    await runMigrations(db);
+  });
+  afterEach(() => store.close());
+
+  it('drops the local team — it only ever held a team nobody could join', async () => {
+    const tables = await db.getAllAsync<{ name: string }>(
+      "SELECT name FROM sqlite_master WHERE type = 'table' AND name LIKE 'team%' ORDER BY name",
+    );
+    expect(tables.map((table) => table.name)).toEqual(['team_cache']);
+    await expect(db.getFirstAsync('SELECT COUNT(*) AS n FROM team_cache')).resolves.toEqual({
+      n: 0,
+    });
+  });
+
+  it('leaves the progress alone', async () => {
+    await expect(db.getFirstAsync('SELECT COUNT(*) AS n FROM quest_completions')).resolves.toEqual({
+      n: 2,
+    });
+    await expect(
+      db.getFirstAsync("SELECT SUM(amount) AS xp FROM xp_events WHERE owner_id = 'local'"),
+    ).resolves.toEqual({ xp: 30 + 15 + 40 + 250 });
+    await expect(db.getFirstAsync('SELECT COUNT(*) AS n FROM day_completions')).resolves.toEqual({
+      n: 1,
+    });
+  });
+
+  it('keeps one answer per owner', async () => {
+    await db.execAsync(`
+      INSERT INTO team_cache (owner_id, team_json, as_of) VALUES ('account-a', NULL, '2026-09-30T10:00:00.000Z');
+    `);
+    await expect(
+      db.execAsync(
+        "INSERT INTO team_cache (owner_id, team_json, as_of) VALUES ('account-a', NULL, '2026-09-30T11:00:00.000Z')",
+      ),
+    ).rejects.toThrow(/UNIQUE|PRIMARY KEY/);
   });
 });
 

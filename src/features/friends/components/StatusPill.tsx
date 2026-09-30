@@ -10,7 +10,6 @@ const TONES: Record<MemberTodayStatus, 'brand' | 'reward' | 'neutral'> = {
   almostThere: 'reward',
   inProgress: 'neutral',
   notStarted: 'neutral',
-  unknown: 'neutral',
 };
 
 /** Today's status in words (and a check when done) — never colour alone. */

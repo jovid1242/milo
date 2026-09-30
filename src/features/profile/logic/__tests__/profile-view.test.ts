@@ -108,10 +108,16 @@ describe('buildProfileView', () => {
     expect(build().team).toBeNull();
     const team = {
       members: [{}, {}, {}],
+      capacity: 3,
       teamStreak: 12,
       finishedToday: 2,
     } as unknown as TeamView;
-    expect(build({ team }).team).toEqual({ members: 3, teamStreak: 12, finishedToday: 2 });
+    expect(build({ team }).team).toEqual({
+      members: 3,
+      capacity: 3,
+      teamStreak: 12,
+      finishedToday: 2,
+    });
   });
 });
 

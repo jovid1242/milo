@@ -6,14 +6,12 @@ import { colors, radius, spacing } from '@/theme';
 
 import type { ProfileView } from '../logic/profile-view';
 
-const plural = (count: number, word: string) => `${count} ${word}${count === 1 ? '' : 's'}`;
-
 /** The team in one line — the Friends tab has the rest. */
 export function TeamCard({ view, onOpen }: { view: ProfileView; onOpen: () => void }) {
   const { team } = view;
   const line = team
     ? team.members > 1
-      ? `${plural(team.members, 'member')} · ${team.teamStreak > 0 ? `${team.teamStreak}-day team streak` : 'Team streak not started yet'}`
+      ? `${team.members}/${team.capacity} members · ${team.teamStreak > 0 ? `${team.teamStreak}-day team streak` : 'Team streak not started yet'}`
       : 'Your team is ready for friends.'
     : 'Climb the 90 days together with friends.';
 

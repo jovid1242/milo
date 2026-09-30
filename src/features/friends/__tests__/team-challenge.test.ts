@@ -1,225 +1,317 @@
+import { FakeTeamServer } from '@/data/repositories/api/__fixtures__/fake-team-server';
+import { LOCAL_SELF_ID } from '@/data/repositories/local/local-friends-repository';
 import { createMemoryRepositories } from '@/data/repositories/memory/memory-repositories';
-import { loadAchievements, syncAchievements } from '@/features/achievements/use-cases';
-import { getStartDateForDay } from '@/features/challenge/logic/calendar';
-import { completeQuest } from '@/features/progress/use-cases';
-import type { QuestCompletion, Team, TeamMember } from '@/schemas';
-
+import type { ProgressSync, Repositories } from '@/data/repositories/types';
 import {
-  createInvite,
+  loadAchievements,
+  loadPendingCelebrations,
+  syncAchievements,
+} from '@/features/achievements/use-cases';
+import { getStartDateForDay } from '@/features/challenge/logic/calendar';
+import type { InviteCode, TeamMemberSummary, TeamSnapshot } from '@/schemas';
+
+import { inviteShareMessage } from '../logic/team-copy';
+import { TEAM_PROBLEMS, teamProblemOf, type TeamProblem } from '../logic/team-errors';
+import {
+  createTeam,
   joinTeam,
+  leaveTeam,
+  loadFriends,
   loadMemberDetails,
-  loadTeamActivity,
-  loadTeamView,
-  pickTeamActivity,
+  previewInvite,
+  refreshTeam,
+  renewInvite,
+  teamInvite,
+  type FriendsState,
 } from '../use-cases';
 
-type Repositories = ReturnType<typeof createMemoryRepositories>;
-const AT = '2026-09-18T10:00:00.000Z';
-const TEAM: Team = { id: 'team-1', name: 'Our team', inviteCode: 'MILO-7K2P', createdAt: AT };
+/**
+ * The team from the app's side: its use cases and repository against a
+ * stand-in for the Milo API (the real one is tested in server/test), each
+ * account with its own cache.
+ */
 
-const range = (from: number, to: number) =>
-  Array.from({ length: Math.max(0, to - from + 1) }, (_, index) => from + index);
+const ADA = '00000000-0000-4000-8000-00000000ada0';
+const BEA = '00000000-0000-4000-8000-00000000bea0';
+const CY = '00000000-0000-4000-8000-000000000c00';
+const DAN = '00000000-0000-4000-8000-00000000da00';
 
-function friend(id: string, days: number[], patch: Partial<TeamMember> = {}): TeamMember {
-  return {
-    id,
-    displayName: id[0]?.toUpperCase() + id.slice(1),
-    avatarUrl: null,
-    joinedDay: 1,
-    completedDays: days,
-    today: null,
-    totalXp: 1200,
-    achievementsUnlocked: 4,
-    lastActivityAt: AT,
-    ...patch,
-  };
+let server: FakeTeamServer;
+
+beforeEach(() => {
+  server = new FakeTeamServer();
+  for (const [id, name] of [
+    [ADA, 'Ada'],
+    [BEA, 'Bea'],
+    [CY, 'Cy'],
+    [DAN, 'Dan'],
+  ] as const)
+    server.names.set(id, name);
+});
+
+/** An account on its phone, Day `day` of the challenge. */
+function account(userId: string, day = 5) {
+  return createMemoryRepositories(getStartDateForDay(day, new Date()), {
+    team: { api: server.api(() => userId), selfId: userId },
+  });
 }
 
-async function setup(currentDay: number) {
-  return createMemoryRepositories(getStartDateForDay(currentDay, new Date()));
-}
-
-/** The user's own finished days, stored as quest completions. */
-async function myDays(repositories: Repositories, days: readonly number[]) {
-  const plans = await repositories.course.getDays();
-  const completions: QuestCompletion[] = plans
-    .filter((plan) => days.includes(plan.day))
-    .flatMap((plan) =>
-      plan.quests.map((quest) => ({
-        questId: quest.id,
-        courseVersion: 1,
-        day: plan.day,
-        questType: quest.type,
-        score: 5 / 6,
-        correctCount: 5,
-        totalCount: 6,
-        xpEarned: quest.xpReward,
-        source: 'user' as const,
-        completedAt: AT,
-      })),
-    );
-  await repositories.dev?.seedHistory(completions, [], [], []);
-}
-
-/** The rest of today's quests, through the real completion use case. */
-async function finishToday(repositories: Repositories, day: number) {
-  const plan = await repositories.course.getDay(day);
-  const done = new Set((await repositories.progress.getCompletions()).map((c) => c.questId));
-  const outcomes = [];
-  for (const quest of plan.quests.filter((item) => !done.has(item.id))) {
-    outcomes.push(
-      await completeQuest(repositories, { questId: quest.id, correctCount: 5, totalCount: 6 }),
-    );
+const problemOf = async (work: Promise<unknown>): Promise<TeamProblem> => {
+  try {
+    await work;
+  } catch (error) {
+    return teamProblemOf(error);
   }
-  return outcomes;
+  throw new Error('It worked');
+};
+
+const viewOf = (state: FriendsState) => {
+  if (state.kind !== 'team') throw new Error(`No team: ${state.kind}`);
+  return state.view;
+};
+
+async function adasTeam() {
+  const ada = account(ADA);
+  const made = await createTeam(ada);
+  const invite = await teamInvite(ada, made.team?.id ?? '');
+  return { ada, teamId: made.team?.id ?? '', code: invite.code };
 }
 
-const teamStreakBadge = async (repositories: Repositories) =>
-  (await loadAchievements(repositories)).find((status) => status.achievement.id === 'teamStreak');
-
-describe('team challenge', () => {
-  it('has no team until the user creates an invite', async () => {
-    const repositories = await setup(5);
-    expect(await loadTeamView(repositories)).toBeNull();
-    expect(await teamStreakBadge(repositories)).toMatchObject({ state: 'notAvailable' });
+describe('no team', () => {
+  it('knows nothing before the first answer, then that there is no team', async () => {
+    const ada = account(ADA);
+    expect(await loadFriends(ada)).toEqual({ kind: 'unknown', serverBacked: true });
+    await refreshTeam(ada);
+    expect(await loadFriends(ada)).toMatchObject({ kind: 'noTeam', serverBacked: true });
   });
+});
 
-  it('updates team progress when the user finishes their day', async () => {
-    const repositories = await setup(20);
-    await myDays(repositories, range(1, 19));
-    await repositories.dev?.replaceTeam(
-      TEAM,
-      [friend('alex', range(1, 20)), friend('mia', range(1, 20))],
-      [],
-    );
-    const before = await loadTeamView(repositories);
-    expect(before).toMatchObject({ finishedToday: 2, isTeamDayComplete: false, teamStreak: 19 });
-
-    await finishToday(repositories, 20);
-    const after = await loadTeamView(repositories);
-    expect(after).toMatchObject({ finishedToday: 3, isTeamDayComplete: true, teamStreak: 20 });
-    expect(after?.members[0]).toMatchObject({ id: 'me', status: 'done', isCurrentUser: true });
-  });
-
-  it('unlocks Team Streak on the 7th team day in a row — and keeps it after a break', async () => {
-    const repositories = await setup(7);
-    await myDays(repositories, range(1, 6));
-    await repositories.dev?.replaceTeam(
-      TEAM,
-      [friend('alex', range(1, 7)), friend('mia', range(1, 7))],
-      [],
-    );
-    await syncAchievements(repositories);
-    expect(await teamStreakBadge(repositories)).toMatchObject({
-      state: 'locked',
-      progress: { current: 6, target: 7 },
-    });
-
-    // The user finishes Day 7: everyone has now finished 7 days in a row.
-    const outcomes = await finishToday(repositories, 7);
-    const unlocked = outcomes.flatMap((outcome) => outcome.newAchievements.map((a) => a.id));
-    expect(unlocked).toContain('teamStreak');
-
-    // Days later, the team streak is broken — the badge stays.
-    await repositories.user.updateChallengeStartDate(getStartDateForDay(12, new Date()));
-    expect((await loadTeamView(repositories))?.teamStreak).toBe(0);
-    expect(await teamStreakBadge(repositories)).toMatchObject({ state: 'unlocked' });
-    expect(await syncAchievements(repositories)).toEqual([]);
-  });
-
-  it('shows a friend without private stats as unknown, never as 0', async () => {
-    const repositories = await setup(20);
-    await repositories.dev?.replaceTeam(
-      TEAM,
-      [
-        friend('mia', range(1, 19), {
-          totalXp: null,
-          achievementsUnlocked: null,
-          lastActivityAt: null,
-          today: null,
-        }),
-      ],
-      [],
-    );
-    const details = await loadMemberDetails(repositories, 'mia');
-    expect(details?.member).toMatchObject({
-      totalXp: null,
-      achievementsUnlocked: null,
-      lastActivityAt: null,
-      todayQuestsDone: null,
-      status: 'unknown',
-      journeyDays: 19,
-    });
-  });
-
-  it('creates a demo invite that never pretends someone can join remotely', async () => {
-    const repositories = await setup(3);
-    const invite = await createInvite(repositories, new Date(AT));
-    expect(invite).toMatchObject({ joinable: false });
-    expect(invite.code).toMatch(/^MILO-[A-HJ-NP-Z2-9]{4}$/);
-    // The same team (and code) on every later call.
-    expect((await createInvite(repositories)).code).toBe(invite.code);
-    expect((await loadTeamView(repositories))?.members.map((m) => m.id)).toEqual(['me']);
-
-    expect(await joinTeam(repositories, invite.code.toLowerCase())).toEqual({
-      status: 'alreadyMember',
-    });
-    expect(await joinTeam(repositories, 'MILO-ABCD')).toEqual({ status: 'unavailable' });
-    expect(await joinTeam(repositories, 'nope')).toEqual({ status: 'invalidCode' });
-  });
-
-  it('merges the user’s own moments with the team’s, newest first, capped', async () => {
-    const repositories = await setup(3);
-    await repositories.dev?.replaceTeam(
-      { ...TEAM, createdAt: '2026-01-01T00:00:00.000Z' },
-      [friend('alex', range(1, 2))],
-      [
-        {
-          id: 'a1',
-          memberId: 'alex',
-          type: 'dayCompleted',
-          metadata: { day: 2 },
-          createdAt: '2026-01-02T09:00:00.000Z',
-        },
-      ],
-    );
-    await finishToday(repositories, 1);
-    const activity = await loadTeamActivity(repositories);
-    expect(activity.map((event) => event.type)).toEqual(
-      expect.arrayContaining(['dayCompleted', 'achievementUnlocked']),
-    );
-    expect(activity.some((event) => event.memberId === 'me')).toBe(true);
-    expect(activity.length).toBeLessThanOrEqual(5);
-    const times = activity.map((event) => event.createdAt);
-    expect([...times].sort().reverse()).toEqual(times);
-  });
-
-  it('keeps recent activity balanced: at most two moments per member', () => {
-    const at = (minutes: number) => new Date(Date.parse(AT) - minutes * 60_000).toISOString();
-    const events = [
-      ...[1, 2, 3, 4].map((n) => ({
-        id: `me-${n}`,
-        memberId: 'me',
-        type: 'dayCompleted' as const,
-        metadata: { day: n },
-        createdAt: at(n),
-      })),
-      { id: 'a', memberId: 'alex', type: 'memberJoined' as const, metadata: {}, createdAt: at(30) },
-      { id: 'm', memberId: 'mia', type: 'memberJoined' as const, metadata: {}, createdAt: at(60) },
-    ];
-    expect(pickTeamActivity(events, { limit: 5, perMember: 2 }).map((e) => e.id)).toEqual([
-      'me-1',
-      'me-2',
-      'a',
-      'm',
+describe('making a team', () => {
+  it('makes the user its owner and only member: 1/3', async () => {
+    const ada = account(ADA);
+    await createTeam(ada);
+    const view = viewOf(await loadFriends(ada));
+    expect(view).toMatchObject({ name: "Ada's team", capacity: 3, isFull: false });
+    expect(view.members).toEqual([
+      expect.objectContaining({ userId: ADA, isCurrentUser: true, isOwner: true }),
     ]);
   });
 
-  it('reads the team back the same way — as after a restart', async () => {
-    const repositories = await setup(20);
-    await repositories.dev?.replaceTeam(TEAM, [friend('alex', range(1, 19))], []);
-    const first = await loadTeamView(repositories);
-    const again = await loadTeamView(repositories);
-    expect(again).toEqual(first);
+  it('shares an invite with a short message, the link and the code', async () => {
+    const { ada, code } = await adasTeam();
+    expect(code).toMatch(/^[A-HJ-NP-Z2-9]{5}-[A-HJ-NP-Z2-9]{5}$/);
+    const message = inviteShareMessage(code);
+    expect(message).toContain(`milo://invite/${code}`);
+    expect(message).toContain(`code ${code}`);
+    // The team shows it too, from the cache — until it ends.
+    expect(viewOf(await loadFriends(ada)).invite?.code).toBe(code);
+  });
+
+  it('turns an invite off for a new one', async () => {
+    const { ada, teamId, code } = await adasTeam();
+    const invite = viewOf(await loadFriends(ada)).invite;
+    const fresh = await renewInvite(ada, { teamId, inviteId: invite?.id ?? '' });
+    expect(fresh.code).not.toBe(code);
+    expect(await problemOf(previewInvite(account(BEA), code))).toBe('revoked');
+  });
+});
+
+describe('joining with a code', () => {
+  it('shows the team first, then joins it — and everyone sees the same members', async () => {
+    const { ada, code } = await adasTeam();
+    const bea = account(BEA);
+    await expect(previewInvite(bea, code)).resolves.toMatchObject({
+      teamName: "Ada's team",
+      ownerName: 'Ada',
+      memberCount: 1,
+      capacity: 3,
+      status: 'canJoin',
+    });
+    // Previewing is not joining.
+    await refreshTeam(bea);
+    expect((await loadFriends(bea)).kind).toBe('noTeam');
+
+    await joinTeam(bea, code);
+    const cy = account(CY);
+    await joinTeam(cy, code);
+    for (const who of [ada, bea, cy]) {
+      await refreshTeam(who);
+      const view = viewOf(await loadFriends(who));
+      expect(view.members.map((member) => member.userId).sort()).toEqual([ADA, BEA, CY].sort());
+      expect(view.isFull).toBe(true);
+    }
+  });
+
+  it('says why a code does not work: full, expired, turned off, wrong, already in', async () => {
+    const { ada, code } = await adasTeam();
+    await joinTeam(account(BEA), code);
+    await joinTeam(account(CY), code);
+    const dan = account(DAN);
+    await expect(previewInvite(dan, code)).resolves.toMatchObject({ status: 'full' });
+    expect(await problemOf(joinTeam(dan, code))).toBe('full');
+    expect(await problemOf(joinTeam(dan, 'AAAAA-AAAAA' as InviteCode))).toBe('invalid');
+    expect(await problemOf(joinTeam(account(BEA), code))).toBe('alreadyMember');
+
+    const second = await adasTeamFor(DAN);
+    server.expire(second.code);
+    expect(await problemOf(previewInvite(account(CY), second.code))).toBe('expired');
+    expect(await problemOf(createTeam(ada))).toBe('inAnotherTeam');
+    for (const problem of ['full', 'expired', 'revoked', 'invalid'] as const) {
+      expect(TEAM_PROBLEMS[problem].title).not.toMatch(/500|error/i);
+    }
+  });
+});
+
+/** Another team, made by `userId`. */
+async function adasTeamFor(userId: string) {
+  const owner = account(userId);
+  const made = await createTeam(owner);
+  const invite = await teamInvite(owner, made.team?.id ?? '');
+  return { owner, code: invite.code };
+}
+
+describe('offline', () => {
+  it('shows the last known team, and needs a connection to change it', async () => {
+    const { ada, teamId, code } = await adasTeam();
+    await joinTeam(account(BEA), code);
+    await refreshTeam(ada);
+    const before = viewOf(await loadFriends(ada));
+
+    server.offline = true;
+    expect(await problemOf(refreshTeam(ada))).toBe('offline');
+    const offline = viewOf(await loadFriends(ada));
+    expect(offline.members.map((member) => member.userId)).toEqual([ADA, BEA]);
+    expect(offline.asOf).toBe(before.asOf);
+
+    for (const work of [
+      teamInvite(ada, teamId),
+      leaveTeam(ada, teamId),
+      createTeam(ada),
+      joinTeam(ada, code),
+      previewInvite(ada, code),
+    ]) {
+      expect(await problemOf(work)).toBe('offline');
+    }
+    expect(TEAM_PROBLEMS.offline.title).toBe('Internet connection required');
+    // Still the team, untouched: nothing was changed or queued offline.
+    expect(viewOf(await loadFriends(ada)).members).toHaveLength(2);
+
+    server.offline = false;
+    await leaveTeam(ada, teamId);
+    expect((await loadFriends(ada)).kind).toBe('noTeam');
+  });
+});
+
+describe('accounts', () => {
+  it('keep their teams apart: B never sees A’s', async () => {
+    const { ada } = await adasTeam();
+    const bea = account(BEA);
+    expect((await loadFriends(bea)).kind).toBe('unknown');
+    await refreshTeam(bea);
+    expect((await loadFriends(bea)).kind).toBe('noTeam');
+    expect(viewOf(await loadFriends(ada)).members).toHaveLength(1);
+  });
+
+  it('refuse an answer that is not the account’s own', async () => {
+    const { code } = await adasTeam();
+    // A session that changed underneath: the server answers as Ada, the cache is Bea's.
+    const confused = createMemoryRepositories(getStartDateForDay(5, new Date()), {
+      team: { api: server.api(() => ADA), selfId: BEA },
+    });
+    await expect(refreshTeam(confused)).rejects.toMatchObject({ code: 'ACCOUNT_MISMATCH' });
+    expect((await loadFriends(confused)).kind).toBe('unknown');
+    expect(code).toBeTruthy();
+  });
+});
+
+describe('a teammate’s card', () => {
+  it('shows the server’s summary of them — their day, streak and XP', async () => {
+    const { ada, code } = await adasTeam();
+    await joinTeam(account(BEA), code);
+    server.progress.set(BEA, { currentDay: 4, streak: 3, totalXp: 320, todayQuestsDone: 2 });
+    await refreshTeam(ada);
+    const details = await loadMemberDetails(ada, BEA);
+    expect(details?.member).toMatchObject({
+      displayName: 'Bea',
+      currentDay: 4,
+      streak: 3,
+      totalXp: 320,
+      todayQuestsDone: 2,
+      isCurrentUser: false,
+    });
+    expect(await loadMemberDetails(ada, DAN)).toBeNull();
+  });
+});
+
+/** A team of the user and Bea, `streak` team days long, as the last answer. */
+function twoOf(selfId: string, streak: number): TeamSnapshot {
+  const member = (userId: string, role: 'owner' | 'member'): TeamMemberSummary => ({
+    userId,
+    displayName: userId === BEA ? 'Bea' : 'Ada',
+    avatarUrl: null,
+    role,
+    joinedAt: new Date(Date.now() - 10 * 86_400_000).toISOString(),
+    currentDay: 5,
+    todayCompleted: false,
+    todayQuestsDone: 0,
+    streak: 4,
+    totalXp: 300,
+    daysCompleted: 4,
+    achievementsUnlocked: 2,
+    lastActivityAt: null,
+  });
+  return {
+    id: '00000000-0000-4000-8000-0000000000aa',
+    name: "Ada's team",
+    capacity: 3,
+    createdAt: new Date(Date.now() - 10 * 86_400_000).toISOString(),
+    members: [member(selfId, 'owner'), member(BEA, 'member')],
+    streak: { current: streak, longest: streak, todayComplete: false },
+    invite: null,
+  };
+}
+
+describe('the Team Streak badge on the phone', () => {
+  const asAccount = (repositories: Repositories): Repositories => ({
+    ...repositories,
+    // An account: its badges go through the server (the engine is not needed here).
+    sync: { requestSync: () => undefined } as unknown as ProgressSync,
+  });
+
+  it('shows the team’s progress toward it — and is never unlocked by the phone', async () => {
+    const ada = account(ADA);
+    await ada.store.team.write({ team: twoOf(ADA, 8), asOf: new Date().toISOString() });
+    const badge = (await loadAchievements(asAccount(ada))).find(
+      (status) => status.achievement.id === 'teamStreak',
+    );
+    expect(badge).toMatchObject({ state: 'locked', progress: { current: 7, target: 7 } });
+    await expect(syncAchievements(asAccount(ada))).resolves.toEqual([]);
+    await expect(ada.achievements.getUnlocks()).resolves.toEqual([]);
+  });
+
+  it('is not available without a team to share it with', async () => {
+    const badge = (await loadAchievements(account(ADA))).find(
+      (status) => status.achievement.id === 'teamStreak',
+    );
+    expect(badge?.state).toBe('notAvailable');
+  });
+
+  it('in local mode (a demo team, no server) is the phone’s own to unlock — once', async () => {
+    const local = createMemoryRepositories(getStartDateForDay(5, new Date()));
+    await local.store.team.write({ team: twoOf(LOCAL_SELF_ID, 7), asOf: new Date().toISOString() });
+    const unlocked = await syncAchievements(local);
+    expect(unlocked.map((achievement) => achievement.id)).toContain('teamStreak');
+    await expect(syncAchievements(local)).resolves.toEqual([]);
+    const pending = await loadPendingCelebrations(local);
+    expect(pending.filter((achievement) => achievement.id === 'teamStreak')).toHaveLength(1);
+  });
+});
+
+describe('local mode', () => {
+  it('has no teams to make or join — and says so', async () => {
+    const local = createMemoryRepositories(getStartDateForDay(5, new Date()));
+    expect(await loadFriends(local)).toEqual({ kind: 'unknown', serverBacked: false });
+    expect(await problemOf(createTeam(local))).toBe('unavailable');
+    expect(await problemOf(joinTeam(local, '7K2PX-9QDMA'))).toBe('unavailable');
   });
 });

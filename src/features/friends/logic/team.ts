@@ -1,133 +1,188 @@
-import { longestRun } from '@/features/achievements/logic/run';
-import { computeStreak } from '@/features/progress/logic/streak';
-import type { DayNumber, Team, TeamMember, Timestamp } from '@/schemas';
+import { CHALLENGE } from '@/constants/challenge';
+import { diffInCalendarDays, toLocalDate } from '@/lib/dates';
+import type {
+  CourseDay,
+  DayNumber,
+  TeamInvite,
+  TeamMemberSummary,
+  TeamSnapshot,
+  Timestamp,
+} from '@/schemas';
 
-/** A member as the team view needs them: the current user comes from local progress. */
-export type MemberProgress = {
-  id: string;
-  displayName: string;
-  avatarUrl: string | null;
-  isCurrentUser: boolean;
-  joinedDay: DayNumber;
+/**
+ * The team as the Friends tab shows it: the server's snapshot, with the
+ * user's own card from their local progress — so it moves the moment they
+ * finish a quest, online or not. Everything here is derived; nothing is stored.
+ */
+
+/** Presentation state, derived — never stored. */
+export type MemberTodayStatus = 'done' | 'almostThere' | 'inProgress' | 'notStarted';
+
+/** The user's own progress, as their device has it now. */
+export type MyProgress = {
+  currentDay: DayNumber;
   completedDays: ReadonlySet<DayNumber>;
-  /** Quests done today; `null` when the member does not share it. */
-  todayQuestsDone: number | null;
-  totalXp: number | null;
-  achievementsUnlocked: number | null;
+  todayQuestsDone: number;
+  streak: number;
+  totalXp: number;
+  achievementsUnlocked: number;
   lastActivityAt: Timestamp | null;
 };
 
-/** Presentation state, derived — never stored. */
-export type MemberTodayStatus = 'done' | 'almostThere' | 'inProgress' | 'notStarted' | 'unknown';
-
-export type MemberView = MemberProgress & {
+export type MemberView = {
+  userId: string;
+  displayName: string;
+  avatarUrl: string | null;
+  isCurrentUser: boolean;
+  isOwner: boolean;
+  joinedAt: Timestamp;
+  /** Their challenge day, on their own calendar. */
+  currentDay: DayNumber;
+  /** Quests on their current day. */
+  questCount: number;
+  todayQuestsDone: number;
   status: MemberTodayStatus;
-  /** Their own streak: finished days in a row, from their day history. */
   streak: number;
+  totalXp: number;
   /** Finished challenge days in total. */
-  journeyDays: number;
+  daysCompleted: number;
+  achievementsUnlocked: number;
+  lastActivityAt: Timestamp | null;
 };
 
 export type TeamView = {
-  team: Team;
-  currentDay: DayNumber;
-  /** Quests every member has today (one challenge, one plan). */
-  questCount: number;
+  id: string;
+  /** "Ada's team". */
+  name: string;
+  capacity: number;
   /** The current user first, then in the order people joined — never a ranking. */
   members: MemberView[];
+  isFull: boolean;
   finishedToday: number;
-  /** Everyone finished today. */
+  /** Everyone finished today — and there is a team (two or more) to speak of. */
   isTeamDayComplete: boolean;
   /** Days in a row that everyone finished, up to today (or yesterday). */
   teamStreak: number;
   longestTeamStreak: number;
+  /** The invite to share, while one is open. */
+  invite: TeamInvite | null;
+  /** When the server said all this. */
+  asOf: Timestamp;
 };
 
-/** A friend's shared data, as the team view uses it. */
-export function fromTeamMember(member: TeamMember, currentDay: DayNumber): MemberProgress {
-  return {
-    id: member.id,
-    displayName: member.displayName,
-    avatarUrl: member.avatarUrl,
-    isCurrentUser: false,
-    joinedDay: member.joinedDay,
-    completedDays: new Set(member.completedDays),
-    // Progress shared for another day says nothing about today: 0 so far.
-    todayQuestsDone:
-      member.today === null ? null : member.today.day === currentDay ? member.today.questsDone : 0,
-    totalXp: member.totalXp,
-    achievementsUnlocked: member.achievementsUnlocked,
-    lastActivityAt: member.lastActivityAt,
-  };
-}
-
 export function memberTodayStatus(
-  member: MemberProgress,
-  currentDay: DayNumber,
-  questCount: number,
+  member: Pick<MemberView, 'todayQuestsDone' | 'questCount'> & { todayCompleted: boolean },
 ): MemberTodayStatus {
-  if (member.completedDays.has(currentDay)) return 'done';
-  const done = member.todayQuestsDone;
-  if (done === null) return 'unknown';
-  if (done === 0) return 'notStarted';
-  return done >= questCount - 1 ? 'almostThere' : 'inProgress';
+  if (member.todayCompleted) return 'done';
+  if (member.todayQuestsDone === 0) return 'notStarted';
+  return member.todayQuestsDone >= member.questCount - 1 ? 'almostThere' : 'inProgress';
 }
 
-/**
- * The team's days: a challenge day counts when the team had at least two
- * members that day and every one of them finished it. One missing member breaks
- * it — for the whole team, which is why the screens never name who. Days
- * someone spent alone, before anyone joined, are theirs, not the team's.
- */
-export function teamDays(
-  members: readonly Pick<MemberProgress, 'joinedDay' | 'completedDays'>[],
-  currentDay: DayNumber,
-): Set<DayNumber> {
-  const days = new Set<DayNumber>();
-  for (let day = 1; day <= currentDay; day++) {
-    const required = members.filter((member) => member.joinedDay <= day);
-    if (required.length >= 2 && required.every((member) => member.completedDays.has(day))) {
-      days.add(day);
-    }
-  }
-  return days;
-}
+const questsOn = (plans: readonly CourseDay[], day: DayNumber) =>
+  plans.find((plan) => plan.day === day)?.quests.length ?? 0;
 
-/** Team streak now, and the longest one — `null` without anyone to share it with. */
-export function teamStreakOf(
-  members: readonly Pick<MemberProgress, 'joinedDay' | 'completedDays'>[],
-  currentDay: DayNumber,
-): { current: number; longest: number } | null {
-  if (members.length < 2) return null;
-  const days = teamDays(members, currentDay);
-  return { current: computeStreak(days, currentDay), longest: longestRun(days) };
+function toView(
+  summary: TeamMemberSummary,
+  plans: readonly CourseDay[],
+  { isCurrentUser, daysLater }: { isCurrentUser: boolean; daysLater: number },
+): MemberView & { todayCompleted: boolean } {
+  // A snapshot from an earlier day says nothing about today: nothing done yet.
+  const stale = daysLater > 0;
+  const currentDay = Math.min(summary.currentDay + daysLater, CHALLENGE.totalDays);
+  const questCount = questsOn(plans, currentDay);
+  const todayCompleted = stale ? false : summary.todayCompleted;
+  const todayQuestsDone = stale ? 0 : summary.todayQuestsDone;
+  return {
+    userId: summary.userId,
+    displayName: summary.displayName,
+    avatarUrl: summary.avatarUrl,
+    isCurrentUser,
+    isOwner: summary.role === 'owner',
+    joinedAt: summary.joinedAt,
+    currentDay,
+    questCount,
+    todayQuestsDone,
+    todayCompleted,
+    status: memberTodayStatus({ todayCompleted, todayQuestsDone, questCount }),
+    streak: summary.streak,
+    totalXp: summary.totalXp,
+    daysCompleted: summary.daysCompleted,
+    achievementsUnlocked: summary.achievementsUnlocked,
+    lastActivityAt: summary.lastActivityAt,
+  };
 }
 
 export function buildTeamView(input: {
-  team: Team;
-  me: MemberProgress;
-  others: readonly MemberProgress[];
-  currentDay: DayNumber;
-  questCount: number;
+  team: TeamSnapshot;
+  asOf: Timestamp;
+  selfId: string;
+  /** The user's own progress from this device; `null` keeps the server's. */
+  me: MyProgress | null;
+  plans: readonly CourseDay[];
+  now: Date;
 }): TeamView {
-  const { team, currentDay, questCount } = input;
-  const ordered = [input.me, ...[...input.others].sort((a, b) => a.joinedDay - b.joinedDay)];
-  const members = ordered.map((member): MemberView => ({
-    ...member,
-    status: memberTodayStatus(member, currentDay, questCount),
-    streak: computeStreak(member.completedDays, currentDay),
-    journeyDays: member.completedDays.size,
-  }));
-  const finishedToday = members.filter((member) => member.status === 'done').length;
-  const streak = teamStreakOf(members, currentDay);
+  const { team, asOf, selfId, me, plans, now } = input;
+  const daysLater = Math.max(0, diffInCalendarDays(toLocalDate(new Date(asOf)), toLocalDate(now)));
+
+  const members = team.members.map((summary) => {
+    const isCurrentUser = summary.userId === selfId;
+    const view = toView(summary, plans, { isCurrentUser, daysLater });
+    if (!isCurrentUser || !me) return view;
+    const questCount = questsOn(plans, me.currentDay);
+    const todayCompleted = me.completedDays.has(me.currentDay);
+    return {
+      ...view,
+      currentDay: me.currentDay,
+      questCount,
+      todayQuestsDone: me.todayQuestsDone,
+      todayCompleted,
+      status: memberTodayStatus({
+        todayCompleted,
+        todayQuestsDone: me.todayQuestsDone,
+        questCount,
+      }),
+      streak: me.streak,
+      totalXp: me.totalXp,
+      daysCompleted: me.completedDays.size,
+      achievementsUnlocked: me.achievementsUnlocked,
+      lastActivityAt: me.lastActivityAt,
+    };
+  });
+  const ordered = [
+    ...members.filter((member) => member.isCurrentUser),
+    ...members.filter((member) => !member.isCurrentUser),
+  ];
+
+  const finishedToday = ordered.filter((member) => member.todayCompleted).length;
+  const isTeamDayComplete = ordered.length >= 2 && finishedToday === ordered.length;
+  // The server's streak, as of its answer. When the user's own last quest
+  // completes today's team day before the server has heard of it, the day is
+  // already theirs to see.
+  const sameDay = daysLater === 0;
+  const predicted =
+    sameDay && isTeamDayComplete && !team.streak.todayComplete
+      ? team.streak.current + 1
+      : team.streak.current;
+
   return {
-    team,
-    currentDay,
-    questCount,
-    members,
+    id: team.id,
+    name: team.name,
+    capacity: team.capacity,
+    members: ordered.map(({ todayCompleted: _todayCompleted, ...member }) => member),
+    isFull: ordered.length >= team.capacity,
     finishedToday,
-    isTeamDayComplete: finishedToday === members.length,
-    teamStreak: streak?.current ?? 0,
-    longestTeamStreak: streak?.longest ?? 0,
+    isTeamDayComplete,
+    teamStreak: predicted,
+    longestTeamStreak: Math.max(team.streak.longest, predicted),
+    invite: team.invite && Date.parse(team.invite.expiresAt) > now.getTime() ? team.invite : null,
+    asOf,
   };
+}
+
+/** Team streak facts for the badges' progress (the server alone unlocks the badge). */
+export function teamStreakFacts(
+  view: TeamView | null,
+): { current: number; longest: number } | null {
+  if (!view || view.members.length < 2) return null;
+  return { current: view.teamStreak, longest: view.longestTeamStreak };
 }

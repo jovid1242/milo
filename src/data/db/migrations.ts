@@ -669,6 +669,29 @@ export const MIGRATIONS: readonly Migration[] = [
       `);
     },
   },
+  {
+    version: 13,
+    name: 'teams on the server',
+    up: async (db) => {
+      // The team lives on the Milo API now. The old tables held a local team
+      // no one else could join (and dev-tools demos): nothing to keep. What
+      // stays on the device is the server's last answer, per owner, for offline.
+      await db.execAsync(`
+        DROP TABLE IF EXISTS team_activity;
+        DROP TABLE IF EXISTS team_member_days;
+        DROP TABLE IF EXISTS team_members;
+        DROP TABLE IF EXISTS team;
+
+        CREATE TABLE team_cache (
+          owner_id TEXT PRIMARY KEY NOT NULL,
+          -- The team as the server sent it; NULL: in no team.
+          team_json TEXT,
+          -- The server's time of that answer.
+          as_of TEXT NOT NULL
+        );
+      `);
+    },
+  },
 ];
 
 export async function runMigrations(db: SqlDatabase): Promise<void> {

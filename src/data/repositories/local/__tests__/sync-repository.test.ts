@@ -260,6 +260,43 @@ describe('applying the server’s answer', () => {
     await expect(progress.markDayCelebrated(1, LATER)).resolves.toBe(false);
   });
 
+  it('celebrates the team badge once on a phone that follows the account — history elsewhere', async () => {
+    const achievements = new SqliteAchievementRepository(store, OWNER);
+    const teamBadge = { achievementId: 'teamStreak' as const, unlockedAt: LATER };
+    // The first answer this phone gets for the account: history, nothing pops up.
+    await sync.apply(response({ progress: snapshot() }), AT);
+    // A teammate's day made the team's seventh: the server grants it, the next sync brings it.
+    await sync.apply(
+      response({ revision: 2, progress: snapshot({ achievementUnlocks: [teamBadge] }) }),
+      LATER,
+    );
+    await expect(achievements.getUnlocks()).resolves.toEqual([
+      { achievementId: 'teamStreak', unlockedAt: LATER, celebratedAt: null },
+    ]);
+    await expect(achievements.markCelebrated(['teamStreak'], LATER)).resolves.toEqual([
+      'teamStreak',
+    ]);
+    // Later answers never bring the celebration back.
+    await sync.apply(
+      response({ revision: 3, progress: snapshot({ achievementUnlocks: [teamBadge] }) }),
+      LATER,
+    );
+    await expect(achievements.getUnlocks()).resolves.toEqual([
+      { achievementId: 'teamStreak', unlockedAt: LATER, celebratedAt: LATER },
+    ]);
+
+    // Another phone signing in for the first time gets it as history.
+    const other = new NodeSqliteStore();
+    await new SqliteSyncRepository(other, OWNER).apply(
+      response({ revision: 3, progress: snapshot({ achievementUnlocks: [teamBadge] }) }),
+      LATER,
+    );
+    await expect(new SqliteAchievementRepository(other, OWNER).getUnlocks()).resolves.toEqual([
+      { achievementId: 'teamStreak', unlockedAt: LATER, celebratedAt: LATER },
+    ]);
+    await other.close();
+  });
+
   it('leaves what only this phone keeps: quests in progress and open exam attempts', async () => {
     await progress.saveQuestSession({
       questId: 'd001-grammar',

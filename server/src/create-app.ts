@@ -41,7 +41,7 @@ export async function createApp(
   app.enableCors({
     // The mobile app needs no CORS; browsers get only the listed origins.
     origin: config.corsOrigins.length > 0 ? config.corsOrigins : false,
-    methods: ['GET', 'POST', 'PATCH'],
+    methods: ['GET', 'POST', 'PATCH', 'DELETE'],
     allowedHeaders: ['Authorization', 'Content-Type', 'If-None-Match', 'X-Request-Id'],
     exposedHeaders: ['ETag', 'X-Request-Id', 'Retry-After'],
   });
@@ -57,7 +57,7 @@ export async function createApp(
       new DocumentBuilder()
         .setTitle('Milo API')
         .setDescription(
-          'Auth, the account, the course and progress sync. Every error is `{ code, message, details? }`.',
+          'Auth, the account, the course, progress sync and teams. Every error is `{ code, message, details? }`.',
         )
         .setVersion('1')
         .addBearerAuth()

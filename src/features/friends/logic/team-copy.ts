@@ -1,6 +1,7 @@
-import type { TeamActivity } from '@/schemas';
+import type { InvitePreview, InvitePreviewStatus } from '@/schemas';
 
 import type { MemberTodayStatus, MemberView, TeamView } from './team';
+import { inviteLink } from './invite-code';
 
 /**
  * Friendly, pressure-free words for the team. The team is named, never a
@@ -12,7 +13,6 @@ export const STATUS_LABELS: Record<MemberTodayStatus, string> = {
   almostThere: 'Almost there',
   inProgress: 'In progress',
   notStarted: 'Not started yet',
-  unknown: 'Not shared',
 };
 
 const plural = (count: number, word: string) => `${count} ${word}${count === 1 ? '' : 's'}`;
@@ -41,34 +41,49 @@ export function teamStreakCopy(view: TeamView): { title: string; line: string } 
   return { title, line: 'Everyone finished yesterday. Keep the streak alive.' };
 }
 
-/** "Day 89 · 3 of 4 quests" — progress only when it is shared. */
-export function memberTodayLine(member: MemberView, view: TeamView): string {
-  const day = `Day ${view.currentDay}`;
-  if (member.status === 'done') return `${day} · ${view.questCount} of ${view.questCount} quests`;
-  if (member.todayQuestsDone === null) return day;
-  return `${day} · ${member.todayQuestsDone} of ${view.questCount} quests`;
+/** "Day 12 · 3 of 4 quests" — each member on their own day. */
+export function memberTodayLine(member: MemberView): string {
+  const day = `Day ${member.currentDay}`;
+  if (member.questCount === 0) return day;
+  const done = member.status === 'done' ? member.questCount : member.todayQuestsDone;
+  return `${day} · ${done} of ${member.questCount} quests`;
 }
 
 export function memberName(member: Pick<MemberView, 'displayName' | 'isCurrentUser'>): string {
   return member.isCurrentUser ? 'You' : member.displayName;
 }
 
-/** The words for an activity event; the event itself stays structured data. */
-export function activityText(
-  event: TeamActivity,
-  who: string,
-  achievementTitle: (id: string) => string,
-): string {
-  switch (event.type) {
-    case 'dayCompleted':
-      return `${who} completed Day ${event.metadata.day}`;
-    case 'streakMilestone':
-      return `${who} reached a ${event.metadata.days}-day streak`;
-    case 'achievementUnlocked':
-      return `${who} unlocked ${achievementTitle(event.metadata.achievementId)}`;
-    case 'memberJoined':
-      return `${who} joined the team`;
-  }
+/** "2/3 members". */
+export const memberCount = (count: number, capacity: number) => `${count}/${capacity} members`;
+
+/**
+ * What the system share sheet sends: a short invitation, the link that opens
+ * Milo on the invite, and the code for typing in by hand.
+ */
+export function inviteShareMessage(code: string): string {
+  return [
+    'Join my team on Milo — the 90-day English challenge for three friends.',
+    `Open: ${inviteLink(code)}`,
+    `Or enter the code ${code} in Milo → Friends → Join with a code.`,
+  ].join('\n');
+}
+
+/** "Expires in 7 days" · "Expires in 1 day" — any part of a day counts as one. */
+export function inviteExpiry(expiresAt: string, now: Date = new Date()): string {
+  const left = Date.parse(expiresAt) - now.getTime();
+  if (left <= 0) return 'Expired';
+  return `Expires in ${plural(Math.ceil(left / (24 * 60 * 60_000)), 'day')}`;
+}
+
+/** The invite's page, for what the user can do with it. */
+export function previewCopy(preview: InvitePreview): { title: string; line: string } {
+  const lines: Record<InvitePreviewStatus, string> = {
+    canJoin: `${memberCount(preview.memberCount, preview.capacity)}. Climb the 90 days together: a team streak grows on the days everyone finishes.`,
+    full: `A Milo team has ${preview.capacity} people, and this one is complete. You can start a team of your own.`,
+    alreadyMember: "You're in this team already.",
+    inAnotherTeam: "You're in another team. To join this one, leave yours first.",
+  };
+  return { title: preview.teamName, line: lines[preview.status] };
 }
 
 /** "just now" · "25 min ago" · "3 h ago" · "yesterday" · "4 days ago" */

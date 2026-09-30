@@ -1,6 +1,6 @@
 import { Body, Controller, Get, Headers, HttpCode, Post, UseGuards } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
-import { ThrottlerGuard } from '@nestjs/throttler';
+import { SkipThrottle, ThrottlerGuard } from '@nestjs/throttler';
 
 import {
   AuthSessionSchema,
@@ -29,6 +29,8 @@ const SESSION_ENDED: [number, string] = [
 ];
 
 @ApiTags('auth')
+// Its own limit per address (see RateLimitModule), not the invites' one.
+@SkipThrottle({ invites: true })
 @Controller('auth')
 export class AuthController {
   constructor(

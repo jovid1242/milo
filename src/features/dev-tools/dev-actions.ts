@@ -66,9 +66,8 @@ import type {
   QuestCompletion,
   QuestContent,
   QuestType,
-  Team,
-  TeamActivity,
-  TeamMember,
+  TeamMemberSummary,
+  TeamSnapshot,
   Exam,
   ExamAttempt,
   XpEvent,
@@ -1394,12 +1393,21 @@ export async function startFreshDayOne(ctx: DevContext): Promise<void> {
   await refetchEverything(ctx);
 }
 
-/** Two neutral demo teammates: a local stand-in for what a server would send. */
+/**
+ * Two neutral demo teammates — local mode only, where there is no server: a
+ * stand-in for what the Milo API would send, put in the team cache.
+ */
 const DEMO_FRIENDS = [
-  { id: 'friend-alex', displayName: 'Alex', xpPerDay: 72, badges: 7 },
-  { id: 'friend-mia', displayName: 'Mia', xpPerDay: 68, badges: 6 },
+  {
+    userId: '00000000-0000-4000-8000-00000000a1e1',
+    displayName: 'Alex',
+    xpPerDay: 72,
+    badges: 7,
+  },
+  { userId: '00000000-0000-4000-8000-00000000b2e2', displayName: 'Mia', xpPerDay: 68, badges: 6 },
 ] as const;
 
+const DEMO_TEAM_ID = '00000000-0000-4000-8000-0000000000aa';
 const TEAM_DAY = 89;
 
 type TeamScenarioSpec = {
@@ -1414,8 +1422,6 @@ type TeamScenarioSpec = {
   friendsToday: readonly number[];
   /** Days in a row, before today, that everyone finished. */
   teamStreak: number;
-  /** Mia shares only what the team challenge needs. */
-  missingStats?: boolean;
   /** Play your last quest through the real use case (badges, Day Complete). */
   finishYourDay?: boolean;
 };
@@ -1430,7 +1436,7 @@ export const TEAM_SCENARIOS = {
     teamStreak: 0,
   },
   oneMember: {
-    label: '1 member',
+    label: '1/3',
     team: true,
     friends: 0,
     youToday: 2,
@@ -1438,7 +1444,7 @@ export const TEAM_SCENARIOS = {
     teamStreak: 0,
   },
   twoMembers: {
-    label: '2 members',
+    label: '2/3',
     team: true,
     friends: 1,
     youToday: 2,
@@ -1446,7 +1452,7 @@ export const TEAM_SCENARIOS = {
     teamStreak: 12,
   },
   threeMembers: {
-    label: '3 members',
+    label: '3/3',
     team: true,
     friends: 2,
     youToday: 2,
@@ -1518,89 +1524,62 @@ export const TEAM_SCENARIOS = {
     teamStreak: 6,
     finishYourDay: true,
   },
-  missingStats: {
-    label: 'Missing stats',
-    team: true,
-    friends: 2,
-    youToday: 2,
-    friendsToday: [3, 0],
-    teamStreak: 12,
-    missingStats: true,
-  },
 } as const satisfies Record<string, TeamScenarioSpec>;
 
 export type TeamScenario = keyof typeof TEAM_SCENARIOS;
 
 const minutesAgo = (minutes: number) => new Date(Date.now() - minutes * 60_000).toISOString();
-
-function demoTeam(): Team {
-  return {
-    id: 'team-demo',
-    name: 'Our team',
-    inviteCode: 'MILO-7K2P',
-    createdAt: minutesAgo(60 * 24 * 30),
-  };
-}
+const daysAgo = (days: number) => minutesAgo(days * 24 * 60);
 
 /**
- * A demo friend on Day 89. They share their whole history (every day before
- * today), and joined the team `teamStreak` days ago — so the team streak is
- * exactly that long, and no older run can unlock the Team Streak badge early.
+ * A demo friend on Day 89, as the server would sum them up: every day before
+ * today finished, in the team for `teamStreak` days — so the team streak is
+ * exactly that long.
  */
 function demoFriend(
   index: number,
-  spec: Pick<TeamScenarioSpec, 'teamStreak' | 'missingStats'>,
+  teamStreak: number,
   todayQuests: number,
   questCount: number,
-): TeamMember {
+): TeamMemberSummary {
   const friend = DEMO_FRIENDS[index] ?? DEMO_FRIENDS[0];
-  const completedDays = Array.from({ length: TEAM_DAY - 1 }, (_, day) => day + 1);
-  if (todayQuests >= questCount) completedDays.push(TEAM_DAY);
-  const shares = !(spec.missingStats && index === 1);
+  const done = todayQuests >= questCount;
+  const daysCompleted = TEAM_DAY - 1 + (done ? 1 : 0);
   return {
-    id: friend.id,
+    userId: friend.userId,
     displayName: friend.displayName,
     avatarUrl: null,
-    joinedDay: TEAM_DAY - spec.teamStreak,
-    completedDays,
-    today: shares ? { day: TEAM_DAY, questsDone: Math.min(todayQuests, questCount) } : null,
-    totalXp: shares ? completedDays.length * friend.xpPerDay : null,
-    achievementsUnlocked: shares ? friend.badges : null,
-    lastActivityAt: shares ? minutesAgo(25 + index * 70) : null,
+    role: 'member',
+    joinedAt: daysAgo(teamStreak),
+    currentDay: TEAM_DAY,
+    todayCompleted: done,
+    todayQuestsDone: Math.min(todayQuests, questCount),
+    streak: daysCompleted,
+    totalXp: daysCompleted * friend.xpPerDay,
+    daysCompleted,
+    achievementsUnlocked: friend.badges,
+    lastActivityAt: minutesAgo(25 + index * 70),
   };
 }
 
-function demoActivity(friends: readonly TeamMember[]): TeamActivity[] {
-  const [alex, mia] = friends;
-  const events: TeamActivity[] = [];
-  if (alex) {
-    events.push(
-      {
-        id: 'act-alex-day',
-        memberId: alex.id,
-        type: 'dayCompleted',
-        metadata: { day: TEAM_DAY - 1 },
-        createdAt: minutesAgo(60 * 20),
-      },
-      {
-        id: 'act-alex-badge',
-        memberId: alex.id,
-        type: 'achievementUnlocked',
-        metadata: { achievementId: 'perfectQuiz' },
-        createdAt: minutesAgo(60 * 26),
-      },
-    );
-  }
-  if (mia) {
-    events.push({
-      id: 'act-mia-streak',
-      memberId: mia.id,
-      type: 'streakMilestone',
-      metadata: { days: 50 },
-      createdAt: minutesAgo(60 * 3),
-    });
-  }
-  return events;
+/** The user in the demo team: their card shows their own progress anyway. */
+async function demoMe(ctx: DevContext, teamStreak: number): Promise<TeamMemberSummary> {
+  const user = await ctx.repositories.user.getUser();
+  return {
+    userId: ctx.repositories.friends.selfId,
+    displayName: user.displayName,
+    avatarUrl: null,
+    role: 'owner',
+    joinedAt: daysAgo(Math.max(teamStreak, 1) + 1),
+    currentDay: TEAM_DAY,
+    todayCompleted: false,
+    todayQuestsDone: 0,
+    streak: 0,
+    totalXp: 0,
+    daysCompleted: 0,
+    achievementsUnlocked: 0,
+    lastActivityAt: null,
+  };
 }
 
 /** The team on Day 89, rebuilt from scratch through the same repositories the app uses. */
@@ -1615,12 +1594,26 @@ export async function applyTeamScenario(ctx: DevContext, scenario: TeamScenario)
   });
 
   if (!spec.team) {
-    await devRepository(ctx).replaceTeam(null, [], []);
+    await devRepository(ctx).replaceTeam(null);
   } else {
+    const me = await demoMe(ctx, spec.teamStreak);
     const friends = Array.from({ length: spec.friends }, (_, index) =>
-      demoFriend(index, spec, spec.friendsToday[index] ?? 0, questCount),
+      demoFriend(index, spec.teamStreak, spec.friendsToday[index] ?? 0, questCount),
     );
-    await devRepository(ctx).replaceTeam(demoTeam(), friends, demoActivity(friends));
+    const team: TeamSnapshot = {
+      id: DEMO_TEAM_ID,
+      name: `${me.displayName}'s team`,
+      capacity: 3,
+      createdAt: daysAgo(30),
+      members: [me, ...friends],
+      streak: {
+        current: friends.length > 0 ? spec.teamStreak : 0,
+        longest: friends.length > 0 ? spec.teamStreak : 0,
+        todayComplete: false,
+      },
+      invite: null,
+    };
+    await devRepository(ctx).replaceTeam(team);
   }
   await settleAchievements(ctx);
 
@@ -1638,37 +1631,36 @@ export async function applyTeamScenario(ctx: DevContext, scenario: TeamScenario)
   invalidateAll(ctx);
 }
 
-/** A friend joins (the demo of what a server would push): Mia, or Alex if the team is empty. */
+/** A friend joins (the demo of what the server would say): Alex, then Mia. */
 export async function simulateFriendJoined(ctx: DevContext): Promise<string> {
-  const team = await ctx.repositories.friends.getMyTeam();
-  if (!team) throw new Error('Create a team first (e.g. "1 member").');
-  const members = await ctx.repositories.friends.getTeamMembers();
-  const next = DEMO_FRIENDS.findIndex((friend) => !members.some((m) => m.id === friend.id));
-  if (next < 0) throw new Error('Both demo friends are already in the team.');
+  const team = (await ctx.repositories.friends.cached())?.team;
+  if (!team) throw new Error('Make a demo team first (e.g. "1/3").');
+  const next = DEMO_FRIENDS.findIndex(
+    (friend) => !team.members.some((member) => member.userId === friend.userId),
+  );
+  if (next < 0 || team.members.length >= team.capacity) {
+    throw new Error('The demo team is full.');
+  }
   const state = await loadProgressState(ctx.repositories);
   const plan = await ctx.repositories.course.getDay(state.currentDay);
   const friend = DEMO_FRIENDS[next] ?? DEMO_FRIENDS[0];
-  const member: TeamMember = {
-    id: friend.id,
+  const member: TeamMemberSummary = {
+    userId: friend.userId,
     displayName: friend.displayName,
     avatarUrl: null,
+    role: 'member',
     // Joined today: the days before are not theirs to finish.
-    joinedDay: state.currentDay,
-    completedDays: [],
-    today: { day: state.currentDay, questsDone: Math.min(1, plan.quests.length) },
+    joinedAt: new Date().toISOString(),
+    currentDay: state.currentDay,
+    todayCompleted: false,
+    todayQuestsDone: Math.min(1, plan.quests.length),
+    streak: 0,
     totalXp: 20,
+    daysCompleted: 0,
     achievementsUnlocked: 0,
     lastActivityAt: new Date().toISOString(),
   };
-  await devRepository(ctx).addTeamMember(member, [
-    {
-      id: `act-join-${friend.id}-${Date.now()}`,
-      memberId: friend.id,
-      type: 'memberJoined',
-      metadata: {},
-      createdAt: new Date().toISOString(),
-    },
-  ]);
+  await devRepository(ctx).replaceTeam({ ...team, members: [...team.members, member] });
   await settleAchievements(ctx);
   invalidateAll(ctx);
   return friend.displayName;

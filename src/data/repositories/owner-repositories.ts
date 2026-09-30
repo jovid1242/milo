@@ -1,13 +1,16 @@
 import type { LocalStore } from '@/data/db/local-store';
 
 import { AccountProgressSync } from './account-progress-sync';
+import { ApiFriendsRepository } from './api/api-friends-repository';
 import type { ProgressApi } from './api/progress-api';
+import type { TeamApi } from './api/team-api';
 import { LocalDevRepository } from './local/local-dev-repository';
 import { LocalFriendsRepository } from './local/local-friends-repository';
 import { SqliteAchievementRepository } from './local/sqlite-achievement-repository';
 import { SqliteExamRepository } from './local/sqlite-exam-repository';
 import { SqliteProgressRepository } from './local/sqlite-progress-repository';
 import { LOCAL_OWNER, SqliteSyncRepository } from './local/sqlite-sync-repository';
+import { SqliteTeamCache } from './local/sqlite-team-cache';
 import { SqliteUserRepository } from './local/sqlite-user-repository';
 import type { AuthRepository, CourseRepository, CourseUpdates, Repositories } from './types';
 
@@ -24,6 +27,8 @@ export type DeviceServices = {
   courseUpdates: CourseUpdates | null;
   /** Progress on the API; `null` in local mode. */
   progressApi: ProgressApi | null;
+  /** Teams on the API; `null` in local mode. */
+  teamApi: TeamApi | null;
   /** The account the session on this device belongs to, right now. */
   currentAccountId: () => string | null;
   store: LocalStore;
@@ -47,7 +52,10 @@ export function repositoriesFor(device: DeviceServices, owner: string): Reposito
     progress: new SqliteProgressRepository(store, owner),
     achievements: new SqliteAchievementRepository(store, owner),
     exams: new SqliteExamRepository(store, owner),
-    friends: new LocalFriendsRepository(store, owner),
+    friends:
+      local || !device.teamApi
+        ? new LocalFriendsRepository(new SqliteTeamCache(store, owner))
+        : new ApiFriendsRepository(device.teamApi, new SqliteTeamCache(store, owner), owner),
     sync:
       local || !device.progressApi
         ? null

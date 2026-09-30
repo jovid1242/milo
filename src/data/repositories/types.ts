@@ -10,7 +10,8 @@ import type {
   DayCompletion,
   DayNumber,
   Goal,
-  JoinTeamResult,
+  InviteCode,
+  InvitePreview,
   LearnedWord,
   LocalDate,
   LoginRequest,
@@ -18,10 +19,8 @@ import type {
   QuestContent,
   QuestSession,
   RegisterRequest,
-  Team,
-  TeamActivity,
   TeamInvite,
-  TeamMember,
+  TeamSnapshot,
   Timestamp,
   UpdateProfileRequest,
   User,
@@ -279,24 +278,39 @@ export interface ProgressSync {
   connect(listener: (reason: SyncReason) => void): () => void;
 }
 
+/** The last answer about the user's team this device has — for one owner. */
+export type CachedTeam = {
+  /** `null`: the user is in no team. */
+  team: TeamSnapshot | null;
+  /** The server's time of the answer. */
+  asOf: Timestamp;
+};
+
 /**
- * The user's team. Local today (SQLite, demo data); an `ApiFriendsRepository`
- * can replace it without touching the UI. It serves what a server would: the
- * team and the *other* members as they share themselves — the user's own
- * progress stays local and is merged in by the use cases.
+ * The user's team. The Milo API owns it (`ApiFriendsRepository`): who is in
+ * it, their progress, the team streak. This device keeps the last answer per
+ * owner, to show while offline — never a change of its own: making, joining,
+ * inviting and leaving each need the server, and nothing waits in an outbox.
+ * In local mode there is no server: the team is what the dev tools put in the
+ * cache, and changes are refused.
  */
 export interface FriendsRepository {
-  /** `null` while the user is on their own. */
-  getMyTeam(): Promise<Team | null>;
-  /** Everyone else in the team. */
-  getTeamMembers(): Promise<TeamMember[]>;
-  getMemberDetails(memberId: string): Promise<TeamMember | null>;
-  /** Newest first. */
-  getTeamActivity(limit: number): Promise<TeamActivity[]>;
-  /** The team's invite, creating the team when the user is alone. */
-  createInvite(now: Timestamp): Promise<TeamInvite>;
-  /** Joining someone else's team needs a server: the local build never pretends. */
-  joinTeam(code: string): Promise<JoinTeamResult>;
+  /** Whether a server keeps the team (`false` in local mode). */
+  readonly serverBacked: boolean;
+  /** The user's own id in the team's members. */
+  readonly selfId: string;
+  /** The last known team, from this device; `null` before any answer. */
+  cached(): Promise<CachedTeam | null>;
+  /** Asks the server; its answer replaces the cached one. */
+  refresh(): Promise<CachedTeam>;
+  create(): Promise<CachedTeam>;
+  /** The team's invite to share (the open one, or a new one). */
+  invite(teamId: string): Promise<TeamInvite>;
+  revokeInvite(inviteId: string): Promise<void>;
+  /** The team behind a code, before joining it. */
+  preview(code: InviteCode): Promise<InvitePreview>;
+  join(code: InviteCode): Promise<CachedTeam>;
+  leave(teamId: string): Promise<CachedTeam>;
 }
 
 /**
@@ -367,14 +381,8 @@ export interface DevRepository {
     words: readonly LearnedWord[],
     challenge?: ChallengeCompletion | null,
   ): Promise<void>;
-  /** Replaces the team (or removes it with `null`) in one transaction. */
-  replaceTeam(
-    team: Team | null,
-    members: readonly TeamMember[],
-    activity: readonly TeamActivity[],
-  ): Promise<void>;
-  /** A friend joining (the demo of what a server would push). */
-  addTeamMember(member: TeamMember, activity: readonly TeamActivity[]): Promise<void>;
+  /** Puts a demo team in the local cache (`null`: no team) — local mode has no server to ask. */
+  replaceTeam(team: TeamSnapshot | null): Promise<void>;
   /** Makes the profile new again: onboarding shows, its goal is cleared. */
   resetOnboarding(): Promise<void>;
   resetAllLocalData(): Promise<void>;

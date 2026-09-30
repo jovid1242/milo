@@ -102,6 +102,16 @@ export const API_ERROR_CODES = [
   'COURSE_MISMATCH',
   'COURSE_VERSION_UNSUPPORTED',
   'ACCOUNT_MISMATCH',
+  'FORBIDDEN',
+  /** Teams are for a challenge that has started. */
+  'CHALLENGE_NOT_STARTED',
+  'ALREADY_IN_TEAM',
+  'ALREADY_MEMBER',
+  'TEAM_FULL',
+  'TEAM_NOT_FOUND',
+  'INVITE_INVALID',
+  'INVITE_EXPIRED',
+  'INVITE_REVOKED',
   'INTERNAL_ERROR',
 ] as const;
 export type ApiErrorCode = (typeof API_ERROR_CODES)[number];
