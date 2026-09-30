@@ -236,7 +236,14 @@ use another database.
   signed in and new → onboarding; signed in and onboarded → the challenge. In local mode the
   device is always signed in.
 - **Tokens** live in the Keychain (`expo-secure-store`, `AFTER_FIRST_UNLOCK_THIS_DEVICE_ONLY`:
-  never in a backup, never on another phone), never in AsyncStorage.
+  never in a backup, never on another phone), never in AsyncStorage, SQLite or the HTTP cache.
+  Verified in Milo's own iOS development build (`npx expo run:ios`): after sign-up, refreshes,
+  logout and login, a scan of the app's whole sandbox finds no access or refresh token; the URL
+  cache (`Library/Caches/<bundle id>/Cache.db`) holds only the two course requests.
+- **Expo Go only (development):** Expo Go keeps responses in _its own_ URL cache — auth responses
+  and their tokens included — despite the API's `Cache-Control: no-store`. That is Expo Go's
+  sandbox, not Milo's, and Milo's own builds do not do it (their URL cache honours `no-store`).
+  Check anything about networking or storage in a development build, not in Expo Go.
 - **One API client** (`services/api/api-client.ts`): base URL, JSON, the Bearer token, a timeout,
   errors as `ApiError` (`code` from the API, or `NETWORK_ERROR` / `TIMEOUT` / `BAD_RESPONSE`).
   A 401 refreshes the token and retries the request once. Refreshing is single-flight: five
