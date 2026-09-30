@@ -237,8 +237,8 @@ Database: `push_devices`, `push_jobs`, `push_tickets` (migration `…_push_notif
 
 - **Notification icon**: none of Milo's own yet. The mascot is a 3D render; a flat white
   silhouette of it is not recognizable at 24 dp, so none was made from it. Until a proper asset
-  exists (96×96 PNG, white on transparent, `expo-notifications` plugin `icon`), Android draws the
-  app icon's silhouette, tinted green.
+  exists (96×96 PNG, white on transparent, in `assets-native/`, set as the `expo-notifications`
+  plugin's `icon`), Android draws the app icon's silhouette, tinted green.
 - **iOS**: no push until an Apple Developer account and APNs key exist; the switch is hidden there.
 - **Accepted is not delivered**: a ticket says Expo took the message; receipts say FCM did. Neither
   proves the phone showed it (Doze, a force-stopped app, notifications muted by the user).

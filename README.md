@@ -359,6 +359,11 @@ Sprite sheets are cut into separate originals by `npm run assets:slice` (rects l
 `flagLocked`, `flagBanner`, `flagSmall`, `flagString` or `flagLarge` — each base sits on the
 image's bottom edge, so a flag anchors bottom-centre.
 
+`assets-native/` holds the few images the native build reads at prebuild (config plugins), never
+the JS bundle — outside the pipeline's `assets/`. `android-splash-icon.png` is transparent on
+purpose: Android's splash theme needs an icon drawable, and Milo's splash is its background colour
+alone, as on iOS, until there is splash artwork.
+
 ## Sound & haptics
 
 - `playSound('correct')` — one reusable player per sound, created once; respects the iOS silent
