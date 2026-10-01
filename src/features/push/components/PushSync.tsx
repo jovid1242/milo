@@ -1,6 +1,6 @@
 import { useQueryClient } from '@tanstack/react-query';
-import { useRootNavigationState } from 'expo-router';
-import { useEffect, useEffectEvent, useState } from 'react';
+import { useNavigationContainerRef } from 'expo-router';
+import { useEffect, useState } from 'react';
 import { AppState } from 'react-native';
 
 import { queryKeys } from '@/data/query-keys';
@@ -21,7 +21,7 @@ import { pushAdapter, tapRouter, teamNotifications } from '../instance';
 export function PushSync({ owner, inChallenge }: { owner: string | null; inChallenge: boolean }) {
   const queryClient = useQueryClient();
   const online = useOnline();
-  const navigationReady = useRootNavigationState()?.key !== undefined;
+  const navigation = useNavigationContainerRef();
   const [returns, setReturns] = useState(0);
 
   // The switch shows what was kept, offline too.
@@ -59,18 +59,26 @@ export function PushSync({ owner, inChallenge }: { owner: string | null; inChall
     return () => subscription.remove();
   }, [queryClient]);
 
-  const open = useEffectEvent((tap: Parameters<typeof tapRouter.open>[0]) =>
-    tapRouter.open(tap, inChallenge),
-  );
+  // Taps: the listener first, then the tap that launched Milo (a cold start
+  // may report it only there) — the same tap through both opens once.
   useEffect(() => {
-    const subscription = pushAdapter.onTap((tap) => open(tap));
+    const subscription = pushAdapter.onTap((tap) => tapRouter.receive(tap));
+    tapRouter.receiveLaunchTap();
     return () => subscription.remove();
   }, []);
 
-  // A tap that launched Milo: opened once the navigator can take it.
+  // A tap waits until the navigation is mounted; it opens as soon as it is.
   useEffect(() => {
-    if (navigationReady && inChallenge) tapRouter.openLaunchTap(true);
-  }, [navigationReady, inChallenge]);
+    const update = () => tapRouter.setReadiness({ navigation: navigation.isReady(), inChallenge });
+    update();
+    const removeReady = navigation.addListener('ready', update);
+    const removeState = navigation.addListener('state', update);
+    return () => {
+      removeReady();
+      removeState();
+      tapRouter.setReadiness({ navigation: false, inChallenge: false });
+    };
+  }, [navigation, inChallenge]);
 
   return null;
 }

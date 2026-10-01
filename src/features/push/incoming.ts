@@ -9,31 +9,56 @@ import { destinationOf, teamPayload, type PushDestination } from './logic/routin
  * (the daily reminder) is left to its own handler.
  */
 
+/** When a tap can be acted on: the navigation is mounted, and there is a challenge to show. */
+export type TapReadiness = { navigation: boolean; inChallenge: boolean };
+
 export function createTapRouter(deps: {
   push: PushAdapter;
-  navigate: (destination: PushDestination) => void;
+  /** Shows the destination, from wherever the user is (see `lib/open-tab.ts`). */
+  openTab: (destination: PushDestination) => void;
 }) {
-  /** Each notification opens once, however many times its tap is reported. */
+  /** Each notification opens once, however many times — and ways — its tap is reported. */
   const handled = new Set<string>();
+  /** A tap waiting for the navigation (a cold start reads it before anything is mounted). */
+  let pending: PushDestination | null = null;
+  let readiness: TapReadiness = { navigation: false, inChallenge: false };
 
-  function open(tap: PushTap, inChallenge: boolean): boolean {
+  function flush(): void {
+    if (pending === null || !readiness.navigation) return;
+    const destination = pending;
+    pending = null;
+    // Signed out or before the challenge there is no team screen: the tap is dropped.
+    if (readiness.inChallenge) deps.openTab(destination);
+  }
+
+  /** A tap, as the system reports it: from the listener, or the one that launched Milo. */
+  function receive(tap: PushTap): void {
+    if (handled.has(tap.id)) return;
     const payload = teamPayload(tap.data);
-    // Signed out or before the challenge there is no team screen to open.
-    if (!payload || !inChallenge || handled.has(tap.id)) return false;
+    if (!payload) return;
     handled.add(tap.id);
-    deps.navigate(destinationOf(payload));
-    return true;
+    // Consumed: neither a remount nor a reload reads it as a launch tap again.
+    deps.push.clearLaunchTap();
+    pending = destinationOf(payload);
+    flush();
   }
 
   return {
-    open,
-    /** The tap that launched Milo, once its navigator is up — then it is forgotten. */
-    openLaunchTap(inChallenge: boolean): void {
+    receive,
+    /** The tap that launched Milo, if any (a cold start may deliver it only here). */
+    receiveLaunchTap(): void {
       const tap = deps.push.launchTap();
-      if (tap && open(tap, inChallenge)) deps.push.clearLaunchTap();
+      if (tap) receive(tap);
+    },
+    /** The navigation mounted (or went away) and who is signed in: a waiting tap opens when it can. */
+    setReadiness(next: TapReadiness): void {
+      readiness = next;
+      flush();
     },
   };
 }
+
+export type TapRouter = ReturnType<typeof createTapRouter>;
 
 /** Team news while Milo is open: the system shows it, and the team is fetched again. */
 export function watchTeamNews(push: PushAdapter, refreshTeam: () => void): Subscription {

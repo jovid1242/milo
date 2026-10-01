@@ -36,65 +36,119 @@ const news = (kind: string, extra: Record<string, unknown> = {}) => ({
 
 function taps() {
   const push = new FakePushAdapter();
-  const navigate = jest.fn();
-  return { push, navigate, router: createTapRouter({ push, navigate }) };
+  const openTab = jest.fn();
+  const cleared = jest.spyOn(push, 'clearLaunchTap');
+  const router = createTapRouter({ push, openTab });
+  // The listener, as PushSync subscribes it.
+  push.onTap((tap) => router.receive(tap));
+  return { push, openTab, cleared, router };
 }
 
+const ready = { navigation: true, inChallenge: true };
+
 describe('a tapped team notification', () => {
-  it('opens the Friends tab — once, however often the tap is reported', () => {
-    const { navigate, router } = taps();
-    const tap = { id: 'n-1', data: news('TEAM_MEMBER_COMPLETED_DAY') };
-    expect(router.open(tap, true)).toBe(true);
-    expect(router.open(tap, true)).toBe(false);
-    expect(navigate.mock.calls).toEqual([['/friends']]);
+  it('Milo open: opens the Friends tab at once', () => {
+    const { push, openTab, router } = taps();
+    router.setReadiness(ready);
+    push.tap({ id: 'n-1', data: news('TEAM_MEMBER_JOINED', { dayNumber: undefined }) });
+    expect(openTab.mock.calls).toEqual([['/friends']]);
   });
 
-  it('opens Today for "your turn", the Friends tab for the rest of the team’s news', () => {
-    const { navigate, router } = taps();
-    router.open({ id: 'n-1', data: news('TEAM_YOUR_TURN') }, true);
-    router.open({ id: 'n-2', data: news('TEAM_DAY_COMPLETE') }, true);
-    router.open({ id: 'n-3', data: news('TEAM_STREAK_MILESTONE') }, true);
-    router.open({ id: 'n-4', data: { kind: 'TEAM_MEMBER_JOINED', teamId: TEAM } }, true);
-    expect(navigate.mock.calls).toEqual([['/'], ['/friends'], ['/friends'], ['/friends']]);
+  it('Milo in the background: the listener opens it the same way', () => {
+    const { push, openTab, router } = taps();
+    router.setReadiness(ready);
+    push.tap({ id: 'n-2', data: news('TEAM_MEMBER_COMPLETED_DAY') });
+    expect(openTab.mock.calls).toEqual([['/friends']]);
   });
 
-  it('leaves the daily reminder’s taps to it, and ignores anything malformed', () => {
-    const { navigate, router } = taps();
-    router.open({ id: 'r-1', data: { kind: 'dailyReminder', day: 12 } }, true);
-    router.open({ id: 'x-1', data: { kind: 'TEAM_DAY_COMPLETE', teamId: 'not-a-team' } }, true);
-    router.open({ id: 'x-2', data: {} }, true);
-    expect(navigate).not.toHaveBeenCalled();
+  it('opens Today for "your turn", the Friends tab for all other team news', () => {
+    const { push, openTab, router } = taps();
+    router.setReadiness(ready);
+    push.tap({ id: 'n-1', data: news('TEAM_YOUR_TURN') });
+    push.tap({ id: 'n-2', data: news('TEAM_DAY_COMPLETE') });
+    push.tap({ id: 'n-3', data: news('TEAM_STREAK_MILESTONE') });
+    push.tap({ id: 'n-4', data: { kind: 'TEAM_MEMBER_JOINED', teamId: TEAM } });
+    push.tap({ id: 'n-5', data: news('TEAM_MEMBER_COMPLETED_DAY') });
+    expect(openTab.mock.calls).toEqual([
+      ['/'],
+      ['/friends'],
+      ['/friends'],
+      ['/friends'],
+      ['/friends'],
+    ]);
   });
 
-  it('opens nothing while signed out or before the challenge', () => {
-    const { navigate, router } = taps();
-    expect(router.open({ id: 'n-1', data: news('TEAM_DAY_COMPLETE') }, false)).toBe(false);
-    expect(navigate).not.toHaveBeenCalled();
-  });
-
-  it('that launched Milo opens once the navigator is up — and is forgotten after', () => {
-    const { push, navigate, router } = taps();
+  it('Milo not running: the launch tap waits for the navigation, then opens once', () => {
+    const { push, openTab, cleared, router } = taps();
     push.launch = { id: 'n-9', data: news('TEAM_YOUR_TURN') };
-    // Signed out at launch: it stays for later.
-    router.openLaunchTap(false);
-    expect(navigate).not.toHaveBeenCalled();
-    expect(push.launch).not.toBeNull();
-
-    router.openLaunchTap(true);
-    router.openLaunchTap(true);
-    expect(navigate.mock.calls).toEqual([['/']]);
+    router.receiveLaunchTap();
+    // Nothing is mounted yet: nothing can open.
+    expect(openTab).not.toHaveBeenCalled();
+    router.setReadiness({ navigation: false, inChallenge: true });
+    expect(openTab).not.toHaveBeenCalled();
+    router.setReadiness(ready);
+    router.setReadiness(ready);
+    expect(openTab.mock.calls).toEqual([['/']]);
+    // Consumed: no later launch or reload reads it again.
+    expect(cleared).toHaveBeenCalledTimes(1);
     expect(push.launch).toBeNull();
   });
 
-  it('arriving through the listener and as the launch tap still opens once', () => {
-    const { push, navigate, router } = taps();
+  it('a tap reported before the navigation is ready opens as soon as it is', () => {
+    const { push, openTab, router } = taps();
+    push.tap({ id: 'n-3', data: news('TEAM_DAY_COMPLETE') });
+    expect(openTab).not.toHaveBeenCalled();
+    router.setReadiness(ready);
+    expect(openTab.mock.calls).toEqual([['/friends']]);
+  });
+
+  it('the same tap through the listener and as the launch tap — or twice — opens once', () => {
+    const { push, openTab, router } = taps();
     const tap = { id: 'n-5', data: news('TEAM_MEMBER_JOINED') };
     push.launch = tap;
-    const subscription = push.onTap((reported) => router.open(reported, true));
     push.tap(tap);
-    router.openLaunchTap(true);
-    subscription.remove();
-    expect(navigate.mock.calls).toEqual([['/friends']]);
+    router.receiveLaunchTap();
+    push.tap(tap);
+    router.setReadiness(ready);
+    push.tap(tap);
+    expect(openTab.mock.calls).toEqual([['/friends']]);
+  });
+
+  it('ignores malformed or foreign data — and leaves a launch tap that is not its own', () => {
+    const { push, openTab, cleared, router } = taps();
+    router.setReadiness(ready);
+    push.tap({ id: 'x-1', data: { kind: 'TEAM_DAY_COMPLETE', teamId: 'not-a-team' } });
+    push.tap({ id: 'x-2', data: {} });
+    push.tap({ id: 'x-3', data: { kind: 'SOMETHING_ELSE', teamId: TEAM } });
+    push.launch = { id: 'r-1', data: { kind: 'dailyReminder', day: 12 } };
+    router.receiveLaunchTap();
+    expect(openTab).not.toHaveBeenCalled();
+    expect(cleared).not.toHaveBeenCalled();
+    expect(push.launch).not.toBeNull();
+  });
+
+  it('leaves the daily reminder’s taps to the reminder (which opens Home itself)', () => {
+    const { push, openTab, router } = taps();
+    router.setReadiness(ready);
+    push.tap({ id: 'r-1', data: { kind: 'dailyReminder', day: 12 } });
+    push.tap({ id: 'r-2', data: { kind: 'testReminder' } });
+    expect(openTab).not.toHaveBeenCalled();
+  });
+
+  it('signed out or before the challenge: the tap is dropped — not opened after sign-in', () => {
+    const { push, openTab, router } = taps();
+    router.setReadiness({ navigation: true, inChallenge: false });
+    push.tap({ id: 'n-1', data: news('TEAM_DAY_COMPLETE') });
+    router.setReadiness(ready);
+    expect(openTab).not.toHaveBeenCalled();
+  });
+
+  it('a later tap opens even after an earlier one waited and opened', () => {
+    const { push, openTab, router } = taps();
+    push.tap({ id: 'n-1', data: news('TEAM_MEMBER_JOINED') });
+    router.setReadiness(ready);
+    push.tap({ id: 'n-2', data: news('TEAM_YOUR_TURN') });
+    expect(openTab.mock.calls).toEqual([['/friends'], ['/']]);
   });
 });
 

@@ -1,4 +1,3 @@
-import { router } from 'expo-router';
 import { useEffect, useEffectEvent, useState } from 'react';
 import { AppState } from 'react-native';
 
@@ -6,6 +5,7 @@ import { useCourseOutline } from '@/features/course/queries';
 import { useUser } from '@/features/profile/queries';
 import { useProgressState } from '@/features/progress/queries';
 import { logger } from '@/lib/logger';
+import { openTab } from '@/lib/open-tab';
 import { configureForegroundPresentation } from '@/services/notifications/expo-notification-adapter';
 import type { NotificationData } from '@/services/notifications/notification-adapter';
 import { useSettingsStore } from '@/stores/settings-store';
@@ -47,12 +47,12 @@ export function ReminderSync({ onboarded }: { onboarded: boolean }) {
   }, []);
 
   // A tapped reminder opens today's journey — or, after the summit, the
-  // finished Home; `/` is both. `dismissTo` returns to the Home that is
-  // already there, closing whatever was left open above it (its progress is
-  // saved); `navigate` would stack a second Home on top of it.
+  // finished Home; `/` is both. From a screen above the tabs it returns to the
+  // Home that is already there, closing whatever was left open (its progress
+  // is saved); from another tab it switches to Home (see `lib/open-tab.ts`).
   const openToday = useEffectEvent((data: NotificationData) => {
     if (!onboarded) return;
-    if (data.kind === 'dailyReminder' || data.kind === 'testReminder') router.dismissTo('/');
+    if (data.kind === 'dailyReminder' || data.kind === 'testReminder') openTab('/');
   });
   useEffect(() => {
     const subscription = notificationAdapter.onTap((data) => openToday(data));

@@ -157,10 +157,17 @@ user, the session (unique), the Expo push token (unique) and the platform — no
   it does the reminder's.
 - **Per account, per device**: Ada's choice waits for Ada on this phone; Bea signing in on it starts
   with the switch off.
-- **Taps**: team news opens the Friends tab, "your turn" opens Today — with Milo running, in the
-  background, or launched by the tap (the launch tap is opened once the navigator is up, then
-  forgotten). A notification is opened once, however often its tap is reported; signed out,
-  nothing opens. The daily reminder's taps stay `ReminderSync`'s.
+- **Taps**: team news opens the Friends tab (`app/(tabs)/friends.tsx`), "your turn" opens Today
+  (`app/(tabs)/index.tsx`) — with Milo open, in the background, or launched by the tap. The
+  listener is subscribed first, then the tap that launched Milo is read
+  (`getLastNotificationResponse`); a tap waits until the navigation is mounted and opens once —
+  however many times, and ways, it is reported — then the launch response is cleared. Signed out
+  or before the challenge, it is dropped. The daily reminder's taps stay `ReminderSync`'s.
+- **Opening a tab from anywhere** (`lib/open-tab.ts`, the reminder's tap too): with a screen open
+  above the tabs (a quest, Settings, a modal) `router.dismissTo` returns to the tabs, onto that
+  tab; already in the tabs, the tab is switched with `router.navigate`. `dismissTo` alone does
+  nothing there: it sends `POP_TO`, which the JS tab navigator does not handle (only native tabs
+  turn it into a tab switch) — the cause of taps that opened nothing on the first device test.
 - **While Milo is open** team news shows as usual and the team is fetched again; a daily reminder
   stays quiet (as before).
 - **Kept in the Keychain** (`stores/push-store.ts`): which accounts turned it on, the current
@@ -230,8 +237,11 @@ Database: `push_devices`, `push_jobs`, `push_tickets` (migration `…_push_notif
   refused; blocked; offline), the token registered, rotated and confirmed per launch, turning off
   (offline too), signing out (offline, through a restart), the account switch (the next account
   never gets the previous one's news; forgetting never undoes its registration), taps (Friends,
-  Today, once, cold start, signed out, the reminder's left alone), team news in the foreground,
-  the Android channel, iOS and Expo Go unsupported, the daily reminder still local and unaffected.
+  Today, once, cold start, a tap before the navigation is ready, duplicates, malformed data,
+  signed out, the reminder's left alone), team news in the foreground, the Android channel, iOS
+  and Expo Go unsupported, the daily reminder still local and unaffected. `lib/__tests__/open-tab`
+  runs Expo Router's own routers: `dismissTo` inside the tabs is not handled, and `openTab`
+  reaches the tab from every tab and from screens above the tabs.
 
 ## Known limitations
 

@@ -1,7 +1,7 @@
-import { router } from 'expo-router';
 import { Platform } from 'react-native';
 
 import { reminders } from '@/features/reminders/instance';
+import { openTab } from '@/lib/open-tab';
 import { deviceServices } from '@/providers/app-session';
 import { createExpoPushAdapter } from '@/services/notifications/expo-push-adapter';
 import { pushStateStore } from '@/stores/push-store';
@@ -21,12 +21,8 @@ export const teamNotifications = createTeamNotifications({
   platform: Platform.OS === 'ios' ? 'ios' : 'android',
 });
 
-/**
- * Taps open the team's news — or Today for "your turn". `dismissTo` returns to
- * the screen that is already there, closing whatever was open above it (as a
- * tapped reminder does); `navigate` would stack a second copy on top.
- */
+/** Taps open the team's news — or Today for "your turn" — from wherever the user is. */
 export const tapRouter = createTapRouter({
   push: pushAdapter,
-  navigate: (destination) => router.dismissTo(destination),
+  openTab: (destination) => openTab(destination),
 });
