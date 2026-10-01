@@ -243,7 +243,39 @@ Database: `push_devices`, `push_jobs`, `push_tickets` (migration `…_push_notif
   runs Expo Router's own routers: `dismissTo` inside the tabs is not handled, and `openTab`
   reaches the tab from every tab and from screens above the tabs.
 
+## Real-device QA (Android, development build, 2026-10-01)
+
+On a real Android phone — a development build from EAS, Metro and the Milo API on a Mac on the
+same network:
+
+- **Delivery**: team notifications arrive through Expo → FCM V1; Expo's receipts came back with no
+  errors.
+- **Taps**: with Milo open and in the background, team news opens Friends and "your turn" opens
+  Today. (The first device test found taps that opened nothing: they were routed with
+  `dismissTo`, which the JS tab navigator does not handle — fixed in `lib/open-tab.ts`.)
+- **Team notifications off**: the registration is deleted, no news is queued for the account, and
+  nothing arrives. **On again**: the device registers again and pushes arrive.
+- **Logout**: the server ends the session with its registration and the phone forgets its token;
+  news for the signed-out account (a teammate joining, a direct test push) is not queued or is
+  cancelled (`noDevice`). Nothing arrives.
+- **Account switch**: the same device token moves to the new account alone; news for the previous
+  account never reaches the phone.
+- **Duplicates**: "team day complete" arrives once; the same sync again (answered `duplicate`) and
+  the day played again with new ids send nothing more.
+- **Daily Reminder**: in airplane mode it is delivered, and its tap opens Today — no server, no
+  network.
+
+**Not conclusively verified: a true cold start** — tapping a notification after a phone reboot,
+with Milo not running. In a development build the app's JavaScript comes from Metro on the
+developer's Mac, and the phone itself provided the Mac's network (a hotspot): during the test the
+Mac's address changed, the development client could not reach Metro and stayed on a white screen
+before any of Milo's code ran. The cold-start path itself — the launch response read at start, a
+tap waiting for the navigation, opening once — is covered by unit tests; it is to be confirmed on a
+preview or production build, where the JavaScript is inside the app.
+
 ## Known limitations
+
+- **Cold start not confirmed on a device**: see Real-device QA above.
 
 - **Notification icon**: none of Milo's own yet. The mascot is a 3D render; a flat white
   silhouette of it is not recognizable at 24 dp, so none was made from it. Until a proper asset
